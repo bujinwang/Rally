@@ -7,6 +7,8 @@ export class StorageService {
     PLAYERS: 'offline_players',
     SYNC_QUEUE: 'offline_sync_queue',
     LAST_SYNC: 'last_sync_timestamp',
+    DEVICE_ID: 'device_id',
+    CACHED_SESSIONS: 'cached_sessions',
   };
 
   // Sessions Storage
@@ -143,11 +145,81 @@ export class StorageService {
     }
   }
 
+  // Device ID Management
+  static async getDeviceId(): Promise<string | null> {
+    try {
+      return await AsyncStorage.getItem(this.KEYS.DEVICE_ID);
+    } catch (error) {
+      console.error('Error getting device ID:', error);
+      return null;
+    }
+  }
+
+  static async setDeviceId(deviceId: string): Promise<void> {
+    try {
+      await AsyncStorage.setItem(this.KEYS.DEVICE_ID, deviceId);
+    } catch (error) {
+      console.error('Error setting device ID:', error);
+      throw error;
+    }
+  }
+
+  // Session Caching (for offline support)
+  static async cacheSession(session: any): Promise<void> {
+    try {
+      const cachedSessions = await this.getCachedSessions();
+      cachedSessions[session.shareCode] = {
+        ...session,
+        cachedAt: new Date().toISOString(),
+      };
+      await AsyncStorage.setItem(this.KEYS.CACHED_SESSIONS, JSON.stringify(cachedSessions));
+    } catch (error) {
+      console.error('Error caching session:', error);
+      throw error;
+    }
+  }
+
+  static async getCachedSession(shareCode: string): Promise<any | null> {
+    try {
+      const cachedSessions = await this.getCachedSessions();
+      const session = cachedSessions[shareCode];
+      
+      if (!session) return null;
+      
+      // Check if cache is still valid (24 hours)
+      const cachedAt = new Date(session.cachedAt);
+      const now = new Date();
+      const hoursDiff = (now.getTime() - cachedAt.getTime()) / (1000 * 60 * 60);
+      
+      if (hoursDiff > 24) {
+        // Cache expired, remove it
+        delete cachedSessions[shareCode];
+        await AsyncStorage.setItem(this.KEYS.CACHED_SESSIONS, JSON.stringify(cachedSessions));
+        return null;
+      }
+      
+      return session;
+    } catch (error) {
+      console.error('Error getting cached session:', error);
+      return null;
+    }
+  }
+
+  private static async getCachedSessions(): Promise<Record<string, any>> {
+    try {
+      const cached = await AsyncStorage.getItem(this.KEYS.CACHED_SESSIONS);
+      return cached ? JSON.parse(cached) : {};
+    } catch (error) {
+      console.error('Error getting cached sessions:', error);
+      return {};
+    }
+  }
+
   // Utility Methods
   static async clearAllData(): Promise<void> {
     try {
       const keys = await AsyncStorage.getAllKeys();
-      const appKeys = keys.filter(key => key.startsWith('offline_'));
+      const appKeys = keys.filter(key => key.startsWith('offline_') || key === this.KEYS.DEVICE_ID || key === this.KEYS.CACHED_SESSIONS);
       await AsyncStorage.multiRemove(appKeys);
     } catch (error) {
       console.error('Error clearing all data:', error);

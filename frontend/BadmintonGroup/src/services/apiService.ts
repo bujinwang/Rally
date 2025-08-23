@@ -13,7 +13,7 @@ interface ApiResponse<T> {
   timestamp: string;
 }
 
-class ApiService {
+export class ApiService {
   private baseURL: string;
   private timeout: number = 10000; // 10 seconds
 
@@ -22,7 +22,7 @@ class ApiService {
   }
 
   // Generic request method with offline support
-  private async request<T>(
+  protected async request<T>(
     endpoint: string,
     options: RequestInit = {},
     enableOffline: boolean = false

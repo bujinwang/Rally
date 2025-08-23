@@ -361,9 +361,10 @@ router.put('/players/:playerId/status', async (req, res) => {
 router.get('/my-sessions/:deviceId', async (req, res) => {
   try {
     const { deviceId } = req.params;
+    console.log('🔍 Get my sessions request:', { deviceId });
 
     const sessions = await prisma.mvpSession.findMany({
-      where: { 
+      where: {
         ownerDeviceId: deviceId,
         status: 'ACTIVE'
       },
@@ -374,6 +375,8 @@ router.get('/my-sessions/:deviceId', async (req, res) => {
       },
       orderBy: { createdAt: 'desc' }
     });
+
+    console.log('📊 Found sessions for device:', { deviceId, sessionCount: sessions.length, sessions: sessions.map(s => ({ id: s.id, name: s.name, ownerDeviceId: s.ownerDeviceId })) });
 
     const formattedSessions = sessions.map(session => ({
       id: session.id,

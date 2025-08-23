@@ -6,14 +6,35 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "main": "index.js",
+    "scheme": "badmintongroup",
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.badmintongroup.app",
+      "associatedDomains": ["applinks:badmintongroup.app"]
     },
     "android": {
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#ffffff",
+      "package": "com.badmintongroup.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "badmintongroup.app",
+              "pathPrefix": "/join"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "backgroundColor": "#ffffff"

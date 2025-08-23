@@ -25,6 +25,71 @@
             color: #333;
             text-align: center;
         }
+        
+        /* App Banner Styles */
+        .app-banner {
+            background: linear-gradient(135deg, #007AFF, #0056b3);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .banner-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .banner-text h3 {
+            margin: 0 0 5px 0;
+            font-size: 16px;
+        }
+        .banner-text p {
+            margin: 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .banner-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .btn-primary, .btn-secondary {
+            padding: 8px 12px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background: white;
+            color: #007AFF;
+        }
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
         .session-info {
             background: #f8f9fa;
             padding: 20px;
@@ -97,17 +162,45 @@
             margin-top: 15px;
         }
         .player-item {
-            padding: 8px 0;
-            border-bottom: 1px solid #eee;
+            padding: 6px 0;
+            text-align: left;
+            padding-left: 0;
         }
         .code-input {
             margin-bottom: 20px;
+        }
+        
+        @media (max-width: 480px) {
+            .banner-content {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .banner-buttons {
+                width: 100%;
+                justify-content: flex-start;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1 class="title">🏸 Join Badminton Session</h1>
+        
+        <!-- App Download Banner -->
+        <div id="app-banner" class="app-banner" style="display: none;">
+            <div class="banner-content">
+                <div class="banner-text">
+                    <h3>📱 Get the BadmintonGroup App!</h3>
+                    <p>Better experience on mobile - join sessions faster!</p>
+                </div>
+                <div class="banner-buttons">
+                    <a href="#" id="open-app-btn" class="btn-primary">Open App</a>
+                    <a href="https://apps.apple.com/app/badmintongroup" class="btn-secondary">App Store</a>
+                    <a href="https://play.google.com/store/apps/details?id=com.badmintongroup" class="btn-secondary">Google Play</a>
+                </div>
+                <button id="close-banner" class="close-btn">×</button>
+            </div>
+        </div>
         
         <div id="code-entry" class="code-input">
             <div class="form-group">
@@ -142,7 +235,10 @@
         <div id="success" style="display: none;">
             <div class="success">
                 <h2>🎉 Successfully joined!</h2>
-                <p>Welcome to the session! You can now close this page.</p>
+                <p>Welcome to the session! Here are the details:</p>
+                <div id="success-session-info" class="session-info" style="margin-top: 20px;">
+                    <!-- Session details will be populated here after joining -->
+                </div>
             </div>
         </div>
     </div>
@@ -151,6 +247,17 @@
         const API_BASE = 'http://localhost:3001/api/v1';
         let sessionData = null;
         let shareCode = null;
+
+        // App Banner Functions
+        function showAppBanner() {
+            const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const hasVisitedBefore = localStorage.getItem('badminton-web-visited');
+            
+            if (isMobile && !hasVisitedBefore) {
+                document.getElementById('app-banner').style.display = 'block';
+                localStorage.setItem('badminton-web-visited', 'true');
+            }
+        }
 
         // Extract share code from URL parameters or hash
         function getShareCodeFromUrl() {
@@ -238,8 +345,8 @@
         function displaySession(session) {
             const sessionInfo = document.getElementById('session-info');
             
-            const playersHtml = session.players.map((player, index) => 
-                `<div class="player-item">${index + 1}. ${player.name}${player.name === session.ownerName ? ' ⭐' : ''}</div>`
+            const playersHtml = session.players.map((player) =>
+                `<div class="player-item">${player.name}${player.name === session.ownerName ? ' ⭐' : ''}</div>`
             ).join('');
 
             sessionInfo.innerHTML = `
@@ -281,7 +388,7 @@
         // Join session
         async function joinSession() {
             const playerName = document.getElementById('playerName').value.trim();
-            
+
             if (!playerName) {
                 alert('Please enter your name');
                 return;
@@ -312,6 +419,8 @@
                 const result = await response.json();
 
                 if (result.success) {
+                    // Fetch updated session data with all players
+                    await fetchUpdatedSession();
                     document.getElementById('session-content').style.display = 'none';
                     document.getElementById('success').style.display = 'block';
                 } else {
@@ -325,8 +434,85 @@
             }
         }
 
+        // Fetch updated session data after joining
+        async function fetchUpdatedSession() {
+            try {
+                const response = await fetch(`${API_BASE}/mvp-sessions/join/${shareCode}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    const updatedSession = result.data.session;
+                    displaySuccessSession(updatedSession);
+                }
+            } catch (error) {
+                console.error('Error fetching updated session:', error);
+            }
+        }
+
+        // Display session details in success message
+        function displaySuccessSession(session) {
+            const successInfo = document.getElementById('success-session-info');
+
+            const playersHtml = session.players.map((player, index) =>
+                `<div class="player-item">${index + 1}. ${player.name}${player.name === session.ownerName ? ' ⭐' : ''}</div>`
+            ).join('');
+
+            successInfo.innerHTML = `
+                <div class="info-row">
+                    <span class="info-label">📅 When:</span>
+                    ${formatDateTime(session.scheduledAt)}
+                </div>
+                <div class="info-row">
+                    <span class="info-label">📍 Where:</span>
+                    ${session.location || 'Location TBD'}
+                </div>
+                <div class="info-row">
+                    <span class="info-label">👤 Organizer:</span>
+                    ${session.ownerName}
+                </div>
+                <div class="info-row">
+                    <span class="info-label">🔗 Code:</span>
+                    <strong>${shareCode}</strong>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">👥 Players:</span>
+                    ${session.players.length}/${session.maxPlayers}
+                </div>
+                ${session.players.length > 0 ? `
+                    <div class="players-list" style="margin-top: 15px;">
+                        <strong>All Players:</strong>
+                        ${playersHtml}
+                    </div>
+                ` : ''}
+            `;
+        }
+
         // Handle Enter key
         document.addEventListener('DOMContentLoaded', function() {
+            // Show app banner on page load
+            showAppBanner();
+            
+            // App banner event listeners
+            document.getElementById('open-app-btn')?.addEventListener('click', function(e) {
+                e.preventDefault();
+                const appUrl = `badmintongroup://join?code=${shareCode}`;
+                
+                // Try to open app
+                window.location = appUrl;
+                
+                // Fallback to current page if app doesn't open
+                setTimeout(() => {
+                    if (!document.hidden) {
+                        // App didn't open, user is still on web page
+                        alert('App not installed. You can continue using the web version or download the app!');
+                    }
+                }, 2000);
+            });
+
+            document.getElementById('close-banner')?.addEventListener('click', function() {
+                document.getElementById('app-banner').style.display = 'none';
+            });
+            
             document.getElementById('shareCodeInput').addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {
                     loadSessionFromInput();

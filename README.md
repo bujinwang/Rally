@@ -204,6 +204,9 @@ npm run web
 # Run tests
 npm test
 ```
+# Start the expo:
+npx expo start --clear --localhost
+```
 
 ### Database Management
 

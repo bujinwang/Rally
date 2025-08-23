@@ -167,30 +167,49 @@ export default function JoinSessionScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.sessionCard}>
-        <Text style={styles.title}>{sessionData.name}</Text>
+        <Text style={styles.title}>🏸 Join Badminton Session</Text>
+        
+        <View style={styles.successMessage}>
+          <Text style={styles.successIcon}>🎉</Text>
+          <Text style={styles.successText}>Successfully joined!</Text>
+        </View>
+        
+        <Text style={styles.welcomeText}>Welcome to the session! Here are the details:</Text>
         
         <View style={styles.sessionInfo}>
-          <Text style={styles.label}>📅 When:</Text>
-          <Text style={styles.value}>{formatDateTime(sessionData.scheduledAt)}</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>📅 When:</Text>
+            <Text style={styles.value}>{formatDateTime(sessionData.scheduledAt)}</Text>
+          </View>
           
-          <Text style={styles.label}>📍 Where:</Text>
-          <Text style={styles.value}>{sessionData.location || 'Location TBD'}</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>📍 Where:</Text>
+            <Text style={styles.value}>{sessionData.location || 'Modu'}</Text>
+          </View>
           
-          <Text style={styles.label}>👤 Organized by:</Text>
-          <Text style={styles.value}>{sessionData.ownerName}</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>👤 Organizer:</Text>
+            <Text style={styles.value}>{sessionData.ownerName}</Text>
+          </View>
+          
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>🔗 Code:</Text>
+            <Text style={styles.value}>{shareCode}</Text>
+          </View>
+          
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>👥 Players:</Text>
+            <Text style={styles.value}>{sessionData.playerCount}/{sessionData.maxPlayers}</Text>
+          </View>
         </View>
 
         {sessionData.players.length > 0 && (
           <View style={styles.playersSection}>
-            <Text style={styles.playersTitle}>Current Players:</Text>
+            <Text style={styles.playersTitle}>All Players:</Text>
             {sessionData.players.map((player, index) => (
-              <View key={player.id} style={styles.playerItem}>
-                <Text style={styles.playerName}>
-                  {index + 1}. {player.name}
-                  {player.name === sessionData.ownerName && ' (Organizer)'}
-                </Text>
-                <Text style={styles.playerStatus}>{player.status}</Text>
-              </View>
+              <Text key={player.id} style={styles.playerListItem}>
+                {index + 1}. {player.name}{player.name === sessionData.ownerName && ' ⭐'}
+              </Text>
             ))}
           </View>
         )}
@@ -276,24 +295,54 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: 'bold',
-    textAlign: 'center',
+    textAlign: 'left',
     marginBottom: 20,
     color: '#333',
   },
   sessionInfo: {
     marginBottom: 20,
   },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  successMessage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    backgroundColor: '#e8f5e8',
+    padding: 12,
+    borderRadius: 8,
+  },
+  successIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  successText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#22c55e',
+  },
+  welcomeText: {
+    fontSize: 16,
+    color: '#22c55e',
+    marginBottom: 20,
+    textAlign: 'left',
+  },
   label: {
     fontSize: 14,
     fontWeight: '600',
     color: '#666',
-    marginTop: 10,
+    minWidth: 90,
+    textAlign: 'left',
   },
   value: {
     fontSize: 16,
     color: '#333',
-    marginTop: 2,
-    marginBottom: 5,
+    flex: 1,
+    textAlign: 'left',
+    marginLeft: 8,
   },
   playersSection: {
     borderTopWidth: 1,
@@ -303,27 +352,15 @@ const styles = StyleSheet.create({
   playersTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 10,
+    color: '#22c55e',
+    marginBottom: 12,
+    textAlign: 'left',
   },
-  playerItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 5,
-  },
-  playerName: {
+  playerListItem: {
     fontSize: 14,
     color: '#333',
-    flex: 1,
-  },
-  playerStatus: {
-    fontSize: 12,
-    color: '#666',
-    backgroundColor: '#f0f0f0',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
+    lineHeight: 22,
+    textAlign: 'left',
   },
   joinSection: {
     backgroundColor: 'white',
@@ -340,6 +377,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 15,
     color: '#333',
+    textAlign: 'left',
   },
   input: {
     borderWidth: 1,

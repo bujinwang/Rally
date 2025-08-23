@@ -23,31 +23,56 @@ export const setupSocket = (io: SocketServer): void => {
       console.log(`👤 User ${socket.id} left session ${sessionId}`);
     });
 
-    // Player status updates
-    socket.on('player-status-update', async (data) => {
-      const { sessionId, playerId, status } = data;
+    // MVP Player status updates
+    socket.on('mvp-player-status-update', async (data) => {
+      const { shareCode, playerId, status } = data;
 
-      // Update player status in database
       try {
-        await prisma.sessionPlayer.update({
-          where: {
-            sessionId_userId: {
-              sessionId,
-              userId: playerId
-            }
-          },
+        // Update MVP player status in database
+        await prisma.mvpPlayer.update({
+          where: { id: playerId },
           data: { status }
         });
 
-        // Broadcast to session
-        io.to(`session-${sessionId}`).emit('player-status-updated', {
-          playerId,
-          status,
-          timestamp: new Date().toISOString()
+        // Get updated session data
+        const session = await prisma.mvpSession.findUnique({
+          where: { shareCode },
+          include: { players: true }
         });
+
+        if (session) {
+          // Broadcast to session room using shareCode
+          io.to(`session-${shareCode}`).emit('mvp-session-updated', {
+            session,
+            timestamp: new Date().toISOString()
+          });
+        }
       } catch (error) {
-        console.error('Error updating player status:', error);
+        console.error('Error updating MVP player status:', error);
         socket.emit('error', { message: 'Failed to update player status' });
+      }
+    });
+
+    // MVP Player joined session
+    socket.on('mvp-player-joined', async (data) => {
+      const { shareCode, player } = data;
+      
+      try {
+        // Get updated session data
+        const session = await prisma.mvpSession.findUnique({
+          where: { shareCode },
+          include: { players: true }
+        });
+
+        if (session) {
+          // Broadcast to session room
+          io.to(`session-${shareCode}`).emit('mvp-session-updated', {
+            session,
+            timestamp: new Date().toISOString()
+          });
+        }
+      } catch (error) {
+        console.error('Error handling player joined:', error);
       }
     });
 

@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ScrollView,
-  ActivityIndicator,
-  Share,
-  TextInput,
-  Modal
-} from 'react-native';
-import { useRoute, useNavigation } from '@react-navigation/native';
-import * as Clipboard from 'expo-clipboard';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+   View,
+   Text,
+   TouchableOpacity,
+   StyleSheet,
+   Alert,
+   ScrollView,
+   ActivityIndicator,
+   Share,
+   TextInput,
+   Modal
+ } from 'react-native';
+ import { useRoute, useNavigation } from '@react-navigation/native';
+ import * as Clipboard from 'expo-clipboard';
+ import AsyncStorage from '@react-native-async-storage/async-storage';
+ import { createShareableLinks } from '../components/ShareLinkHandler';
 
 const API_BASE_URL = 'http://localhost:3001/api/v1';
 
@@ -71,7 +72,7 @@ export default function SessionDetailScreen() {
       setIsNewSession(params.isNewSession || false);
       
       // Always fetch fresh session data to ensure players are loaded
-      await fetchSessionData(params.shareCode, storedDeviceId);
+      await fetchSessionData(params.shareCode, storedDeviceId || undefined);
       
       // Auto-copy clipboard message for new sessions
       if (params.isNewSession && sessionData) {
@@ -300,25 +301,62 @@ ${location}
 
 ${playersList}${currentCount < maxPlayers ? '\n\nWho else?' : ''}
 
-Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join.html?code=${code}`;
+Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
   };
 
   const copySessionToClipboard = async (session: SessionData, code: string) => {
-    const clipboardText = formatSessionForClipboard(session, code);
-    
+    // Format date and time like the display
+    const sessionDate = new Date(session.scheduledAt);
+    const formattedDate = sessionDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    // Create players list with organizer first and star
+    const players = session.players || [];
+    const organizer = session.ownerName;
+
+    // Sort players with organizer first
+    const organizerPlayer = players.find(p => p.name === organizer);
+    const otherPlayers = players.filter(p => p.name !== organizer);
+    const sortedPlayers = organizerPlayer ? [organizerPlayer, ...otherPlayers] : players;
+
+    // Format players list
+    const playersList = sortedPlayers.map((player, index) =>
+      `${index + 1}. ${player.name}${player.name === organizer ? ' ⭐' : ''}`
+    ).join('\n');
+
+    // Create comprehensive session message
+    const sessionMessage = `🏸 ${session.name}
+
+📅 When: ${formattedDate}
+📍 Where: ${session.location || 'Location TBD'}
+👤 Organizer: ${session.ownerName}
+🔗 Code: ${code}
+👥 Players: ${players.length}/${session.maxPlayers}
+
+All Players:
+${playersList}
+
+Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
+
     try {
-      await Clipboard.setStringAsync(clipboardText);
+      await Clipboard.setStringAsync(sessionMessage);
       Alert.alert(
-        '📋 Copied to Clipboard!',
-        'Session info has been copied and is ready to paste to WeChat or WhatsApp.',
+        '📋 Session Details Copied!',
+        'Session information has been copied to clipboard and is ready to share on WeChat or WhatsApp.',
         [{ text: 'OK' }]
       );
     } catch (error) {
       console.error('Copy to clipboard failed:', error);
       // Fallback: show the text in an alert
       Alert.alert(
-        'Session Info',
-        `Copy this text:\n\n${clipboardText}`,
+        'Session Details',
+        `Copy this message:\n\n${sessionMessage}`,
         [{ text: 'OK' }]
       );
     }
@@ -327,33 +365,15 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join.html?code=${co
   const shareSession = async () => {
     if (!sessionData || !shareCode) return;
 
-    const shareUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/join.html?code=${shareCode}`;
-    
-    // Create share message for WeChat (Chinese)
-    const weChatMessage = `🏸 羽毛球局邀请
-
-📅 时间: ${formatDateTime(sessionData.scheduledAt)}
-📍 地点: ${sessionData.location || '待定'}
-👤 组织者: ${sessionData.ownerName}
-
-点击链接加入: ${shareUrl}
-
-分享码: ${shareCode}
-
---- 复制分享到微信群 ---`;
-
-    // Create share message for WhatsApp (English)
-    const whatsAppMessage = `🏸 Badminton Session Invitation
-
-📅 When: ${formatDateTime(sessionData.scheduledAt)}
-📍 Where: ${sessionData.location || 'TBD'}
-👤 Organizer: ${sessionData.ownerName}
-
-Join here: ${shareUrl}
-
-Share Code: ${shareCode}
-
---- Copy and share to WhatsApp ---`;
+    // Use the new createShareableLinks function with player data
+    const { weChatMessage, whatsAppMessage, shareUrl } = createShareableLinks(
+      shareCode,
+      sessionData.name,
+      sessionData.scheduledAt,
+      sessionData.location,
+      sessionData.ownerName,
+      sessionData.players || []
+    );
 
     Alert.alert(
       'Share Session',
@@ -637,13 +657,13 @@ const getStatusStyle = (status: string) => {
 const getSessionStatusStyle = (status: string) => {
   switch (status) {
     case 'ACTIVE':
-      return { color: '#4CAF50', fontWeight: 'bold' };
+      return { color: '#4CAF50', fontWeight: 'bold' as const };
     case 'CANCELLED':
-      return { color: '#f44336', fontWeight: 'bold' };
+      return { color: '#f44336', fontWeight: 'bold' as const };
     case 'COMPLETED':
-      return { color: '#9E9E9E', fontWeight: 'bold' };
+      return { color: '#9E9E9E', fontWeight: 'bold' as const };
     default:
-      return { color: '#333', fontWeight: 'bold' };
+      return { color: '#333', fontWeight: 'bold' as const };
   }
 };
 
@@ -663,8 +683,7 @@ const getSessionStatusText = (status: string) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    padding: 20,
+    backgroundColor: '#F9F9F9', // Lighter gray background
   },
   successCard: {
     backgroundColor: '#4CAF50',
@@ -724,27 +743,27 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 18,
-    color: '#666',
+    color: '#D32F2F', // Error text in red
     marginBottom: 20,
     textAlign: 'center',
   },
   sessionCard: {
     backgroundColor: 'white',
+    margin: 16,
+    borderRadius: 12,
     padding: 20,
-    borderRadius: 10,
-    marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
     elevation: 3,
   },
   title: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 20,
-    color: '#333',
+    marginBottom: 24,
+    color: '#212121',
   },
   sessionInfo: {
     marginBottom: 20,
@@ -752,79 +771,81 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#666',
-    marginTop: 10,
+    color: '#757575',
+    marginTop: 12,
+    textTransform: 'uppercase',
   },
   value: {
-    fontSize: 16,
-    color: '#333',
-    marginTop: 2,
-    marginBottom: 5,
+    fontSize: 18,
+    color: '#212121',
+    marginTop: 4,
+    marginBottom: 8,
   },
   statusValue: {
     textTransform: 'capitalize',
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   actionButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
+    justifyContent: 'space-around',
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#EEEEEE',
+    paddingTop: 20,
   },
   copyButton: {
-    backgroundColor: '#34C759',
-    padding: 12,
-    borderRadius: 8,
-    flex: 1,
-    marginRight: 5,
+    backgroundColor: '#E8F5E9', // Lighter green
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 20,
     alignItems: 'center',
   },
   copyButtonText: {
-    color: 'white',
+    color: '#4CAF50', // Darker green text
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   shareButton: {
-    backgroundColor: '#007AFF',
-    padding: 12,
-    borderRadius: 8,
-    flex: 1,
-    marginHorizontal: 5,
+    backgroundColor: '#E3F2FD', // Lighter blue
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 20,
     alignItems: 'center',
   },
   shareButtonText: {
-    color: 'white',
+    color: '#2196F3', // Darker blue text
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   refreshButton: {
-    backgroundColor: '#FF9500',
-    padding: 12,
-    borderRadius: 8,
-    flex: 1,
-    marginLeft: 5,
+    backgroundColor: '#FFF3E0', // Lighter orange
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 20,
     alignItems: 'center',
   },
   refreshButtonText: {
-    color: 'white',
+    color: '#FF9800', // Darker orange text
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   playersCard: {
     backgroundColor: 'white',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 12,
     padding: 20,
-    borderRadius: 10,
-    marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
     elevation: 3,
   },
   playersTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 15,
-    color: '#333',
+    marginBottom: 16,
+    color: '#212121',
   },
   noPlayersText: {
     fontSize: 16,
@@ -837,21 +858,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#F5F5F5',
   },
   playerInfo: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   playerName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
-    color: '#333',
+    color: '#212121',
+    marginLeft: 8,
   },
   playerMeta: {
     fontSize: 12,
-    color: '#666',
+    color: '#757575',
     marginTop: 2,
   },
   playerStats: {
@@ -874,26 +898,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   infoCard: {
-    backgroundColor: 'white',
+    backgroundColor: '#E3F2FD',
+    marginHorizontal: 16,
+    borderRadius: 12,
     padding: 20,
-    borderRadius: 10,
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
   infoTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 10,
-    color: '#333',
+    color: '#1E88E5',
   },
   infoText: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
+    fontSize: 15,
+    color: '#424242',
+    lineHeight: 22,
   },
   button: {
     backgroundColor: '#007AFF',

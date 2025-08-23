@@ -41,48 +41,71 @@ export const extractShareCodeFromUrl = (url: string): string | null => {
 };
 
 // Function to create shareable URLs for different platforms
-export const createShareableLinks = (shareCode: string, sessionName: string, scheduledAt: string, location: string, ownerName: string) => {
-  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-  const shareUrl = `${baseUrl}/join/${shareCode}`;
+export const createShareableLinks = (
+  shareCode: string,
+  sessionName: string,
+  scheduledAt: string,
+  location: string,
+  ownerName: string,
+  players: Array<{name: string, status: string}> = []
+) => {
+  // Universal link that works for both app and web
+  const universalUrl = `https://badmintongroup.app/join/${shareCode}`;
   
-  // WeChat message (Chinese)
-  const weChatMessage = `🏸 羽毛球局邀请
-
-📅 时间: ${new Date(scheduledAt).toLocaleDateString('zh-CN', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
+  // Fallback web URL for development/testing
+  const webFallbackUrl = `http://localhost:3000/join.html?code=${shareCode}`;
+  
+  // Format date and time
+  const sessionDate = new Date(scheduledAt);
+  const dateStr = sessionDate.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric'
+  });
+  const startTime = sessionDate.toLocaleTimeString('en-US', {
     hour: '2-digit',
-    minute: '2-digit'
-  })}
+    minute: '2-digit',
+    hour12: false
+  });
+
+  // Calculate end time (assuming 2-hour default)
+  const endTime = new Date(sessionDate.getTime() + 2 * 60 * 60 * 1000).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+
+  // Format players list
+  const formatPlayersList = (players: Array<{name: string, status: string}>) => {
+    if (players.length === 0) return `${ownerName}(*)`;
+
+    const playerNames = players.map(player => {
+      const isOwner = player.name === ownerName;
+      return isOwner ? `${player.name}(*)` : player.name;
+    });
+
+    return playerNames.join(', ');
+  };
+
+  const playersList = formatPlayersList(players);
+
+  // WeChat message (Chinese) - compact format
+  const weChatMessage = `${location || '羽毛球'} - ${dateStr} ${startTime}-${endTime}
 📍 地点: ${location || '待定'}
-👤 组织者: ${ownerName}
+👥 玩家: ${playersList}
 
-点击链接加入: ${shareUrl}
+🏸 点击加入: ${universalUrl}
+💡 建议下载BadmintonGroup App获得更好体验！`;
 
-代码: ${shareCode}`;
+  const whatsAppMessage = `${location || 'Badminton'} - ${dateStr} ${startTime}-${endTime}
+📍 Where: ${location || 'TBD'}  
+👥 Players: ${playersList}
 
-  // WhatsApp message (English)
-  const whatsAppMessage = `🏸 Badminton Session Invitation
-
-📅 When: ${new Date(scheduledAt).toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })}
-📍 Where: ${location || 'TBD'}
-👤 Organizer: ${ownerName}
-
-Join here: ${shareUrl}
-
-Code: ${shareCode}`;
+🏸 Join: ${universalUrl}
+💡 Download BadmintonGroup App for best experience!`;
 
   return {
-    shareUrl,
+    shareUrl: universalUrl,
+    webFallbackUrl,
     weChatMessage,
     whatsAppMessage,
     shareCode

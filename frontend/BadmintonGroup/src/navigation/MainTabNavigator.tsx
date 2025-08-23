@@ -9,6 +9,8 @@ import MySessionsScreen from '../screens/MySessionsScreen';
 import JoinSessionScreen from '../screens/JoinSessionScreen';
 import SessionDetailScreen from '../screens/SessionDetailScreen';
 import MoreScreen from '../screens/MoreScreen';
+import PlayerCardDemo from '../screens/demo/PlayerCardDemo';
+import SessionOverviewScreen from '../screens/SessionOverviewScreen';
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
@@ -123,10 +125,10 @@ const MainTabNavigator = () => {
       />
       <Tab.Screen 
         name="More" 
-        component={MoreScreen}
+        component={SessionOverviewScreen}
         options={{
-          tabBarLabel: 'More',
-          title: 'More'
+          tabBarLabel: 'Session',
+          title: 'Session Overview'
         }}
       />
     </Tab.Navigator>
