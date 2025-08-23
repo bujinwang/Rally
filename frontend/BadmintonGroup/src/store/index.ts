@@ -7,6 +7,7 @@ import sessionReducer from './slices/sessionSlice';
 import rotationReducer from './slices/rotationSlice';
 import playerReducer from './slices/playerSlice';
 import uiReducer from './slices/uiSlice';
+import realTimeReducer from './slices/realTimeSlice';
 
 export const store = configureStore({
   reducer: {
@@ -15,6 +16,7 @@ export const store = configureStore({
     rotation: rotationReducer,
     players: playerReducer,
     ui: uiReducer,
+    realTime: realTimeReducer,
   },
 });
 

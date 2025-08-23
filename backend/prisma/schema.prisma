@@ -50,7 +50,7 @@ model MvpPlayer {
 
   // Player info
   name       String
-  deviceId   String? @unique // For player identification
+  deviceId   String? // For player identification
 
   // Player stats
   joinedAt     DateTime @default(now())
@@ -60,6 +60,7 @@ model MvpPlayer {
   losses       Int      @default(0)
 
   @@unique([sessionId, name]) // Prevent duplicate names in same session
+  @@unique([sessionId, deviceId]) // Prevent same device joining same session twice
   @@map("mvp_players")
 }
 
