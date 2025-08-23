@@ -1,0 +1,166 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// MVP Models for First Version (No Authentication Required)
+model MvpSession {
+  id          String   @id @default(cuid())
+  name        String   // City + Date + Time format
+
+  // Session Details (Simplified)
+  scheduledAt DateTime
+  location    String?
+  maxPlayers  Int      @default(20)
+  skillLevel  String?
+  cost        Float?
+  description String?
+
+  // Owner info stored directly (no user account required)
+  ownerName   String
+  ownerDeviceId String? // For session management
+
+  // Shareable link
+  shareCode   String   @unique // Short code for sharing
+
+  // Status
+  status MvpSessionStatus @default(ACTIVE)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  players MvpPlayer[]
+
+  @@map("mvp_sessions")
+}
+
+model MvpPlayer {
+  id        String @id @default(cuid())
+  sessionId String
+  session   MvpSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Player info
+  name       String
+  deviceId   String? @unique // For player identification
+
+  // Player stats
+  joinedAt     DateTime @default(now())
+  status       MvpPlayerStatus @default(ACTIVE)
+  gamesPlayed  Int      @default(0)
+  wins         Int      @default(0)
+  losses       Int      @default(0)
+
+  @@unique([sessionId, name]) // Prevent duplicate names in same session
+  @@map("mvp_players")
+}
+
+// MVP Enums
+enum MvpSessionStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum MvpPlayerStatus {
+  ACTIVE
+  RESTING
+  LEFT
+}
+
+// Users (Players and Session Owners)
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?  @unique
+  phone     String?
+  avatarUrl String?
+
+  // Authentication
+  passwordHash String?
+  deviceId     String?
+  role         UserRole @default(PLAYER)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  ownedSessions    Session[]      @relation("SessionOwner")
+  sessionPlayers   SessionPlayer[]
+
+  @@map("users")
+}
+
+// Sessions (Badminton Games/Sessions)
+model Session {
+  id          String   @id @default(cuid())
+  name        String   // City + Date + Time format
+  ownerId     String
+  owner       User     @relation("SessionOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  // Session Details
+  scheduledAt DateTime
+  location    String?
+  maxPlayers  Int      @default(20)
+  skillLevel  String?
+  cost        Float?
+  description String?
+
+  // Status
+  status SessionStatus @default(ACTIVE)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  sessionPlayers SessionPlayer[]
+
+  @@map("sessions")
+}
+
+// Session Players (Many-to-many relationship)
+model SessionPlayer {
+  id        String @id @default(cuid())
+  sessionId String
+  userId    String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Player Stats
+  joinedAt     DateTime @default(now())
+  status       PlayerStatus @default(ACTIVE)
+  gamesPlayed  Int      @default(0)
+  wins         Int      @default(0)
+  losses       Int      @default(0)
+
+  @@unique([sessionId, userId])
+  @@map("session_players")
+}
+
+// Enums
+enum UserRole {
+  OWNER
+  PLAYER
+}
+
+enum SessionStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum PlayerStatus {
+  ACTIVE
+  RESTING
+  LEFT
+}

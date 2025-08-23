@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Join Badminton Session</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #333;
+            text-align: center;
+        }
+        .session-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .join-form {
+            margin-top: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        .btn {
+            background: #007AFF;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+            padding: 40px 0;
+        }
+        .error {
+            color: #dc3545;
+            text-align: center;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8d7da;
+            border-radius: 6px;
+        }
+        .success {
+            color: #28a745;
+            text-align: center;
+            margin: 20px 0;
+            padding: 40px 20px;
+        }
+        .info-row {
+            margin-bottom: 8px;
+        }
+        .info-label {
+            font-weight: 600;
+            color: #666;
+            display: inline-block;
+            width: 120px;
+        }
+        .players-list {
+            margin-top: 15px;
+        }
+        .player-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .code-input {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">🏸 Join Badminton Session</h1>
+        
+        <div id="code-entry" class="code-input">
+            <div class="form-group">
+                <label for="shareCodeInput">Session Code</label>
+                <input type="text" id="shareCodeInput" placeholder="Enter 6-character code (e.g., BWJ2YF)" maxlength="6" style="text-transform: uppercase;">
+            </div>
+            <button class="btn" onclick="loadSessionFromInput()">Load Session</button>
+        </div>
+        
+        <div id="loading" class="loading" style="display: none;">
+            Loading session details...
+        </div>
+        
+        <div id="error" class="error" style="display: none;">
+            Session not found or invalid share code.
+        </div>
+        
+        <div id="session-content" style="display: none;">
+            <div class="session-info" id="session-info">
+                <!-- Session details will be populated here -->
+            </div>
+            
+            <div class="join-form">
+                <div class="form-group">
+                    <label for="playerName">Your Name *</label>
+                    <input type="text" id="playerName" placeholder="Enter your name" maxlength="100" required>
+                </div>
+                <button class="btn" onclick="joinSession()">Join Session</button>
+            </div>
+        </div>
+        
+        <div id="success" style="display: none;">
+            <div class="success">
+                <h2>🎉 Successfully joined!</h2>
+                <p>Welcome to the session! You can now close this page.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001/api/v1';
+        let sessionData = null;
+        let shareCode = null;
+
+        // Extract share code from URL parameters or hash
+        function getShareCodeFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const hashCode = window.location.hash.replace('#', '');
+            const pathMatch = window.location.pathname.match(/\/join\/([A-Z0-9]{6})/i);
+            
+            return urlParams.get('code') || hashCode || (pathMatch ? pathMatch[1] : null);
+        }
+
+        // Load session from input field
+        function loadSessionFromInput() {
+            const code = document.getElementById('shareCodeInput').value.trim().toUpperCase();
+            if (!code) {
+                alert('Please enter a session code');
+                return;
+            }
+            if (code.length !== 6) {
+                alert('Session code must be 6 characters');
+                return;
+            }
+            shareCode = code;
+            loadSession();
+        }
+
+        // Format date/time
+        function formatDateTime(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // Load session data
+        async function loadSession() {
+            if (!shareCode) {
+                shareCode = getShareCodeFromUrl();
+            }
+            
+            if (!shareCode) {
+                return; // Show code entry form
+            }
+
+            // Hide code entry and show loading
+            document.getElementById('code-entry').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+
+            try {
+                const response = await fetch(`${API_BASE}/mvp-sessions/join/${shareCode}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    sessionData = result.data.session;
+                    displaySession(sessionData);
+                } else {
+                    throw new Error(result.error?.message || 'Session not found');
+                }
+            } catch (error) {
+                console.error('Error loading session:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').innerHTML = `
+                    ${error.message || 'Failed to load session'}<br><br>
+                    <button class="btn" onclick="showCodeEntry()" style="width: auto; padding: 8px 16px;">Try Another Code</button>
+                `;
+            }
+        }
+
+        function showCodeEntry() {
+            document.getElementById('code-entry').style.display = 'block';
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('session-content').style.display = 'none';
+            document.getElementById('shareCodeInput').value = '';
+            shareCode = null;
+        }
+
+        // Display session information
+        function displaySession(session) {
+            const sessionInfo = document.getElementById('session-info');
+            
+            const playersHtml = session.players.map((player, index) => 
+                `<div class="player-item">${index + 1}. ${player.name}${player.name === session.ownerName ? ' ⭐' : ''}</div>`
+            ).join('');
+
+            sessionInfo.innerHTML = `
+                <div class="info-row">
+                    <span class="info-label">📅 When:</span>
+                    ${formatDateTime(session.scheduledAt)}
+                </div>
+                <div class="info-row">
+                    <span class="info-label">📍 Where:</span>
+                    ${session.location || 'Location TBD'}
+                </div>
+                <div class="info-row">
+                    <span class="info-label">👤 Organizer:</span>
+                    ${session.ownerName}
+                </div>
+                <div class="info-row">
+                    <span class="info-label">🔗 Code:</span>
+                    <strong>${shareCode}</strong>
+                </div>
+                ${session.players.length > 0 ? `
+                    <div class="players-list">
+                        <strong>Current Players:</strong>
+                        ${playersHtml}
+                    </div>
+                ` : ''}
+            `;
+
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('session-content').style.display = 'block';
+
+            // Check if session is full
+            if (session.playerCount >= session.maxPlayers) {
+                document.querySelector('.btn').innerHTML = 'Session Full';
+                document.querySelector('.btn').disabled = true;
+                document.querySelector('.btn').style.backgroundColor = '#ccc';
+            }
+        }
+
+        // Join session
+        async function joinSession() {
+            const playerName = document.getElementById('playerName').value.trim();
+            
+            if (!playerName) {
+                alert('Please enter your name');
+                return;
+            }
+
+            if (!shareCode || !sessionData) {
+                alert('Session data not available');
+                return;
+            }
+
+            const btn = document.querySelector('#session-content .btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = 'Joining...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(`${API_BASE}/mvp-sessions/join/${shareCode}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: playerName,
+                        deviceId: 'web_' + Math.random().toString(36).substr(2, 9)
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    document.getElementById('session-content').style.display = 'none';
+                    document.getElementById('success').style.display = 'block';
+                } else {
+                    throw new Error(result.error?.message || 'Failed to join session');
+                }
+            } catch (error) {
+                console.error('Error joining session:', error);
+                alert(error.message || 'Failed to join session');
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Handle Enter key
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('shareCodeInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    loadSessionFromInput();
+                }
+            });
+            
+            document.getElementById('shareCodeInput').addEventListener('input', function(e) {
+                e.target.value = e.target.value.toUpperCase();
+            });
+
+            // Auto-load if code is in URL
+            const autoCode = getShareCodeFromUrl();
+            if (autoCode) {
+                document.getElementById('shareCodeInput').value = autoCode;
+                shareCode = autoCode;
+                loadSession();
+            }
+        });
+    </script>
+</body>
+</html>
