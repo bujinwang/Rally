@@ -208,6 +208,13 @@ npm test
 npx expo start --clear --localhost
 ```
 
+### Running Join Router
+
+To run the join router script:
+```bash
+python3 /Users/bujin/Documents/Projects/BadmintonGroup/join-router.py
+```
+
 ### Database Management
 
 ```bash
