@@ -1,105 +1,190 @@
 import { io, Socket } from 'socket.io-client';
-import { MvpSession } from './mvpApiService';
+import { API_BASE_URL } from '../config/api';
 
-interface SocketEvents {
-  'mvp-session-updated': (data: { session: MvpSession; timestamp: string }) => void;
-  'user-joined': (data: { socketId: string; timestamp: string }) => void;
-  error: (error: { message: string }) => void;
-}
-
-interface SocketEmitEvents {
-  'join-session': (shareCode: string) => void;
-  'leave-session': (shareCode: string) => void;
-  'mvp-player-status-update': (data: { shareCode: string; playerId: string; status: string }) => void;
-  'mvp-player-joined': (data: { shareCode: string; player: any }) => void;
+export interface SocketEvents {
+  // Session events
+  'session:updated': (sessionData: any) => void;
+  'session:player-joined': (player: any) => void;
+  'session:player-left': (player: any) => void;
+  'session:status-changed': (status: string) => void;
+  
+  // Game events
+  'game:started': (gameData: any) => void;
+  'game:updated': (gameData: any) => void;
+  'game:completed': (gameData: any) => void;
+  'game:score-updated': (scoreData: any) => void;
+  
+  // Connection events
+  'connect': () => void;
+  'disconnect': () => void;
+  'error': (error: any) => void;
 }
 
 class SocketService {
   private socket: Socket | null = null;
-  private currentSession: string | null = null;
-  private listeners: Map<keyof SocketEvents, Function[]> = new Map();
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 3;
+  private reconnectDelay = 2000;
+  private listeners: Map<string, Function[]> = new Map();
+  private isEnabled = true; // Enable by default
 
-  connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (this.socket?.connected) {
-        resolve();
-        return;
-      }
-
-      // Get server URL from environment
-      const serverUrl = process.env.EXPO_PUBLIC_API_URL?.replace('/api/v1', '') || 'http://localhost:3001';
-      
-      this.socket = io(serverUrl, {
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionAttempts: 5,
-        timeout: 5000,
-      });
-
-      this.socket.on('connect', () => {
-        console.log('📡 Connected to socket server');
-        resolve();
-      });
-
-      this.socket.on('connect_error', (error) => {
-        console.error('📡 Socket connection error:', error);
-        reject(error);
-      });
-
-      this.socket.on('disconnect', () => {
-        console.log('📡 Disconnected from socket server');
-      });
-
-      // Set up event forwarding
-      this.setupEventForwarding();
-    });
+  constructor() {
+    // Don't auto-connect by default to prevent connection errors
+    console.log('🔌 Socket service initialized (connection disabled by default)');
   }
 
+  // Enable Socket.IO connections
+  enable(): void {
+    this.isEnabled = true;
+    console.log('🔌 Socket.IO enabled');
+  }
+
+  // Disable Socket.IO connections
+  disable(): void {
+    this.isEnabled = false;
+    this.disconnect();
+    console.log('🔌 Socket.IO disabled');
+  }
+
+  // Connect to Socket.IO server (only if enabled)
+  connect(): void {
+    if (!this.isEnabled) {
+      console.log('🔌 Socket.IO disabled, skipping connection');
+      return;
+    }
+
+    if (this.socket?.connected) {
+      return;
+    }
+
+    console.log('🔌 Connecting to Socket.IO server...');
+    
+    const serverUrl = API_BASE_URL.replace('/api/v1', ''); // Remove API path for socket connection
+    
+    this.socket = io(serverUrl, {
+      transports: ['polling', 'websocket'], // Start with polling, upgrade to websocket
+      timeout: 3000,
+      reconnection: true,
+      reconnectionAttempts: this.maxReconnectAttempts,
+      reconnectionDelay: this.reconnectDelay,
+      forceNew: true,
+      upgrade: true,
+      rememberUpgrade: false
+    });
+
+    this.setupEventHandlers();
+  }
+
+  // Disconnect from server
   disconnect(): void {
+    console.log('🔌 Disconnecting from Socket.IO server...');
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
-      this.currentSession = null;
-      console.log('📡 Socket disconnected');
+    }
+    this.listeners.clear();
+  }
+
+  // Setup basic event handlers
+  private setupEventHandlers(): void {
+    if (!this.socket) return;
+
+    this.socket.on('connect', () => {
+      console.log('✅ Connected to Socket.IO server');
+      this.reconnectAttempts = 0;
+      this.emitToListeners('connect');
+    });
+
+    this.socket.on('disconnect', (reason) => {
+      console.log('❌ Disconnected from Socket.IO server:', reason);
+      this.emitToListeners('disconnect');
+    });
+
+    this.socket.on('connect_error', (error) => {
+      console.warn('⚠️ Socket connection error (will retry):', error.message);
+      this.reconnectAttempts++;
+      
+      // Don't spam the listeners with every connection error
+      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+        console.error('💥 Max socket reconnection attempts reached');
+        this.emitToListeners('error', error);
+      }
+    });
+
+    // Session event handlers
+    this.socket.on('session:updated', (data) => {
+      console.log('📡 Session updated:', data);
+      this.emitToListeners('session:updated', data);
+    });
+
+    this.socket.on('session:player-joined', (data) => {
+      console.log('👤 Player joined:', data);
+      this.emitToListeners('session:player-joined', data);
+    });
+
+    this.socket.on('session:player-left', (data) => {
+      console.log('👋 Player left:', data);
+      this.emitToListeners('session:player-left', data);
+    });
+  }
+
+  // Emit event to registered listeners
+  private emitToListeners(eventName: string, data?: any): void {
+    const eventListeners = this.listeners.get(eventName);
+    if (eventListeners) {
+      eventListeners.forEach(listener => {
+        try {
+          listener(data);
+        } catch (error) {
+          console.error(`Error in ${eventName} listener:`, error);
+        }
+      });
     }
   }
 
-  async joinSession(shareCode: string): Promise<void> {
+  // Join a session room for real-time updates (graceful fallback)
+  joinSession(shareCode: string, deviceId: string): void {
     if (!this.socket?.connected) {
-      await this.connect();
+      console.warn('Socket not connected, skipping real-time session join');
+      return;
     }
 
-    if (this.currentSession === shareCode) {
-      return; // Already joined this session
-    }
-
-    // Leave current session if any
-    if (this.currentSession) {
-      this.leaveSession();
-    }
-
-    this.currentSession = shareCode;
-    this.socket?.emit('join-session', shareCode);
-    console.log(`📡 Joined session: ${shareCode}`);
-  }
-
-  leaveSession(): void {
-    if (this.currentSession && this.socket?.connected) {
-      this.socket.emit('leave-session', this.currentSession);
-      console.log(`📡 Left session: ${this.currentSession}`);
-      this.currentSession = null;
+    try {
+      console.log(`📍 Joining session room: ${shareCode}`);
+      this.socket.emit('join-session', { shareCode, deviceId });
+    } catch (error) {
+      console.warn('Failed to join session room:', error);
     }
   }
 
-  // Event listening methods
+  // Leave a session room (graceful fallback)
+  leaveSession(shareCode: string): void {
+    if (!this.socket?.connected) {
+      console.warn('Socket not connected, skipping real-time session leave');
+      return;
+    }
+
+    try {
+      console.log(`📤 Leaving session room: ${shareCode}`);
+      this.socket.emit('leave-session', { shareCode });
+    } catch (error) {
+      console.warn('Failed to leave session room:', error);
+    }
+  }
+
+  // Register event listener
   on<K extends keyof SocketEvents>(event: K, listener: SocketEvents[K]): void {
+    if (!this.listeners) {
+      console.warn('Socket listeners not initialized');
+      return;
+    }
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);
     }
     this.listeners.get(event)!.push(listener);
   }
 
+  // Unregister event listener
   off<K extends keyof SocketEvents>(event: K, listener: SocketEvents[K]): void {
     const eventListeners = this.listeners.get(event);
     if (eventListeners) {
@@ -110,61 +195,32 @@ class SocketService {
     }
   }
 
-  // Emit methods for different events
-  emitPlayerStatusUpdate(shareCode: string, playerId: string, status: string): void {
-    if (this.socket?.connected) {
-      this.socket.emit('mvp-player-status-update', {
-        shareCode,
-        playerId,
-        status,
-      });
-    }
-  }
-
-  emitPlayerJoined(shareCode: string, player: any): void {
-    if (this.socket?.connected) {
-      this.socket.emit('mvp-player-joined', {
-        shareCode,
-        player,
-      });
-    }
-  }
-
-  private setupEventForwarding(): void {
-    if (!this.socket) return;
-
-    // Forward socket events to registered listeners
-    this.socket.on('mvp-session-updated', (data) => {
-      const listeners = this.listeners.get('mvp-session-updated') || [];
-      listeners.forEach(listener => listener(data));
-    });
-
-    this.socket.on('user-joined', (data) => {
-      const listeners = this.listeners.get('user-joined') || [];
-      listeners.forEach(listener => listener(data));
-    });
-
-    this.socket.on('error', (error) => {
-      const listeners = this.listeners.get('error') || [];
-      listeners.forEach(listener => listener(error));
-    });
-  }
-
-  // Utility methods
+  // Check if connected
   isConnected(): boolean {
-    return this.socket?.connected || false;
+    return this.isEnabled && (this.socket?.connected || false);
   }
 
-  getCurrentSession(): string | null {
-    return this.currentSession;
+  // Get connection status
+  getConnectionStatus(): 'connected' | 'connecting' | 'disconnected' | 'disabled' {
+    if (!this.isEnabled) return 'disabled';
+    if (!this.socket) return 'disconnected';
+    if (this.socket.connected) return 'connected';
+    if (this.socket.connecting) return 'connecting';
+    return 'disconnected';
   }
 
-  // Clean up all listeners
-  removeAllListeners(): void {
-    this.listeners.clear();
+  // Emit event to server
+  emit(event: string, data?: any): void {
+    if (!this.socket?.connected) {
+      console.warn('Socket not connected, cannot emit event:', event);
+      return;
+    }
+    this.socket.emit(event, data);
   }
 }
 
-// Export singleton instance
-export const socketService = new SocketService();
+// Create singleton instance
+const socketService = new SocketService();
+
+// Export singleton
 export default socketService;

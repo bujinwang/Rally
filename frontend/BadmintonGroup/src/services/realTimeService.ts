@@ -1,5 +1,5 @@
 import { store } from '../store';
-import { socketService } from './socketService';
+import socketService from './socketService';
 import { mvpApiService } from './mvpApiService';
 import { 
   startAutoRefresh, 
@@ -56,8 +56,16 @@ class RealTimeService {
 
       // Try to connect via Socket.IO first
       if (await this.connectSocket()) {
-        await socketService.joinSession(sessionId);
-        console.log(`🔄 Real-time auto-refresh started for session: ${sessionId}`);
+        // Join the session room to receive real-time updates
+        try {
+          // For real-time updates, we just need to join the session room
+          if (socketService.isConnected()) {
+            socketService.emit('join-session', sessionId);
+            console.log(`🔄 Real-time auto-refresh started for session: ${sessionId}`);
+          }
+        } catch (error) {
+          console.warn('Failed to join session room:', error);
+        }
       } else {
         // Fall back to polling
         this.startFallbackPolling(sessionId);
@@ -83,8 +91,14 @@ class RealTimeService {
     console.log(`⏹️ Stopping auto-refresh for session: ${sessionId}`);
     
     // Stop Socket.IO updates
-    if (socketService.getCurrentSession() === sessionId) {
-      socketService.leaveSession();
+    // Leave the session room if connected
+    if (socketService.isConnected()) {
+      try {
+        socketService.emit('leave-session', sessionId);
+        console.log(`📤 Left session room: ${sessionId}`);
+      } catch (error) {
+        console.warn('Failed to leave session room:', error);
+      }
     }
 
     // Stop polling if active
@@ -150,7 +164,11 @@ class RealTimeService {
   private async connectSocket(): Promise<boolean> {
     try {
       store.dispatch(socketReconnecting());
-      await socketService.connect();
+      socketService.connect();
+      
+      // Give a small delay to allow connection to establish
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       const isConnected = socketService.isConnected();
       
       if (isConnected) {

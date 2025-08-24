@@ -13,6 +13,7 @@ import PlayerCardDemo from '../screens/demo/PlayerCardDemo';
 import SessionOverviewScreen from '../screens/SessionOverviewScreen';
 import PlayerProfileScreen from '../screens/PlayerProfileScreen';
 import LiveGameScreen from '../screens/LiveGameScreen';
+import SessionHistoryScreen from '../screens/SessionHistoryScreen';
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
@@ -54,6 +55,11 @@ function HomeStackNavigator() {
         component={LiveGameScreen}
         options={{ title: 'Live Game' }}
       />
+      <HomeStack.Screen
+        name="SessionHistory"
+        component={SessionHistoryScreen}
+        options={{ title: 'Session History' }}
+      />
     </HomeStack.Navigator>
   );
 }
@@ -93,6 +99,11 @@ function SessionsStackNavigator() {
         component={LiveGameScreen}
         options={{ title: 'Live Game' }}
       />
+      <SessionsStack.Screen
+        name="SessionHistory"
+        component={SessionHistoryScreen}
+        options={{ title: 'Session History' }}
+      />
     </SessionsStack.Navigator>
   );
 }
@@ -112,6 +123,11 @@ function ProfileStackNavigator() {
         component={PlayerProfileScreen}
         options={{ title: 'My Profile' }}
         initialParams={{ isOwnProfile: true }}
+      />
+      <ProfileStack.Screen
+        name="SessionHistory"
+        component={SessionHistoryScreen}
+        options={{ title: 'Session History' }}
       />
     </ProfileStack.Navigator>
   );

@@ -187,6 +187,10 @@ export default function PlayerProfileScreen() {
     Alert.alert('Coming Soon', 'Profile editing will be available soon!');
   };
 
+  const navigateToSessionHistory = () => {
+    (navigation as any).navigate('SessionHistory');
+  };
+
   const getSkillLevelColor = (level: string) => {
     switch (level) {
       case 'Beginner': return '#4CAF50';
@@ -338,8 +342,11 @@ export default function PlayerProfileScreen() {
           </View>
         ))}
         
-        <TouchableOpacity style={styles.viewAllButton}>
-          <Text style={styles.viewAllText}>View All Activity</Text>
+        <TouchableOpacity 
+          style={styles.viewAllButton}
+          onPress={navigateToSessionHistory}
+        >
+          <Text style={styles.viewAllText}>View Session History</Text>
           <Ionicons name="chevron-forward" size={16} color="#007AFF" />
         </TouchableOpacity>
       </View>

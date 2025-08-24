@@ -39,6 +39,7 @@ model MvpSession {
 
   // Relations
   players MvpPlayer[]
+  games   MvpGame[]
 
   @@map("mvp_sessions")
 }
@@ -64,6 +65,65 @@ model MvpPlayer {
   @@map("mvp_players")
 }
 
+// MVP Game tracking for session history
+model MvpGame {
+  id        String @id @default(cuid())
+  sessionId String
+  session   MvpSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Game metadata
+  courtName   String?   // "Court 1", "Court 2", etc.
+  gameNumber  Int       // Sequential game number in session
+  
+  // Teams (stored as JSON or separate fields)
+  team1Player1 String   // Player names for flexibility
+  team1Player2 String
+  team2Player1 String
+  team2Player2 String
+  
+  // Game results
+  team1FinalScore Int @default(0)
+  team2FinalScore Int @default(0)
+  winnerTeam     Int?    // 1 or 2
+  
+  // Timing
+  startTime DateTime?
+  endTime   DateTime?
+  duration  Int?        // Duration in minutes
+  
+  // Status
+  status MvpGameStatus @default(IN_PROGRESS)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  sets MvpGameSet[]
+
+  @@map("mvp_games")
+}
+
+// Individual sets within a game
+model MvpGameSet {
+  id     String @id @default(cuid())
+  gameId String
+  game   MvpGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  
+  setNumber    Int
+  team1Score   Int @default(0)
+  team2Score   Int @default(0)
+  winnerTeam   Int? // 1 or 2
+  isCompleted  Boolean @default(false)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([gameId, setNumber])
+  @@map("mvp_game_sets")
+}
+
 // MVP Enums
 enum MvpSessionStatus {
   ACTIVE
@@ -75,6 +135,13 @@ enum MvpPlayerStatus {
   ACTIVE
   RESTING
   LEFT
+}
+
+enum MvpGameStatus {
+  IN_PROGRESS
+  COMPLETED
+  PAUSED
+  CANCELLED
 }
 
 // Users (Players and Session Owners)

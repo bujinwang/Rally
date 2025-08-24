@@ -5,6 +5,8 @@ import authRoutes from './auth';
 import sessionRoutes from './sessions';
 import userRoutes from './users';
 import mvpSessionRoutes from './mvpSessions';
+import sessionHistoryRoutes from './sessionHistory';
+import searchRoutes from './search';
 
 const router = Router();
 
@@ -28,6 +30,10 @@ console.log('  - /users');
 router.use('/users', userRoutes);
 console.log('  - /mvp-sessions');
 router.use('/mvp-sessions', mvpSessionRoutes);
+console.log('  - /session-history');
+router.use('/session-history', sessionHistoryRoutes);
+console.log('  - /search');
+router.use('/search', searchRoutes);
 console.log('✅ All routes registered successfully');
 
 export const setupRoutes = (): Router => {

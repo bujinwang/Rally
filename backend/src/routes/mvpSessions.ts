@@ -4,6 +4,155 @@ import { body, param, validationResult } from 'express-validator';
 
 const router = Router();
 
+// Get all active sessions (for discovery)
+router.get('/', async (req: Request, res: Response) => {
+  try {
+    const { status = 'ACTIVE', limit = 50, offset = 0 } = req.query;
+
+    const sessions = await prisma.mvpSession.findMany({
+      where: {
+        status: (status as 'ACTIVE' | 'COMPLETED' | 'CANCELLED') || 'ACTIVE'
+      },
+      include: {
+        players: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            joinedAt: true
+          },
+          orderBy: {
+            joinedAt: 'asc'
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: parseInt(limit as string),
+      skip: parseInt(offset as string)
+    });
+
+    const formattedSessions = sessions.map(session => ({
+      id: session.id,
+      name: session.name,
+      shareCode: session.shareCode,
+      scheduledAt: session.scheduledAt,
+      location: session.location,
+      maxPlayers: session.maxPlayers,
+      skillLevel: session.skillLevel,
+      cost: session.cost,
+      description: session.description,
+      ownerName: session.ownerName,
+      status: session.status,
+      playerCount: session.players?.length || 0,
+      players: session.players || [],
+      createdAt: session.createdAt
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        sessions: formattedSessions
+      },
+      message: `Retrieved ${formattedSessions.length} session(s)`,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Get sessions error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to retrieve sessions'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get session by share code
+router.get('/:shareCode', async (req, res) => {
+  try {
+    const { shareCode } = req.params;
+
+    const session = await prisma.mvpSession.findFirst({
+      where: {
+        shareCode: shareCode,
+        // Don't filter by status to allow access to all sessions
+      },
+      include: {
+        players: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            joinedAt: true,
+            gamesPlayed: true,
+            wins: true,
+            losses: true
+          },
+          orderBy: {
+            joinedAt: 'asc'
+          }
+        }
+      }
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'SESSION_NOT_FOUND',
+          message: 'Session not found with the provided share code'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const formattedSession = {
+      id: session.id,
+      name: session.name,
+      shareCode: session.shareCode,
+      scheduledAt: session.scheduledAt,
+      location: session.location,
+      maxPlayers: session.maxPlayers,
+      skillLevel: session.skillLevel,
+      cost: session.cost,
+      description: session.description,
+      ownerName: session.ownerName,
+      ownerDeviceId: session.ownerDeviceId,
+      status: session.status,
+      playerCount: session.players?.length || 0,
+      players: session.players || [],
+      games: [], // Will add games later if needed
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt
+    };
+
+    res.json({
+      success: true,
+      data: {
+        session: formattedSession
+      },
+      message: 'Session retrieved successfully',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Get session error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to retrieve session'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Validation middleware
 const createSessionValidation = [
   body('name').optional().isLength({ min: 1, max: 200 }).withMessage('Session name must be valid if provided'),

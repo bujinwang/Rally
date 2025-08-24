@@ -10,58 +10,77 @@ import {
   RefreshControl
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const API_BASE_URL = 'http://localhost:3001/api/v1';
-
-interface SessionItem {
-  id: string;
-  name: string;
-  shareCode: string;
-  scheduledAt: string;
-  location: string;
-  ownerName: string;
-  playerCount: number;
-  shareUrl: string;
-  createdAt: string;
-}
+import { Ionicons } from '@expo/vector-icons';
+import sessionApi, { SessionData } from '../services/sessionApi';
+import socketService from '../services/socketService';
 
 export default function MySessionsScreen() {
   const navigation = useNavigation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [sessions, setSessions] = useState<SessionItem[]>([]);
+  const [sessions, setSessions] = useState<SessionData[]>([]);
   const [deviceId, setDeviceId] = useState<string>('');
 
-  const getOrCreateDeviceId = async () => {
+  const initializeData = async () => {
     try {
-      let storedDeviceId = await AsyncStorage.getItem('deviceId');
-      if (!storedDeviceId) {
-        storedDeviceId = 'device_' + Math.random().toString(36).substr(2, 9);
-        await AsyncStorage.setItem('deviceId', storedDeviceId);
-      }
+      const storedDeviceId = await sessionApi.getDeviceId();
       setDeviceId(storedDeviceId);
+      
+      // Connect to Socket.IO for real-time updates
+      try {
+        socketService.connect();
+        
+        // Set up real-time event listeners
+        socketService.on('session:updated', handleSessionUpdate);
+        socketService.on('session:player-joined', handlePlayerJoined);
+        socketService.on('session:player-left', handlePlayerLeft);
+      } catch (error) {
+        console.warn('Socket.IO setup failed, continuing without real-time updates:', error);
+      }
+      
       return storedDeviceId;
     } catch (error) {
-      console.error('Error managing device ID:', error);
-      const fallbackId = 'device_' + Math.random().toString(36).substr(2, 9);
-      setDeviceId(fallbackId);
-      return fallbackId;
+      console.error('Error initializing data:', error);
+      throw error;
     }
+  };
+
+  // Real-time event handlers
+  const handleSessionUpdate = (sessionData: any) => {
+    setSessions(prev => prev.map(session => 
+      session.id === sessionData.id ? { ...session, ...sessionData } : session
+    ));
+  };
+
+  const handlePlayerJoined = (data: any) => {
+    setSessions(prev => prev.map(session => 
+      session.shareCode === data.shareCode 
+        ? { ...session, players: [...session.players, data.player], playerCount: session.playerCount + 1 }
+        : session
+    ));
+  };
+
+  const handlePlayerLeft = (data: any) => {
+    setSessions(prev => prev.map(session => 
+      session.shareCode === data.shareCode 
+        ? { 
+            ...session, 
+            players: session.players.filter(p => p.id !== data.playerId),
+            playerCount: Math.max(0, session.playerCount - 1)
+          }
+        : session
+    ));
   };
 
   const fetchMySessions = async (currentDeviceId?: string) => {
     try {
-      const deviceIdToUse = currentDeviceId || deviceId;
-      if (!deviceIdToUse) return;
-
-      const response = await fetch(`${API_BASE_URL}/mvp-sessions/my-sessions/${deviceIdToUse}`);
-      const result = await response.json();
-
-      if (result.success) {
-        setSessions(result.data.sessions);
+      const response = await sessionApi.getMySessions();
+      
+      if (response.success) {
+        setSessions(response.data.sessions);
       } else {
-        console.error('Failed to fetch sessions:', result.error);
+        console.warn('No sessions found');
+        setSessions([]);
       }
     } catch (error) {
       console.error('Error fetching sessions:', error);
@@ -71,8 +90,12 @@ export default function MySessionsScreen() {
 
   const loadData = async () => {
     setLoading(true);
-    const currentDeviceId = await getOrCreateDeviceId();
-    await fetchMySessions(currentDeviceId);
+    try {
+      await initializeData();
+      await fetchMySessions();
+    } catch (error) {
+      console.error('Error loading data:', error);
+    }
     setLoading(false);
   };
 
@@ -99,17 +122,21 @@ export default function MySessionsScreen() {
     });
   };
 
-  const openSession = (session: SessionItem) => {
+  const openSession = (session: SessionData) => {
     (navigation as any).navigate('SessionDetail', {
       shareCode: session.shareCode,
-      sessionData: {
-        ...session,
-        maxPlayers: 50,
-        status: 'ACTIVE',
-        players: [] // Will be loaded fresh when screen opens
-      }
+      sessionData: session
     });
   };
+
+  // Cleanup socket listeners on unmount
+  useEffect(() => {
+    return () => {
+      socketService.off('session:updated', handleSessionUpdate);
+      socketService.off('session:player-joined', handlePlayerJoined);
+      socketService.off('session:player-left', handlePlayerLeft);
+    };
+  }, []);
 
   const createNewSession = () => {
     // Navigate to the Home tab where CreateSession screen is located
