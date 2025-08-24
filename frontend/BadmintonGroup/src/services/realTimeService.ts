@@ -62,6 +62,9 @@ class RealTimeService {
           if (socketService.isConnected()) {
             socketService.emit('join-session', sessionId);
             console.log(`🔄 Real-time auto-refresh started for session: ${sessionId}`);
+            console.log(`🔥 DEBUG: Successfully joined session room: ${sessionId}`);
+          } else {
+            console.log(`🔥 DEBUG: Socket not connected, cannot join session room: ${sessionId}`);
           }
         } catch (error) {
           console.warn('Failed to join session room:', error);
@@ -188,8 +191,18 @@ class RealTimeService {
   private setupSocketListeners(): void {
     console.log('📡 Setting up socket listeners for real-time updates');
     
+    // Debug: Listen for ALL socket events to see what's being received
+    socketService.on('connect', () => {
+      console.log('🔥 DEBUG: Socket connected event received');
+    });
+    
+    socketService.on('disconnect', () => {
+      console.log('🔥 DEBUG: Socket disconnected event received');
+    });
+    
     // Listen for session updates
     socketService.on('mvp-session-updated', (data) => {
+      console.log('🔥 DEBUG: mvp-session-updated event received:', data);
       const { session, timestamp } = data;
       
       console.log(`🔄 Real-time update received for session: ${session.shareCode}`, {

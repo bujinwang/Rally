@@ -117,6 +117,12 @@ class SocketService {
       this.emitToListeners('session:updated', data);
     });
 
+    // MVP session event handlers
+    this.socket.on('mvp-session-updated', (data) => {
+      console.log('🔥 DEBUG: Received mvp-session-updated on socket:', data);
+      this.emitToListeners('mvp-session-updated', data);
+    });
+
     this.socket.on('session:player-joined', (data) => {
       console.log('👤 Player joined:', data);
       this.emitToListeners('session:player-joined', data);
