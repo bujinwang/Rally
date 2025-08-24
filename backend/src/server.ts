@@ -19,6 +19,7 @@ dotenv.config();
 const app = express();
 const server = createServer(app);
 
+
 // Security middleware
 app.use(helmet());
 
@@ -93,3 +94,4 @@ server.listen(PORT, () => {
 });
 
 export default app;
+export { io };

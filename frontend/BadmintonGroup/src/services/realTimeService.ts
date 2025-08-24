@@ -186,8 +186,17 @@ class RealTimeService {
         source: 'socket'
       }));
 
-      // TODO: Update actual session and player data in their respective slices
-      // This would typically dispatch actions to update session and player slices
+      // Emit DeviceEventEmitter event to trigger UI refresh
+      try {
+        const { DeviceEventEmitter } = require('react-native');
+        DeviceEventEmitter.emit('sessionDataUpdated', {
+          session,
+          sessionId: session.shareCode
+        });
+        console.log(`📱 DeviceEventEmitter: Emitted sessionDataUpdated for ${session.shareCode}`);
+      } catch (error) {
+        console.log('DeviceEventEmitter not available:', error.message);
+      }
     });
 
     // Handle socket errors
@@ -241,10 +250,15 @@ class RealTimeService {
 
         // TODO: This is where we'd update the actual session and player data
         // For now, we'll trigger a custom event that components can listen to
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('sessionDataUpdated', {
-            detail: { session, sessionId }
-          }));
+        try {
+          const { DeviceEventEmitter } = require('react-native');
+          DeviceEventEmitter.emit('sessionDataUpdated', {
+            session,
+            sessionId
+          });
+        } catch (error) {
+          // Fallback for testing environments
+          console.log('DeviceEventEmitter not available:', error.message);
         }
       }
     } catch (error) {

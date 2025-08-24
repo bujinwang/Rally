@@ -85,21 +85,29 @@ export const useRealTimeSession = ({
     };
   }, [sessionId, autoStart]); // Intentionally limited deps to avoid re-triggering
 
-  // Listen for session data updates via custom events
+  // Listen for session data updates via React Native DeviceEventEmitter
   useEffect(() => {
-    const handleSessionUpdate = (event: CustomEvent) => {
-      if (event.detail?.sessionId === sessionId) {
-        console.log(`📊 Session data updated via custom event for: ${sessionId}`);
-        // Component will re-render due to Redux state changes or props updates
-      }
-    };
+    let subscription: any = null;
+    
+    try {
+      const { DeviceEventEmitter } = require('react-native');
+      
+      const handleSessionUpdate = (eventData: { sessionId: string; session: any }) => {
+        if (eventData?.sessionId === sessionId) {
+          console.log(`📊 Session data updated via DeviceEventEmitter for: ${sessionId}`);
+          // Component will re-render due to Redux state changes or props updates
+        }
+      };
 
-    if (typeof window !== 'undefined') {
-      window.addEventListener('sessionDataUpdated', handleSessionUpdate as EventListener);
+      subscription = DeviceEventEmitter.addListener('sessionDataUpdated', handleSessionUpdate);
       
       return () => {
-        window.removeEventListener('sessionDataUpdated', handleSessionUpdate as EventListener);
+        if (subscription) {
+          subscription.remove();
+        }
       };
+    } catch (error) {
+      console.log('DeviceEventEmitter not available:', error.message);
     }
   }, [sessionId]);
 

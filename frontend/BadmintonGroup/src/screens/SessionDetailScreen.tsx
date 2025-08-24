@@ -15,6 +15,9 @@ import {
  import * as Clipboard from 'expo-clipboard';
  import AsyncStorage from '@react-native-async-storage/async-storage';
  import { createShareableLinks } from '../components/ShareLinkHandler';
+ import { useRealTimeSession } from '../hooks/useRealTimeSession';
+ import { useSelector } from 'react-redux';
+ import { selectRealTimeStatus } from '../store/slices/realTimeSlice';
 
 const API_BASE_URL = 'http://localhost:3001/api/v1';
 
@@ -55,9 +58,72 @@ export default function SessionDetailScreen() {
   const [showAddPlayer, setShowAddPlayer] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
 
+  // Real-time functionality
+  const realTimeStatus = useSelector(selectRealTimeStatus);
+  const {
+    isConnected: isSocketConnected,
+    connectionStatus,
+    lastUpdated,
+    error: realTimeError,
+    isActive: isAutoRefreshActive,
+    manualRefresh,
+    startAutoRefresh,
+    stopAutoRefresh,
+  } = useRealTimeSession({
+    sessionId: shareCode,
+    fallbackInterval: 15000, // 15 seconds
+    enableOptimisticUpdates: true,
+    autoStart: false, // We'll start manually after session data loads
+  });
+
   useEffect(() => {
     initializeScreen();
   }, [route.params]);
+
+  // Start auto-refresh when session data is loaded
+  useEffect(() => {
+    if (shareCode && sessionData && !isAutoRefreshActive) {
+      console.log(`🎯 Starting auto-refresh for session: ${shareCode}`);
+      startAutoRefresh();
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (isAutoRefreshActive) {
+        console.log(`⏹️ Stopping auto-refresh on unmount for session: ${shareCode}`);
+        stopAutoRefresh();
+      }
+    };
+  }, [shareCode, sessionData]);
+
+  // Listen for real-time session updates
+  useEffect(() => {
+    let subscription: any = null;
+    
+    try {
+      const { DeviceEventEmitter } = require('react-native');
+      
+      const handleSessionUpdate = (eventData: { sessionId: string; session: any }) => {
+        if (eventData?.sessionId === shareCode) {
+          console.log(`🔄 Received real-time session update for: ${shareCode}`);
+          // Refresh session data when real-time update is received
+          if (shareCode) {
+            fetchSessionData(shareCode, deviceId);
+          }
+        }
+      };
+
+      subscription = DeviceEventEmitter.addListener('sessionDataUpdated', handleSessionUpdate);
+      
+      return () => {
+        if (subscription) {
+          subscription.remove();
+        }
+      };
+    } catch (error) {
+      console.log('DeviceEventEmitter not available:', error.message);
+    }
+  }, [shareCode, deviceId]);
 
   const initializeScreen = async () => {
     // Get device ID to check ownership
@@ -104,9 +170,20 @@ export default function SessionDetailScreen() {
     }
   };
 
-  const refreshSessionData = () => {
+  const refreshSessionData = async () => {
     if (shareCode) {
-      fetchSessionData(shareCode, deviceId);
+      try {
+        // Use real-time manual refresh if available, otherwise fallback to direct fetch
+        if (isAutoRefreshActive) {
+          await manualRefresh();
+        } else {
+          await fetchSessionData(shareCode, deviceId);
+        }
+      } catch (error) {
+        console.error('Manual refresh failed:', error);
+        // Fallback to direct fetch
+        await fetchSessionData(shareCode, deviceId);
+      }
     }
   };
 
@@ -521,7 +598,12 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.refreshButton} onPress={refreshSessionData}>
-            <Text style={styles.refreshButtonText}>🔄 Refresh</Text>
+            <View style={styles.refreshButtonContent}>
+              <View style={[styles.connectionIndicator, getConnectionStatusStyle(connectionStatus)]} />
+              <Text style={styles.refreshButtonText}>
+                {isAutoRefreshActive ? '🔄 Auto-Refresh' : '🔄 Refresh'}
+              </Text>
+            </View>
           </TouchableOpacity>
         </View>
         
@@ -680,6 +762,20 @@ const getSessionStatusText = (status: string) => {
   }
 };
 
+const getConnectionStatusStyle = (status: string) => {
+  switch (status) {
+    case 'connected':
+      return { backgroundColor: '#4CAF50' }; // Green
+    case 'connecting':
+    case 'reconnecting':
+      return { backgroundColor: '#FF9800' }; // Orange
+    case 'disconnected':
+      return { backgroundColor: '#f44336' }; // Red
+    default:
+      return { backgroundColor: '#9E9E9E' }; // Gray
+  }
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -828,6 +924,16 @@ const styles = StyleSheet.create({
     color: '#FF9800', // Darker orange text
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  refreshButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  connectionIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   playersCard: {
     backgroundColor: 'white',

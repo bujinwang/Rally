@@ -112,7 +112,10 @@ export default function MySessionsScreen() {
   };
 
   const createNewSession = () => {
-    (navigation as any).navigate('CreateSession');
+    // Navigate to the Home tab where CreateSession screen is located
+    (navigation as any).navigate('Home', { 
+      screen: 'CreateSession' 
+    });
   };
 
   if (loading) {

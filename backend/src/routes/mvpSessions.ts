@@ -296,6 +296,28 @@ router.post('/join/:shareCode', joinSessionValidation, async (req: Request, res:
       message: 'Successfully joined session',
       timestamp: new Date().toISOString()
     });
+
+    // Emit Socket.IO event to notify all connected clients about the session update
+    try {
+      // Get the updated session data with all players
+      const updatedSession = await prisma.mvpSession.findUnique({
+        where: { shareCode },
+        include: { players: { orderBy: { joinedAt: 'asc' } } }
+      });
+
+      if (updatedSession) {
+        // Import io from server dynamically to avoid circular dependency
+        const { io } = await import('../server');
+        io.to(`session-${shareCode}`).emit('mvp-session-updated', {
+          session: updatedSession,
+          timestamp: new Date().toISOString()
+        });
+        console.log(`📡 Socket.IO: Emitted session update for ${shareCode} - player "${name}" joined`);
+      }
+    } catch (error) {
+      console.error('Failed to emit Socket.IO session update:', error);
+      // Don't fail the request if Socket.IO fails
+    }
   } catch (error) {
     console.error('Join MVP session error:', error);
     res.status(500).json({

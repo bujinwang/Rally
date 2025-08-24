@@ -1,4 +1,4 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction, createSelector } from '@reduxjs/toolkit';
 import { MvpSession, MvpPlayer } from '../../services/mvpApiService';
 
 interface RealTimeState {
@@ -151,18 +151,29 @@ export const {
 
 export default realTimeSlice.reducer;
 
-// Selectors
-export const selectRealTimeStatus = (state: { realTime: RealTimeState }) => ({
-  connected: state.realTime.socketConnected,
-  status: state.realTime.connectionStatus,
-  error: state.realTime.lastConnectionError,
-  reconnectAttempts: state.realTime.reconnectAttempts,
-});
+// Memoized selectors to prevent unnecessary re-renders
+const selectRealTimeSlice = (state: { realTime: RealTimeState }) => state.realTime;
 
-export const selectSessionAutoRefreshStatus = (state: { realTime: RealTimeState }, sessionId: string) => ({
-  isActive: state.realTime.activeSessions.includes(sessionId),
-  lastUpdated: state.realTime.lastUpdated[sessionId],
-  error: state.realTime.updateErrors[sessionId],
-  pendingUpdates: state.realTime.pendingUpdates[sessionId] || [],
-  pollingEnabled: state.realTime.pollingEnabled[sessionId] || false,
-});
+export const selectRealTimeStatus = createSelector(
+  [selectRealTimeSlice],
+  (realTime) => ({
+    connected: realTime.socketConnected,
+    status: realTime.connectionStatus,
+    error: realTime.lastConnectionError,
+    reconnectAttempts: realTime.reconnectAttempts,
+  })
+);
+
+export const selectSessionAutoRefreshStatus = createSelector(
+  [
+    selectRealTimeSlice,
+    (state: { realTime: RealTimeState }, sessionId: string) => sessionId
+  ],
+  (realTime, sessionId) => ({
+    isActive: realTime.activeSessions.includes(sessionId),
+    lastUpdated: realTime.lastUpdated[sessionId],
+    error: realTime.updateErrors[sessionId],
+    pendingUpdates: realTime.pendingUpdates[sessionId] || [],
+    pollingEnabled: realTime.pollingEnabled[sessionId] || false,
+  })
+);
