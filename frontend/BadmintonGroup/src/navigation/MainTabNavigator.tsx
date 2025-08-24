@@ -11,10 +11,13 @@ import SessionDetailScreen from '../screens/SessionDetailScreen';
 import MoreScreen from '../screens/MoreScreen';
 import PlayerCardDemo from '../screens/demo/PlayerCardDemo';
 import SessionOverviewScreen from '../screens/SessionOverviewScreen';
+import PlayerProfileScreen from '../screens/PlayerProfileScreen';
+import LiveGameScreen from '../screens/LiveGameScreen';
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
 const SessionsStack = createNativeStackNavigator();
+const ProfileStack = createNativeStackNavigator();
 
 // Stack navigator for Create Session tab
 function HomeStackNavigator() {
@@ -40,6 +43,16 @@ function HomeStackNavigator() {
         name="SessionDetail"
         component={SessionDetailScreen}
         options={{ title: 'Session Details' }}
+      />
+      <HomeStack.Screen
+        name="PlayerProfile"
+        component={PlayerProfileScreen}
+        options={{ title: 'Player Profile' }}
+      />
+      <HomeStack.Screen
+        name="LiveGame"
+        component={LiveGameScreen}
+        options={{ title: 'Live Game' }}
       />
     </HomeStack.Navigator>
   );
@@ -70,7 +83,37 @@ function SessionsStackNavigator() {
         component={JoinSessionScreen}
         options={{ title: 'Join Session' }}
       />
+      <SessionsStack.Screen
+        name="PlayerProfile"
+        component={PlayerProfileScreen}
+        options={{ title: 'Player Profile' }}
+      />
+      <SessionsStack.Screen
+        name="LiveGame"
+        component={LiveGameScreen}
+        options={{ title: 'Live Game' }}
+      />
     </SessionsStack.Navigator>
+  );
+}
+
+// Stack navigator for Profile tab
+function ProfileStackNavigator() {
+  return (
+    <ProfileStack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: '#007AFF' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+      }}
+    >
+      <ProfileStack.Screen
+        name="Profile"
+        component={PlayerProfileScreen}
+        options={{ title: 'My Profile' }}
+        initialParams={{ isOwnProfile: true }}
+      />
+    </ProfileStack.Navigator>
   );
 }
 
@@ -86,6 +129,8 @@ const MainTabNavigator = () => {
             iconName = focused ? 'add-circle' : 'add-circle-outline';
           } else if (route.name === 'Sessions') {
             iconName = focused ? 'list' : 'list-outline';
+          } else if (route.name === 'ProfileTab') {
+            iconName = focused ? 'person' : 'person-outline';
           } else if (route.name === 'More') {
             iconName = focused ? 'menu' : 'menu-outline';
           }
@@ -121,6 +166,14 @@ const MainTabNavigator = () => {
         options={{
           tabBarLabel: 'My Sessions',
           title: 'My Sessions'
+        }}
+      />
+      <Tab.Screen 
+        name="ProfileTab" 
+        component={ProfileStackNavigator}
+        options={{
+          tabBarLabel: 'Profile',
+          title: 'My Profile'
         }}
       />
       <Tab.Screen 

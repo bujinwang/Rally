@@ -13,7 +13,7 @@ This document outlines the frontend architecture and implementation strategy for
 - Session management and creation
 - Real-time rotation system
 - Player pairing and drag-and-drop
-- Score recording (2-0, 2-1)
+- Score recording (2-0, 2-1, 0-2, 1-2)
 - Rest and leave requests
 - Statistics and analytics
 - Multi-language support (Chinese/English)

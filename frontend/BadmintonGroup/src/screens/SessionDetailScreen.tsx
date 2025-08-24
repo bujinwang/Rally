@@ -526,6 +526,32 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
     });
   };
 
+  const navigateToPlayerProfile = (player: Player) => {
+    (navigation as any).navigate('PlayerProfile', {
+      playerId: player.id,
+      deviceId: player.name, // Temporary - use name as identifier
+      isOwnProfile: false
+    });
+  };
+
+  const startLiveGames = () => {
+    if (!shareCode || !sessionData) return;
+    
+    if (sessionData.players.length < 4) {
+      Alert.alert(
+        'Not Enough Players', 
+        'You need at least 4 players to start live games. Current players: ' + sessionData.players.length,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    (navigation as any).navigate('LiveGame', {
+      sessionId: sessionData.id,
+      shareCode: shareCode
+    });
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -597,6 +623,10 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
             <Text style={styles.shareButtonText}>📤 Share</Text>
           </TouchableOpacity>
           
+          <TouchableOpacity style={styles.liveGameButton} onPress={startLiveGames}>
+            <Text style={styles.liveGameButtonText}>🏸 Live Games</Text>
+          </TouchableOpacity>
+          
           <TouchableOpacity style={styles.refreshButton} onPress={refreshSessionData}>
             <View style={styles.refreshButtonContent}>
               <View style={[styles.connectionIndicator, getConnectionStatusStyle(connectionStatus)]} />
@@ -638,7 +668,12 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
           <Text style={styles.noPlayersText}>No players yet. Share the session to invite others!</Text>
         ) : (
           sessionData.players.map((player, index) => (
-            <View key={player.id} style={styles.playerItem}>
+            <TouchableOpacity 
+              key={player.id} 
+              style={styles.playerItem}
+              onPress={() => navigateToPlayerProfile(player)}
+              activeOpacity={0.7}
+            >
               <View style={styles.playerInfo}>
                 <Text style={styles.playerName}>
                   {index + 1}. {player.name}
@@ -665,7 +700,7 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
                   </TouchableOpacity>
                 )}
               </View>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </View>
@@ -913,6 +948,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
+  liveGameButton: {
+    backgroundColor: '#FFE0B2', // Orange background
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    alignItems: 'center',
+  },
+  liveGameButtonText: {
+    color: '#FF6B35', // Orange text
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
   refreshButton: {
     backgroundColor: '#FFF3E0', // Lighter orange
     paddingVertical: 12,
@@ -965,8 +1012,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 16,
+    paddingHorizontal: 4,
     borderBottomWidth: 1,
     borderBottomColor: '#F5F5F5',
+    borderRadius: 8,
+    marginVertical: 2,
   },
   playerInfo: {
     flex: 1,
