@@ -1,47 +1,31 @@
 # BadmintonGroup UI/UX Specification
 
-This document defines the user experience goals, information architecture, user flows, and visual design specifications for BadmintonGroup's user interface. It serves as the foundation for visual design and frontend development, ensuring a cohesive and user-centered experience.
+This document defines the user experience goals, information architecture, user flows, and visual design specifications for BadmintonGroup's Enhanced Live Games system. It serves as the foundation for visual design and frontend development, ensuring a cohesive and user-centered experience.
 
 ## Overall UX Goals & Principles
 
 ### Target User Personas
 
-**Primary Persona: "Mike the Weekly Organizer"**
-- **Profile:** Regular recreational badminton player who coordinates a consistent weekly group
-- **Group Pattern:** 6 regular players with occasional friends joining (8-10 total)
-- **Schedule:** Fixed weekly slot (e.g., "Thursday 7pm") that sometimes varies
-- **Current Tools:** Likely WhatsApp group or group text for coordination
-- **Key Frustrations:** 
-  - People missing schedule change notifications
-  - Managing variable group sizes (especially odd numbers)
-  - Last-minute dropouts affecting court bookings
-  - Awkward pairing decisions when group size changes
+**Session Organizer:** Experienced players who coordinate group sessions and manage rotations. They need efficient tools for fair player distribution and clear visibility into game progress across multiple courts.
 
-**Secondary Persona: "Sarah the Regular Player"**
-- **Profile:** Consistent group member who relies on organizer but wants visibility
-- **Needs:** Clear schedule updates, fair rotation, easy RSVP process
-- **Pain Points:** Missing games due to communication gaps, unclear pairings
+**Active Player:** Regular participants who want real-time game tracking and statistics. They value quick score entry, transparent rotation systems, and seamless team coordination during live play.
+
+**Social Coordinator:** Players focused on group harmony and inclusive participation. They prioritize features that ensure everyone gets balanced gameplay and clear communication about game status.
 
 ### Usability Goals
 
-1. **Schedule Clarity:** All players instantly see current week's plan, including any changes
-2. **RSVP Simplicity:** One-tap confirmation that updates group count in real-time
-3. **Smart Pairing:** Automatic suggestions for fair rotations based on who's attending
-4. **Flexible Group Size:** Graceful handling of 4-10 players with clear recommendations
+- **Real-time Responsiveness:** Score updates and game state changes reflected across all devices within 200ms for immediate feedback during fast-paced gameplay
+- **One-handed Operation:** All critical game functions accessible with single thumb operation for courtside usage while holding equipment
+- **Glanceable Information:** Key game status (scores, next rotation, court assignments) visible in under 3 seconds during quick courtside checks
+- **Fair Play Transparency:** Rotation algorithms and team assignments clearly visible to all participants to maintain social harmony and trust
 
 ### Design Principles
 
-1. **Communication Over Complexity** - Clear schedule updates matter more than advanced features
-2. **Mobile-First Coordination** - Designed for quick checks and updates on phones
-3. **Social Transparency** - Everyone sees who's coming and how teams will work
-4. **Graceful Flexibility** - Handle schedule changes and group size variations smoothly
-5. **No-Friction Sharing** - Easy for organizers to add new players via share links
-
-### Change Log
-
-| Date | Version | Description | Author |
-|------|---------|-------------|--------|
-| 2025-08-23 | 1.0 | Initial UI/UX specification | Sally (UX Expert) |
+1. **Fairness Through Transparency** - All rotation logic and team assignments are visible and explainable to maintain group social harmony
+2. **Mobile-First Live Action** - Every interaction optimized for quick, accurate input during active gameplay scenarios
+3. **Social Coordination Priority** - Features designed to strengthen group cohesion rather than individual competition
+4. **Graceful Network Degradation** - Core functionality maintains reliability even with poor court WiFi connectivity
+5. **Inclusive Participation** - Interface accommodates players of all skill levels and technology comfort
 
 ## Information Architecture (IA)
 
@@ -49,414 +33,317 @@ This document defines the user experience goals, information architecture, user 
 
 ```mermaid
 graph TD
-    A[Join via Share Link] --> B[Session Overview]
-    B --> C[Player List & RSVP]
-    B --> D[Schedule Details]
-    B --> E[Pairing Rotations]
-    B --> F[Score Recording]*
-    B --> G[Session History]*
-    
-    C --> C1[Add Your Name]
-    C --> C2[Update RSVP Status]
-    C --> C3[Copy Player List]
-    
-    D --> D1[Time/Location Info]
-    D --> D2[Court Details]
-    D --> D3[Edit Session Info]*
-    
-    E --> E1[Current Round]
-    E --> E2[Next Rotation]
-    E --> E3[Match History]
-    
-    F --> F1[Record Match Scores]
-    F --> F2[Edit Past Scores]
-    
-    G --> G1[Past Sessions]
-    G --> G2[Player Statistics]
-    
-    H[Create New Session] --> B
-    H --> H1[Basic Session Info]
-    H --> H2[Generate Share Link]
-    
-    C3 --> I[Share to WeChat/WhatsApp]
-    
-    Note: * = Organizer Only
+    A[Session Detail Screen] --> B[Live Games Dashboard]
+    A --> C[Player Management]
+    A --> D[Session Settings]
+    B --> B1[Active Games List]
+    B --> B2[Court Assignment]
+    B --> B3[Rotation Queue]
+    B1 --> B1a[Game Scoring]
+    B1 --> B1b[Team Management]
+    B1 --> B1c[Game History]
+    B2 --> B2a[Court Settings]
+    B2 --> B2b[Court Availability]
+    B3 --> B3a[Next Rotation]
+    B3 --> B3b[Fairness Algorithm]
+    C --> C1[Add Player]
+    C --> C2[Player Status]
+    C --> C3[Player Statistics]
+    D --> D1[Game Rules]
+    D --> D2[Court Configuration]
+    D --> D3[Scoring System]
 ```
 
 ### Navigation Structure
 
-**Primary Navigation (Role-Based):**
-- **Regular Player View:** Players | Schedule | Pairings
-- **Organizer View:** Players | Schedule | Pairings | Scores | History
+**Primary Navigation:** Bottom tab bar with Session Overview, Live Games, Players, and Settings - optimized for thumb reach during courtside usage
 
-**Secondary Navigation:** 
-- Action buttons: Join, Copy List, Share Link
-- Edit controls (organizer only): Edit Session, Record Scores
+**Secondary Navigation:** Contextual action sheets and modal overlays for game-specific actions (scoring, team switching, rotation management)
 
-**Key Features:**
-1. **Organizer Permissions:** Score recording and session editing capabilities
-2. **WeChat/WhatsApp Integration:** Copy formatted player list for sharing back to group chat
-3. **Session History:** Organizer-only access to past games and statistics
-4. **Score Tracking:** Post-game score recording (2-0, 2-1 format)
+**Breadcrumb Strategy:** Clear visual hierarchy with session name → current game → specific action, enabling quick orientation during fast game transitions
 
 ## User Flows
 
-### Flow 1: New Player Joining Session
+### Core Game Management Flow
 
-**User Goal:** Join a badminton session shared via link and notify the group
+**User Goal:** Start and manage a live badminton game with real-time scoring and fair team rotation
 
-**Entry Points:** WeChat/WhatsApp share link, direct link
+**Entry Points:** Session Detail Screen → "Start New Game" button, or from rotation queue via "Next Game" action
 
-**Success Criteria:** Player added to session, can copy formatted update for group chat
+**Success Criteria:** Game completed with accurate scores recorded, next rotation automatically queued, all participants updated via real-time sync
 
 #### Flow Diagram
 
 ```mermaid
 graph TD
-    A[Clicks Share Link] --> B[Session Overview Page]
-    B --> C[Sees Player List & Details]
-    C --> D[Clicks 'Join Session']
-    D --> E[Enters Name]
-    E --> F[Added to Player List]
-    F --> G[Sees 'Copy List' Button]
-    G --> H[Copies Formatted Message]
-    H --> I[Pastes to WeChat/WhatsApp]
-    I --> J[Group Sees Updated List]
+    A[Session Detail Screen] --> B[Tap 'Start New Game']
+    B --> C[Select Players from Queue]
+    C --> D[Assign to Available Court]
+    D --> E[Game Active - Live Scoring]
+    E --> F[Players Enter Scores]
+    F --> G[Real-time Updates to All Devices]
+    G --> H[Game Complete - Final Scores]
+    H --> I[Rotation Algorithm Calculates Next Pairing]
+    I --> J[Next Game Queued]
+    J --> K[Return to Session Overview]
+    
+    E --> E1[Team Switch Request]
+    E1 --> E2[Confirm New Team Arrangement]
+    E2 --> G
+    
+    F --> F1[Score Dispute/Correction]
+    F1 --> F2[Owner Override Available]
+    F2 --> G
 ```
 
 #### Edge Cases & Error Handling:
-- Session is full/cancelled - show clear message with organizer contact
-- Name already exists - suggest adding last initial or number
-- Poor network connection - offline capability for basic viewing
-- Invalid/expired share link - redirect to error page with explanation
+- **Network Disconnection:** Optimistic UI updates with sync queue, visible offline indicator
+- **Score Conflicts:** Last-update-wins with owner override capability for dispute resolution
+- **Player Unavailable:** Automatic rotation recalculation with substitute player suggestion
+- **Court Capacity Exceeded:** Clear visual feedback and alternative court suggestion
 
-**Notes:** The copy feature creates immediate value and keeps the group loop closed between app and messaging platform.
+**Notes:** Flow emphasizes immediate feedback and social harmony through transparent processes and clear dispute resolution mechanisms.
 
-## Complete User Journey Mapping
+### Team Switching During Live Games Flow
 
-### **Journey 1: Mike the Organizer - Creating & Managing Sessions**
+**User Goal:** Flexibly rearrange team partnerships during active gameplay without disrupting game flow
 
-#### **Phase 1: Pre-Session Planning (Tuesday-Wednesday)**
-**Context:** Mike planning Thursday 7pm game, sitting at home after work
+**Entry Points:** Active Game Screen → "Switch Teams" button, or long-press on player names for quick team swap
 
-**Touchpoints & Experience:**
-1. **Opens BadmintonGroup** → *Performance: < 2 sec load (vs. TeamSnap's slow response)*
-2. **Creates new session** → *Immediate form, no auth delays*
-3. **Sets details** → *Auto-fills last week's location/time*
-4. **Generates share link** → *Instant link creation, ready to copy*
-5. **Shares to WeChat group** → *One-tap share, no app switching*
+**Success Criteria:** New team arrangement confirmed across all devices, score tracking continues seamlessly, rotation algorithm updated for future fairness calculations
 
-**Emotional Journey:** Confident → Efficient → Satisfied
-**Performance Impact:** Fast session creation builds Mike's confidence vs. slow competitors
+#### Flow Diagram
 
-#### **Phase 2: Mid-Week Coordination (Wednesday-Thursday)**
-**Context:** Mike monitoring RSVPs, making adjustments
+```mermaid
+graph TD
+    A[Active Game Screen] --> B[Tap 'Switch Teams' or Long-press Player]
+    B --> C[Team Switching Interface Opens]
+    C --> D[Drag & Drop Players Between Teams]
+    D --> E[Visual Preview of New Arrangement]
+    E --> F[Confirm Changes]
+    F --> G[Real-time Update to All Devices]
+    G --> H[Game Continues with New Teams]
+    H --> I[Future Rotation Algorithm Updated]
+    
+    C --> C1[Quick Swap Button for Partner Exchange]
+    C1 --> E
+    
+    E --> E1[Cancel Changes]
+    E1 --> A
+```
 
-**Touchpoints & Experience:**
-1. **Checks RSVP status** → *Real-time count updates, no refresh needed*
-2. **Sees only 4 confirmed** → *Clear visual indicator of low attendance*
-3. **Messages individual players** → *Copy list shows who's missing*
-4. **Updates session time** → *Organizer-only edit access*
-5. **Notifies group of changes** → *Updated info auto-formats for sharing*
+#### Edge Cases & Error Handling:
+- **Mid-Rally Switch Request:** Warning about disrupting active play with confirmation required
+- **Invalid Team Composition:** Visual validation preventing unbalanced team arrangements
+- **Multiple Simultaneous Requests:** Last-update-wins with clear visual feedback about changes
+- **Rotation Impact Warning:** Clear indication if switch affects upcoming game fairness
 
-**Emotional Journey:** Monitoring → Concern → Action → Relief
-**Performance Impact:** Instant updates prevent coordination delays
-
-#### **Phase 3: Game Day Management (Thursday)**
-**Context:** At badminton courts, final coordination
-
-**Touchpoints & Experience:**
-1. **Final attendance check** → *Offline-capable viewing despite poor court WiFi*
-2. **Last-minute dropouts** → *< 500ms RSVP updates*
-3. **Manages pairings** → *Quick rotation setup for 8 players*
-4. **Records match scores** → *Simple 2-0, 2-1 input system*
-
-**Emotional Journey:** Organized → Responsive → Accomplished
-**Performance Impact:** Offline capability crucial during poor court connectivity
-
-### **Journey 2: Sarah the Regular Player - Joining & Participating**
-
-#### **Phase 1: Receiving Invitation (Tuesday)**
-**Context:** Sarah sees WeChat message while commuting
-
-**Touchpoints & Experience:**
-1. **Clicks share link in WeChat** → *< 1 sec load time from external link*
-2. **Views session overview** → *Clean card layout, all info visible*
-3. **Sees familiar players confirmed** → *Social proof encourages participation*
-4. **Taps "Join Session"** → *Simple name entry, no signup friction*
-5. **Confirms RSVP** → *Immediate status update with animation*
-
-**Emotional Journey:** Curious → Informed → Social → Committed
-**Performance Impact:** Fast link loading prevents abandonment during commute
-
-#### **Phase 2: Week Coordination (Wednesday-Thursday)**
-**Context:** Sarah managing changing schedule
-
-**Touchpoints & Experience:**
-1. **Sees session change notification** → *Clear indication of time update*
-2. **Checks updated player list** → *Visual diff of who's still coming*
-3. **Updates RSVP to "Maybe"** → *Instant status change, < 500ms*
-4. **Copies list for friend** → *Formatted message ready for sharing*
-
-**Emotional Journey:** Informed → Uncertain → Considerate → Helpful
-**Performance Impact:** Quick updates support dynamic schedule changes
-
-#### **Phase 3: Game Participation (Thursday)**
-**Context:** At courts, using app during breaks
-
-**Touchpoints & Experience:**
-1. **Checks pairings between games** → *Cached data loads instantly*
-2. **Sees current rotation** → *Clear "who plays next" display*
-3. **Views match history** → *Past games record keeping*
-
-**Emotional Journey:** Engaged → Informed → Satisfied
-**Performance Impact:** Offline capability essential for court environment
-
-### **Journey 3: Kevin the Newcomer - First Time Experience**
-
-#### **Phase 1: Initial Discovery (Wednesday)**
-**Context:** Kevin receives invite from friend, unfamiliar with group
-
-**Touchpoints & Experience:**
-1. **Clicks mysterious link** → *Immediate session overview, no confusion*
-2. **Understands context quickly** → *Clear "BadmintonGroup Thursday 7pm" title*
-3. **Sees welcoming player list** → *Names of Mike's regular group visible*
-4. **Hesitates about skill level** → *No intimidating skill requirements shown*
-5. **Joins with simple name entry** → *No account creation barrier*
-
-**Emotional Journey:** Curious → Uncertain → Reassured → Welcomed
-**Performance Impact:** Fast, clear loading prevents new user drop-off
-
-#### **Phase 2: Pre-Game Nerves (Thursday)**
-**Context:** Kevin checking details before heading to courts
-
-**Touchpoints & Experience:**
-1. **Double-checks location** → *Clear address with map integration*
-2. **Sees final player count** → *8 players confirmed, good group size*
-3. **Copies info for reference** → *Contact details and session info handy*
-
-**Emotional Journey:** Anxious → Prepared → Confident
-**Performance Impact:** Reliable access reduces new player anxiety
-
-### **Cross-Journey Performance Analysis**
-
-#### **Critical Performance Moments**
-1. **Share Link Click** → *< 1 sec load prevents abandonment*
-2. **RSVP Changes** → *< 500ms updates support dynamic planning*
-3. **Court Environment** → *Offline capability handles poor connectivity*
-4. **Copy Actions** → *Instant formatting keeps group communication flowing*
-
-#### **Journey Integration Points**
-- **WeChat/WhatsApp Bridge** → *Seamless transition between messaging and app*
-- **Real-time Coordination** → *All users see updates simultaneously*
-- **Role-based Experience** → *Mike gets organizer tools, others get clean experience*
-
-#### **Emotional Peak Moments**
-- **Mike:** Successfully managing group despite last-minute changes
-- **Sarah:** Quick RSVP update that helps Mike plan better  
-- **Kevin:** Feeling welcomed into established group without barriers
-
-#### **Performance-Driven Satisfaction**
-Our competitive performance advantages directly support emotional satisfaction:
-- **Fast loading** → Confidence in app reliability
-- **Instant updates** → Feeling of real-time connection
-- **Offline capability** → Reliability in challenging environments
-- **Smooth animations** → Professional, polished experience
-
-**Key Journey Insight:** Performance advantages become relationship advantages - faster updates mean better group coordination, which leads to more successful games and stronger social bonds among weekly recreational badminton players.
+**Notes:** Interface prioritizes speed and clarity for mid-game adjustments while maintaining rotation fairness transparency.
 
 ## Wireframes & Mockups
 
-**Primary Design Files:** Figma (detailed mockups with interactive prototypes)
-
-**React Native Design System:** React Native Elements with custom BadmintonGroup components
+**Primary Design Files:** React Native component specifications with Figma references for detailed visual designs
 
 ### Key Screen Layouts
 
-#### Session Overview (Landing Page)
+#### Enhanced Live Games Dashboard
 
-**Purpose:** Primary hub where players see all session information and take key actions
-
-**Key Elements:**
-- Session title, date, time, location (editable by organizer)
-- Quick RSVP status indicator
-- Player count with visual indicator (6/8 confirmed)
-- Primary action buttons: Join/Update RSVP, Copy List, Share Link
-- Navigation tabs: Players | Schedule | Pairings | (Scores) | (History)
-
-**Interaction Notes:** 
-- Copy List generates formatted text optimized for messaging apps
-- Different button visibility based on user role (organizer vs. player)
-- Real-time updates when other players join/leave
-
-#### Player List & RSVP Management
-
-**Purpose:** Show who's confirmed, manage attendance, enable sharing back to group chat
+**Purpose:** Central hub for managing all active games, court assignments, and rotation queue during live session
 
 **Key Elements:**
-- Confirmed players list with timestamps
-- "Maybe" or pending responses
-- Add/edit player name interface
-- Prominent "Copy List" button with preview of formatted message
-- Player count summary (ideal: 8, confirmed: 6, needed: 2)
+- Active Games Cards (current scores, time elapsed, court assignment)
+- Next Rotation Preview (upcoming player pairings with fairness indicators)
+- Court Status Overview (available/occupied courts with quick assignment)
+- Quick Actions Toolbar (start game, emergency stop, settings)
 
-**Interaction Notes:**
-- Swipe actions for RSVP changes
-- Visual feedback for copy action
-- Smart formatting for different group sizes
+**Interaction Notes:** All cards are touch-optimized for single-handed operation. Swipe gestures for quick actions, tap for detailed management. Real-time updates animate smoothly without disrupting user focus.
 
-#### Organizer Score Recording
+**Design File Reference:** [Enhanced-Live-Games-Dashboard.figma](design-files/enhanced-live-games-dashboard)
 
-**Purpose:** Allow organizers to record match results in standard format (2-0, 2-1, etc.)
+#### Live Game Scoring Interface
+
+**Purpose:** Fast, accurate score entry and team management during active gameplay
 
 **Key Elements:**
-- Current match pairing display
-- Score input interface (games won format: 2-0, 2-1, 1-2)
-- Match history for current session
-- Navigation to edit past scores
+- Large, prominent score displays (current set scores and game points)
+- Quick increment/decrement buttons optimized for touch accuracy
+- Team switching interface with drag-and-drop capability
+- Game timer and set progression indicators
 
-**Interaction Notes:**
-- Quick score entry with standard badminton scoring
-- Confirmation before saving scores
-- Visual indication of completed vs. pending matches
+**Interaction Notes:** Score buttons provide immediate haptic feedback with optimistic UI updates. Team switching accessed via swipe gesture or dedicated button. All actions include confirmation feedback visible across court distance.
+
+**Design File Reference:** [Live-Scoring-Interface.figma](design-files/live-scoring-interface)
+
+#### Fair Rotation Algorithm Visualization
+
+**Purpose:** Transparent display of upcoming game pairings with fairness metrics to maintain social harmony
+
+**Key Elements:**
+- Next 3 game preview with player matchup visualization
+- Fairness indicators showing games played, win/loss balance, partnership distribution
+- Manual override capability for session organizers
+- Clear explanation of algorithm decisions
+
+**Interaction Notes:** Tap any pairing for detailed fairness breakdown. Swipe to preview further future games. Override controls locked behind owner verification to prevent conflicts.
+
+**Design File Reference:** [Rotation-Algorithm-Display.figma](design-files/rotation-algorithm)
 
 ## Component Library / Design System
 
-**Design System Approach:** Building on React Native Elements with custom badminton-specific components and sports app color scheme.
+**Design System Approach:** React Native component library built on established BadmintonGroup design tokens, extended with Enhanced Live Games specific components for real-time gaming functionality
 
 ### Core Components
 
-#### Player List Item
-**Purpose:** Display individual player information with RSVP status and actions
+#### LiveGameCard Component
+
+**Purpose:** Display real-time game status with scoring, timing, and team information in compact, glanceable format
 
 **Variants:** 
-- Confirmed player (green indicator)
-- Pending/Maybe (yellow indicator)  
-- Organizer view (with edit controls)
-- Regular player view (read-only)
+- Active (currently playing with live updates)
+- Queued (waiting to start with player assignments)
+- Completed (finished with final scores and statistics)
 
-**States:** Default, Loading, Selected, Error
+**States:** 
+- Loading (connecting to real-time updates)
+- Online (receiving live data)
+- Offline (cached data with sync pending)
+- Error (connection failed with retry options)
 
-**Usage Guidelines:** Always show timestamp for RSVP changes, use consistent spacing for touch targets
+**Usage Guidelines:** Always display court assignment prominently. Use color coding for game urgency (normal, overtime, match point). Include subtle animation for score changes to catch attention without distraction.
 
-#### Action Button (Primary)
-**Purpose:** Main call-to-action buttons like "Join Session", "Copy List", "Record Score"
+#### TeamSwitchInterface Component
+
+**Purpose:** Enable rapid team rearrangement during active games with clear visual feedback and confirmation patterns
 
 **Variants:**
-- Join/RSVP (primary blue)
-- Copy/Share (secondary gray)
-- Score Record (success green)
-- Edit (warning orange)
+- Drag-and-Drop (full flexibility for team composition)
+- Quick-Swap (simple partner exchange with single tap)
+- Preset-Teams (common arrangements for quick selection)
 
-**States:** Default, Pressed, Loading, Disabled
+**States:**
+- Ready (waiting for user interaction)
+- Dragging (player being moved with preview feedback)
+- Confirming (new arrangement pending confirmation)
+- Updating (sending changes to real-time system)
 
-**Usage Guidelines:** Minimum 44px touch target, clear visual feedback on press
+**Usage Guidelines:** Provide immediate visual feedback during dragging. Show team balance preview before confirmation. Include undo capability for accidental changes.
 
-#### Session Status Card
-**Purpose:** Show session overview with key information and quick stats
+#### RotationQueue Component  
 
-**Variants:** 
-- Upcoming session
-- Active session (during play)
-- Completed session (with scores)
+**Purpose:** Display upcoming game pairings with fairness transparency and manual override capabilities
 
-**States:** Loading, Populated, Error
+**Variants:**
+- Preview-Only (read-only display for regular players)
+- Organizer-Control (full editing for session owners)
+- Algorithm-Explanation (detailed fairness breakdown)
 
-**Usage Guidelines:** Always show player count prominently, use clear date/time formatting
+**States:**
+- Calculating (rotation algorithm processing)
+- Ready (next games determined and displayed)
+- Manual-Override (organizer making adjustments)
+- Locked (games in progress, changes restricted)
+
+**Usage Guidelines:** Always show fairness reasoning for pairings. Use progressive disclosure for detailed algorithm explanations. Highlight any manual overrides clearly to maintain transparency.
 
 ## Branding & Style Guide
 
-**Visual Identity**
-**Brand Guidelines:** Clean, card-based design with soft colors and clear status differentiation
+### Visual Identity
+
+**Brand Guidelines:** The BadmintonGroup app maintains a clean, sports-focused identity that balances professionalism with the fun, social nature of recreational badminton. The visual language emphasizes fairness, transparency, and community building.
 
 ### Color Palette
 
 | Color Type | Hex Code | Usage |
-|------------|----------|-------|
-| Primary | #6366F1 | Main actions, active states (blue buttons) |
-| Secondary | #10B981 | Success states, confirmed players (green cards/buttons) |
-| Accent | #F59E0B | Pending/waiting status (orange borders) |
-| Success | #22C55E | Confirmed actions, "上场" buttons |
-| Warning | #F97316 | Status changes, "下场" buttons |
-| Error | #EF4444 | Errors, cancellations |
-| Neutral Light | #F8FAFC | Card backgrounds, light surfaces |
-| Neutral Border | #E2E8F0 | Card borders, subtle dividers |
-| Text Primary | #1E293B | Main text, player names |
-| Text Secondary | #64748B | Status text, metadata |
+|------------|----------|--------|
+| Primary | #2E7D32 | Main actions, active states, court/game elements |
+| Secondary | #1565C0 | Secondary actions, information displays, player indicators |
+| Accent | #FF6F00 | Live indicators, notifications, important highlights |
+| Success | #388E3C | Match wins, successful actions, positive feedback |
+| Warning | #F57C00 | Rotation warnings, timeout alerts, important notices |
+| Error | #D32F2F | Errors, invalid moves, connection issues |
+| Neutral | #212121, #424242, #757575, #BDBDBD, #E0E0E0, #F5F5F5, #FAFAFA | Text hierarchy, borders, backgrounds, dividers |
 
 ### Typography
 
 #### Font Families
-- **Primary:** SF Pro Display (iOS) / Roboto (Android) - matching the clean, modern feel
-- **Weight Usage:** 600 for player names, 400 for status text
+- **Primary:** Inter (high legibility for mobile screens, excellent at small sizes)
+- **Secondary:** Roboto (native Android feel, consistent with Material Design)
+- **Monospace:** SF Mono / Roboto Mono (for scores, timers, statistics)
 
-#### Component-Specific Typography
+#### Type Scale
 
-| Element | Size | Weight | Color |
-|---------|------|---------|-------|
-| Player Name | 16px | 600 | #1E293B |
-| Status Text | 14px | 400 | #64748B |
-| Button Text | 14px | 500 | White |
-| Section Headers | 18px | 600 | #1E293B |
+| Element | Size | Weight | Line Height |
+|---------|------|--------|-------------|
+| H1 | 32px | 700 | 40px |
+| H2 | 24px | 600 | 32px |
+| H3 | 20px | 600 | 28px |
+| Body | 16px | 400 | 24px |
+| Small | 14px | 400 | 20px |
 
 ### Iconography
 
-**Icon Library:** React Native Vector Icons (Feather set for clean, consistent style)
+**Icon Library:** React Native Vector Icons (Feather set primary, MaterialIcons for platform-specific elements)
 
 **Usage Guidelines:** 
-- 24px minimum for touch targets
-- Consistent stroke width (2px)
-- Use outline style for better mobile visibility
+- Icons are primarily 24px with 20px variants for compact layouts
+- Stroke width of 2px for Feather icons maintains consistency with typography weight
+- Icons should be semantically meaningful and culturally universal
+- Game-specific icons (shuttlecock, court layouts) use simplified, recognizable forms
+- All icons include proper accessibility labels for screen readers
 
 ### Spacing & Layout
 
-**Grid System:** 8px base unit system (8, 16, 24, 32, 40px)
+**Grid System:** 8px base unit system with 16px, 24px, 32px, 48px, 64px increments
 
-**Spacing Scale:** 
-- xs: 4px (tight spacing)
-- sm: 8px (default spacing)
-- md: 16px (section spacing)  
-- lg: 24px (major spacing)
-- xl: 32px (screen margins)
-
-**Layout Patterns:**
-- 16px padding inside cards
-- 12px spacing between cards
-- 4px border radius
-- Subtle border (#E2E8F0)
-- Status-based background tints
+**Spacing Scale:**
+- **xs:** 4px (fine adjustments, icon padding)
+- **sm:** 8px (tight content spacing)
+- **md:** 16px (standard content spacing)
+- **lg:** 24px (section separation)
+- **xl:** 32px (major section breaks)
+- **xxl:** 48px (screen-level spacing)
 
 ## Accessibility Requirements
 
 ### Compliance Target
-**Standard:** WCAG 2.1 AA compliance (international standard, covers most user needs)
+
+**Standard:** WCAG 2.1 AA compliance with React Native accessibility API implementation, optimized for mobile sports contexts
 
 ### Key Requirements
 
 **Visual:**
-- Color contrast ratios: 4.5:1 minimum for normal text, 3:1 for large text
-- Focus indicators: 2px solid outline with 2px offset for keyboard navigation  
-- Text sizing: Support up to 200% zoom without horizontal scrolling
+- Color contrast ratios: Minimum 4.5:1 for normal text, 3:1 for large text (18pt+). Enhanced contrast (7:1) for critical game state indicators (scores, active player status, timer displays)
+- Focus indicators: High-visibility focus rings with 2px minimum thickness, optimized for outdoor lighting conditions
+- Text sizing: Minimum 16px for body text with dynamic type support. Game-critical information (scores, player names, timer) uses minimum 18px with bold weight
 
 **Interaction:**
-- Keyboard navigation: Full app functionality accessible via external keyboard
-- Screen reader support: Proper semantic labels for all interactive elements
-- Touch targets: Minimum 44x44px (iOS) / 48x48dp (Android) for all buttons
+- Keyboard navigation: Full keyboard support for all interactive elements, though primarily designed for touch-first mobile usage
+- Screen reader support: VoiceOver/TalkBack compatibility with descriptive labels for game states, player rotations, and score changes. Live region announcements for real-time updates
+- Touch targets: Minimum 44pt touch targets per Apple/Google guidelines, with 48pt preferred for primary actions. Enhanced spacing for in-game controls used during physical activity
 
 **Content:**
-- Alternative text: Descriptive labels for status icons and player indicators
-- Heading structure: Logical hierarchy (h1 for session title, h2 for sections)
-- Form labels: Clear, programmatically associated labels for name input
-
-**BadmintonGroup-Specific Considerations:**
-- Player status communicated through text + color (not color alone)
-- Score input fields with clear labels and validation messages
-- Share/copy buttons with descriptive text beyond just icons
+- Alternative text: Descriptive alt text for all UI icons and images. Court diagrams include detailed descriptions of player positions and rotation states
+- Heading structure: Logical heading hierarchy (h1-h6) for screen reader navigation. Game sections clearly structured with appropriate semantic levels
+- Form labels: All form inputs properly labeled with associated helper text. Error messages clearly linked to relevant fields
 
 ### Testing Strategy
-- **Manual Testing:** Keyboard navigation, screen reader testing (VoiceOver/TalkBack)
-- **Automated Testing:** Integration with React Native accessibility testing tools
-- **User Testing:** Include users with disabilities in testing sessions
+
+**Automated Testing:**
+- Integrate @react-native-community/eslint-plugin-react-native-a11y for linting
+- Use react-native-accessibility-engine for automated accessibility auditing
+- Implement accessibility testing in CI/CD pipeline
+
+**Manual Testing:**
+- VoiceOver (iOS) and TalkBack (Android) testing for all user flows
+- High contrast mode testing for visibility in bright outdoor conditions  
+- Motor impairment testing with switch control and voice control
+- Testing with users who have visual, auditory, and motor impairments
+
+**Real-world Context Testing:**
+- Outdoor lighting conditions (bright sun, shadows)
+- One-handed operation during breaks between games
+- Quick glance interactions during active play
+- Testing with sports glasses, sunglasses, and protective eyewear
 
 ## Responsiveness Strategy
 
@@ -464,151 +351,147 @@ Our competitive performance advantages directly support emotional satisfaction:
 
 | Breakpoint | Min Width | Max Width | Target Devices |
 |------------|-----------|-----------|----------------|
-| Mobile | 320px | 767px | Phones, primary usage |
-| Tablet | 768px | 1023px | iPads, larger group management |
-| Desktop | 1024px | 1439px | Laptops, web share links |
+| Mobile | 320px | 767px | Phones, primary usage scenario |
+| Tablet | 768px | 1023px | iPads, enhanced management capabilities |
+| Desktop | 1024px | 1439px | Laptops, share link access |
 | Wide | 1440px | - | Large monitors, rare usage |
 
 ### Adaptation Patterns
 
-**Layout Changes:**
-- **Mobile:** Single column card layout, full-width components
-- **Tablet:** Two-column layout for player lists, side-by-side panels for session details + players
-- **Desktop:** Three-column layout with navigation, main content, and action panel
+**Layout Changes:** Single column mobile layout expands to two-column tablet view for simultaneous game monitoring and management. Desktop provides three-column layout for comprehensive session oversight.
 
-**Navigation Changes:**
-- **Mobile:** Bottom tab navigation, hamburger menu for secondary actions
-- **Tablet/Desktop:** Side navigation or top navigation bar with all options visible
+**Navigation Changes:** Bottom tab navigation on mobile transitions to sidebar navigation on tablet/desktop. Quick actions remain thumb-accessible on all form factors.
 
-**Content Priority:**
-- **Mobile:** Session info → Player list → Pairings (vertical stack)
-- **Tablet:** Session overview + Player management side-by-side
-- **Desktop:** Full dashboard view with all sections visible simultaneously
+**Content Priority:** Mobile prioritizes current game status and immediate actions. Tablet adds rotation preview and multi-game monitoring. Desktop includes comprehensive statistics and session management tools.
 
-**Interaction Changes:**
-- **Mobile:** Touch-optimized (44px minimum touch targets)
-- **Tablet:** Mixed touch/cursor interactions
-- **Desktop:** Hover states, keyboard shortcuts, cursor-optimized interactions
+**Interaction Changes:** Touch-first design on mobile maintains usability on larger screens while adding mouse/keyboard shortcuts for power users on desktop platforms.
 
 ## Animation & Micro-interactions
 
 ### Motion Principles
 
-**Subtle & Purposeful:** Animations should enhance understanding, not entertain. Focus on state changes, feedback, and spatial relationships.
+**1. Instant Feedback Primacy**
+- Every user action during live gameplay receives immediate visual acknowledgment
+- Real-time data updates are visually distinguished from user-initiated changes
+- Motion never delays Socket.IO communication - animations occur parallel to data transmission
 
-**Performance-First:** All animations must maintain 60fps on mid-range devices, with reduced motion for accessibility.
+**2. Glanceability Through Motion**
+- Animations guide attention to critical game state changes (score updates, rotation alerts)
+- Quick, distinctive movements for different types of information (your turn vs. opponent turn)
+- Reduced motion options respect accessibility and battery conservation during long sessions
 
-**Consistent Timing:** Use a cohesive timing system (200ms for quick feedback, 300ms for spatial changes, 500ms for major transitions).
+**3. Social Harmony Motion**
+- Celebratory animations for achievements that feel positive but not disruptive
+- Team-based visual consistency - similar motion patterns for team members
+- Subtle visual cues for coordination (next rotation, game end) that work across devices simultaneously
+
+**4. Context-Aware Performance**
+- Reduced animations during intense rally scoring to minimize distraction
+- Battery-conscious motion during extended tournament sessions
+- Network-adaptive animations that gracefully degrade with poor connectivity
 
 ### Key Animations
 
-- **Card State Changes:** Player joins/leaves - card slides in/out with scale + opacity (Duration: 300ms, Easing: ease-out)
-- **Button Press Feedback:** All action buttons - subtle scale down (0.95) + color darken (Duration: 100ms, Easing: ease-in-out)
-- **Copy Action Success:** Copy list button - checkmark icon rotation + green flash (Duration: 200ms, Easing: ease-out)
-- **RSVP Status Update:** Status badge color transition + gentle bounce scale (Duration: 250ms, Easing: elastic-out)
-- **Player List Updates:** New player addition - slide from right + fade in (Duration: 300ms, Easing: ease-out)
-- **Score Recording:** Score input confirmation - gentle shake for validation errors, checkmark for success (Duration: 200ms, Easing: ease-in-out)
-- **Session Loading:** Player cards skeleton loading - subtle shimmer animation (Duration: 1500ms, Easing: linear, infinite)
-- **Pull-to-Refresh:** Standard iOS/Android refresh pattern with custom loading indicator (Duration: varies, Easing: system default)
+**Real-time Game State Updates:**
+- **Score Increment:** Quick scale pulse (1.0→1.15→1.0) with color flash (Duration: 300ms, Easing: ease-out)
+- **Team Switch Indicator:** Horizontal slide with fade transition (Duration: 400ms, Easing: ease-in-out)
+- **Active Player Highlight:** Subtle glow pulse on current server/receiver (Duration: 1200ms, Easing: ease-in-out, continuous)
 
-**Accessibility Considerations:**
-- All animations respect `prefers-reduced-motion` system settings
-- Critical information never communicated through animation alone
-- Haptic feedback accompanies visual animations on supported devices
+**User Interaction Feedback:**
+- **Button Press Acknowledgment:** Scale down (0.95) with haptic feedback (Duration: 150ms, Easing: ease-out)
+- **Swipe Gesture Confirmation:** Card slide with momentum-based easing (Duration: 250ms, Easing: cubic-bezier(0.25, 0.46, 0.45, 0.94))
+- **Action Sheet Appearance:** Slide up from bottom with backdrop fade (Duration: 300ms, Easing: ease-out)
+
+**Game Flow Transitions:**
+- **Rotation Animation:** Circular arrow motion with player card repositioning (Duration: 800ms, Easing: ease-in-out)
+- **Game End Celebration:** Confetti burst with score highlight sequence (Duration: 2000ms, Easing: ease-out, can be skipped)
+- **Match Point Alert:** Pulsing border with gradient shift (Duration: 600ms, Easing: ease-in-out, repeating)
+
+**Social & Coordination Cues:**
+- **Join Session Success:** Welcoming slide-in with team color assignment (Duration: 500ms, Easing: ease-out)
+- **Player Connection Status:** Connectivity indicator fade (Duration: 200ms, Easing: ease-in-out)
+- **Synchronized Countdown:** Number scale with synchronized timing across devices (Duration: 1000ms per count, Easing: ease-out)
+
+**Error & Validation States:**
+- **Invalid Score Entry:** Shake animation with error color (Duration: 400ms, Easing: ease-out)
+- **Network Reconnection:** Loading spinner with retry indication (Duration: continuous, Easing: linear)
+- **Permission Denied:** Gentle bounce-back with explanatory text fade-in (Duration: 350ms, Easing: ease-out)
+
+**Performance-Optimized Patterns:**
+- **List Scroll Momentum:** Native platform scrolling with custom overscroll behavior (Platform-dependent)
+- **Real-time Updates Queue:** Staggered fade-in for multiple simultaneous updates (100ms delays, Easing: ease-out)
+- **Background Data Sync:** Minimal loading indicators that don't interrupt gameplay (Duration: 200ms fade, Easing: ease-in-out)
 
 ## Performance Considerations
 
 ### Performance Goals
 
-- **App Launch:** < 2 seconds from tap to usable interface
-- **Share Link Loading:** < 1 second from link tap to session overview  
-- **RSVP Updates:** < 500ms for status change confirmation
-- **Animation FPS:** Maintain 60fps on mid-range devices (iPhone 8, Android equivalent)
+- **Initial Load:** Session detail screen with live games loads within 1.5 seconds on 3G connection
+- **Real-time Updates:** Score changes and game state updates reflect across all devices within 200ms via Socket.IO
+- **Interaction Response:** Touch feedback and UI updates respond within 16ms (60fps) for smooth gameplay experience
+- **Animation Performance:** Maintain consistent 60fps during all transitions and real-time updates, with 30fps graceful degradation
+- **Battery Efficiency:** Extended gaming sessions (3+ hours) consume less than 30% battery through optimized background processing
 
 ### Design Strategies
 
-**Optimize for Core User Journey:**
-- Prioritize session overview loading over secondary features
-- Cache player lists locally for instant display
-- Progressive loading: Show cached data immediately, update with live data
+**Real-time Optimization Patterns:**
+- Optimistic UI updates for immediate feedback with server reconciliation
+- Smart data polling with exponential backoff for network resilience  
+- Component-level state management to prevent unnecessary re-renders during live updates
+- Progressive loading with game-critical data prioritized over statistics and history
 
-**Card-Based Performance Benefits:**
-- Individual card updates instead of full list re-renders
-- Lazy loading for large player lists (though unlikely with 6-10 players)
-- Efficient animations using transforms (translate/scale) vs layout changes
+**Mobile Performance Architecture:**
+- Lazy loading for non-essential screens and features to reduce initial bundle size
+- Image optimization with multiple resolutions for various device pixel densities
+- Memory-conscious list virtualization for large player lists and game history
+- Background task optimization to maintain real-time updates while preserving battery life
 
-**React Native Specific Optimizations:**
-- FlatList for player lists (even small ones) for consistent performance
-- Image optimization for any player avatars or icons
-- Minimize bridge communications for real-time updates
-
-**Network & Offline Strategy:**
-- Optimistic UI updates for RSVP changes
-- Offline-first for viewing existing session data
-- Smart sync when connection restored
-
-**Visual Performance Feedback:**
-- Skeleton loading for player cards
-- Instant button press feedback (no waiting for network)
-- Clear loading states that don't block interaction
-
-### Competitive Performance Analysis
-
-#### **Market Performance Benchmarks**
-Based on analysis of similar sports coordination apps:
-
-- **TeamSnap:** Experiencing "slow app response times" and user complaints about performance
-- **Spond:** Better stability but some crash reports, good calendar sync performance
-- **Industry Standards:** < 2-3 seconds app launch, < 1 second API responses, 60 FPS animations
-
-#### **BadmintonGroup Performance Advantages**
-
-| Metric | Market Standard | BadmintonGroup Target | Competitive Edge |
-|--------|-----------------|----------------------|------------------|
-| App Launch | 2-5 seconds | < 2 seconds | ✅ Faster entry |
-| Share Link Load | 3-5 seconds | < 1 second | ✅ Instant access |
-| RSVP Response | 1-2 seconds | < 500ms | ✅ Real-time feel |
-| Offline Capability | Limited/None | Full session data | ✅ Court connectivity |
-| Update Mechanism | Full list reload | Individual cards | ✅ Smoother UX |
-
-#### **Performance-Driven User Experience**
-
-**Critical Performance Moments:**
-- **Share Link Click** → < 1 sec load prevents new user abandonment
-- **RSVP Changes** → < 500ms updates enable dynamic group planning
-- **Court Environment** → Offline capability handles poor WiFi/cellular
-- **Copy Actions** → Instant formatting maintains messaging app flow
-
-**Performance = Relationship Success:**
-Fast performance directly enables social coordination - quicker updates mean better group communication, leading to more successful games and stronger social bonds among weekly players.
+**Network Resilience Design:**
+- Offline-first architecture with local data caching for core gameplay functions
+- Graceful degradation from real-time to periodic updates based on connection quality
+- Visual indicators for connection status that don't disrupt gameplay flow
+- Smart retry mechanisms with user feedback for failed operations
 
 ## Next Steps
 
 ### Immediate Actions
 
-1. **Stakeholder Review** - Present this specification to key stakeholders and gather feedback on the card-based design approach and feature priorities
-2. **Create Figma Design System** - Build detailed mockups using the established color palette, typography, and component library in Figma
-3. **Develop Interactive Prototype** - Create clickable prototype focusing on the core user flows (join session, RSVP, copy list)
-4. **Validate with Target Users** - Test the proposed design with actual weekly recreational badminton players like your "Mike" and "Sarah" personas
-5. **Prepare Frontend Architecture Handoff** - Ready this specification for the frontend architecture phase
+1. **Design System Integration Review**
+   - Audit existing React Native component library against new Enhanced Live Games components
+   - Identify gaps between current design tokens and Enhanced Live Games requirements
+   - Create component mapping document for development team
+
+2. **Technical Architecture Planning**
+   - Review backend API endpoints for live games functionality compatibility
+   - Plan Socket.io integration for real-time game state synchronization
+   - Define state management approach for live game data in Redux store
+
+3. **Development Environment Setup**
+   - Configure testing environment for live games features
+   - Set up device testing matrix for different screen sizes and orientations
+   - Prepare staging environment for beta testing with session organizers
+
+4. **Priority Feature Implementation Planning**
+   - Phase 1: Core live game tracking (score entry, game state)
+   - Phase 2: Real-time synchronization and multi-device support
+   - Phase 3: Advanced analytics and session management integration
+
+5. **User Testing Preparation**
+   - Recruit beta test group from existing session organizers
+   - Prepare usability testing scenarios for live game workflows
+   - Set up feedback collection system for iterative improvements
 
 ### Design Handoff Checklist
 
-- [x] All user flows documented
-- [x] Component inventory complete  
-- [x] Accessibility requirements defined
-- [x] Responsive strategy clear
-- [x] Brand guidelines incorporated
-- [x] Performance goals established
+- [x] **All user flows documented** - Core game management and team switching flows completed
+- [x] **Component inventory complete** - LiveGameCard, TeamSwitchInterface, and RotationQueue components specified
+- [x] **Accessibility requirements defined** - WCAG 2.1 AA compliance with sports context considerations
+- [x] **Responsive strategy clear** - Mobile-first approach with tablet and desktop adaptations
+- [x] **Brand guidelines incorporated** - Color palette, typography, and iconography aligned with BadmintonGroup identity
+- [x] **Performance goals established** - Real-time responsiveness and mobile optimization targets set
 
-**Recommended Implementation Priority:**
-1. Core session joining flow with card-based player list
-2. WeChat/WhatsApp copy integration 
-3. Organizer score recording functionality
-4. Session history for organizers
-5. Advanced responsive features
+---
 
-**Open Questions for Next Phase:**
-- Final confirmation on React Native Elements vs. NativeBase for component library
-- WeChat/WhatsApp API integration requirements for seamless sharing
-- Backend real-time update requirements for live RSVP changes
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>

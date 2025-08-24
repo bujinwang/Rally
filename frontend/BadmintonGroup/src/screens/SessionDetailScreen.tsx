@@ -31,6 +31,25 @@ interface Player {
   joinedAt: string;
 }
 
+interface Game {
+  id: string;
+  gameNumber: number;
+  courtName?: string;
+  team1Player1: string;
+  team1Player2: string;
+  team2Player1: string;
+  team2Player2: string;
+  team1FinalScore: number;
+  team2FinalScore: number;
+  winnerTeam?: number;
+  startTime?: string;
+  endTime?: string;
+  duration?: number;
+  status: 'IN_PROGRESS' | 'COMPLETED' | 'PAUSED' | 'CANCELLED';
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface SessionData {
   id: string;
   name: string;
@@ -42,8 +61,10 @@ interface SessionData {
   ownerDeviceId: string;
   playerCount: number;
   players: Player[];
+  games: Game[];
   createdAt: string;
   shareCode: string;
+  courtCount?: number;
 }
 
 export default function SessionDetailScreen() {
@@ -57,9 +78,46 @@ export default function SessionDetailScreen() {
   const [isOwner, setIsOwner] = useState(false);
   const [showAddPlayer, setShowAddPlayer] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
+  const [showCreateGame, setShowCreateGame] = useState(false);
+  const [showScoreGame, setShowScoreGame] = useState(false);
+  const [selectedGame, setSelectedGame] = useState<Game | null>(null);
+  const [gameForm, setGameForm] = useState({
+    team1Player1: '',
+    team1Player2: '',
+    team2Player1: '',
+    team2Player2: '',
+    courtName: ''
+  });
+  const [scoreForm, setScoreForm] = useState({
+    team1FinalScore: 0,
+    team2FinalScore: 0
+  });
+  const [showCourtSettings, setShowCourtSettings] = useState(false);
+  const [courtSettings, setCourtSettings] = useState({
+    courtCount: 1
+  });
+  const [showTeamSwitch, setShowTeamSwitch] = useState(false);
+  const [teamSwitchForm, setTeamSwitchForm] = useState({
+    team1Player1: '',
+    team1Player2: '',
+    team2Player1: '',
+    team2Player2: ''
+  });
 
   // Real-time functionality
   const realTimeStatus = useSelector(selectRealTimeStatus);
+  
+  // Initialize team switch form when a game is selected
+  useEffect(() => {
+    if (selectedGame && showTeamSwitch) {
+      setTeamSwitchForm({
+        team1Player1: selectedGame.team1Player1,
+        team1Player2: selectedGame.team1Player2,
+        team2Player1: selectedGame.team2Player1,
+        team2Player2: selectedGame.team2Player2
+      });
+    }
+  }, [selectedGame, showTeamSwitch]);
   const {
     isConnected: isSocketConnected,
     connectionStatus,
@@ -154,10 +212,22 @@ export default function SessionDetailScreen() {
       const result = await response.json();
 
       if (result.success) {
-        setSessionData(result.data.session);
+        const session = result.data.session;
+        setSessionData(session);
+        // Initialize court settings from session data
+        setCourtSettings({
+          courtCount: session.courtCount || 1
+        });
         // Check if current device is the owner
-        if (deviceId && result.data.session.ownerDeviceId === deviceId) {
+        console.log('🔍 Ownership check:', {
+          currentDeviceId: deviceId,
+          sessionOwnerDeviceId: session.ownerDeviceId,
+          isOwner: deviceId && session.ownerDeviceId === deviceId
+        });
+        if (deviceId && session.ownerDeviceId === deviceId) {
           setIsOwner(true);
+        } else {
+          setIsOwner(false);
         }
       } else {
         Alert.alert('Error', result.error?.message || 'Session not found');
@@ -173,16 +243,10 @@ export default function SessionDetailScreen() {
   const refreshSessionData = async () => {
     if (shareCode) {
       try {
-        // Use real-time manual refresh if available, otherwise fallback to direct fetch
-        if (isAutoRefreshActive) {
-          await manualRefresh();
-        } else {
-          await fetchSessionData(shareCode, deviceId);
-        }
+        // Always use direct fetch for now to avoid real-time service issues
+        await fetchSessionData(shareCode, deviceId);
       } catch (error) {
         console.error('Manual refresh failed:', error);
-        // Fallback to direct fetch
-        await fetchSessionData(shareCode, deviceId);
       }
     }
   };
@@ -332,6 +396,131 @@ export default function SessionDetailScreen() {
         }
       ]
     );
+  };
+
+  const createGame = async () => {
+    if (!shareCode || !gameForm.team1Player1 || !gameForm.team1Player2 || !gameForm.team2Player1 || !gameForm.team2Player2) {
+      Alert.alert('Error', 'Please select all four players');
+      return;
+    }
+
+    try {
+      const result = await fetch(`${API_BASE_URL}/mvp-sessions/${shareCode}/games`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(gameForm)
+      });
+
+      const response = await result.json();
+
+      if (response.success) {
+        setShowCreateGame(false);
+        setGameForm({
+          team1Player1: '',
+          team1Player2: '',
+          team2Player1: '',
+          team2Player2: '',
+          courtName: ''
+        });
+        refreshSessionData();
+        Alert.alert('Success', 'Game created successfully!');
+      } else {
+        Alert.alert('Error', response.message || 'Failed to create game');
+      }
+    } catch (error) {
+      console.error('Create game error:', error);
+      Alert.alert('Error', 'Failed to create game: ' + error.message);
+    }
+  };
+
+  const updateGameScore = async () => {
+    if (!selectedGame || !shareCode) return;
+
+    if (scoreForm.team1FinalScore === scoreForm.team2FinalScore) {
+      Alert.alert('Error', 'Game cannot end in a tie');
+      return;
+    }
+
+    if (scoreForm.team1FinalScore < 0 || scoreForm.team1FinalScore > 2 || 
+        scoreForm.team2FinalScore < 0 || scoreForm.team2FinalScore > 2) {
+      Alert.alert('Error', 'Scores must be between 0 and 2');
+      return;
+    }
+
+    try {
+      const result = await fetch(`${API_BASE_URL}/mvp-sessions/${shareCode}/games/${selectedGame.id}/score`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(scoreForm)
+      });
+
+      const response = await result.json();
+
+      if (response.success) {
+        setShowScoreGame(false);
+        setSelectedGame(null);
+        setScoreForm({ team1FinalScore: 0, team2FinalScore: 0 });
+        refreshSessionData();
+        
+        const winner = scoreForm.team1FinalScore > scoreForm.team2FinalScore 
+          ? `${selectedGame.team1Player1} & ${selectedGame.team1Player2}` 
+          : `${selectedGame.team2Player1} & ${selectedGame.team2Player2}`;
+        
+        Alert.alert('Game Completed!', `🏆 ${winner} won ${scoreForm.team1FinalScore}-${scoreForm.team2FinalScore}!`);
+      } else {
+        Alert.alert('Error', response.message || 'Failed to update score');
+      }
+    } catch (error) {
+      console.error('Update score error:', error);
+      Alert.alert('Error', 'Failed to update score: ' + error.message);
+    }
+  };
+
+  const updateGameTeams = async () => {
+    if (!selectedGame || !shareCode) return;
+
+    // Validate that all players are selected and different
+    const players = [teamSwitchForm.team1Player1, teamSwitchForm.team1Player2, 
+                     teamSwitchForm.team2Player1, teamSwitchForm.team2Player2];
+    
+    if (players.some(p => !p.trim())) {
+      Alert.alert('Error', 'Please select all four players');
+      return;
+    }
+
+    const uniquePlayers = new Set(players);
+    if (uniquePlayers.size !== 4) {
+      Alert.alert('Error', 'All players must be different');
+      return;
+    }
+
+    try {
+      const result = await fetch(`${API_BASE_URL}/mvp-sessions/${shareCode}/games/${selectedGame.id}/teams`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(teamSwitchForm)
+      });
+
+      const response = await result.json();
+
+      if (response.success) {
+        setShowTeamSwitch(false);
+        setSelectedGame(null);
+        setTeamSwitchForm({
+          team1Player1: '',
+          team1Player2: '',
+          team2Player1: '',
+          team2Player2: ''
+        });
+        refreshSessionData();
+        Alert.alert('Teams Updated!', 'Team arrangements have been successfully changed.');
+      } else {
+        Alert.alert('Error', response.message || 'Failed to update teams');
+      }
+    } catch (error) {
+      console.error('Update teams error:', error);
+      Alert.alert('Error', 'Failed to update teams: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
   };
 
   const formatSessionForClipboard = (session: SessionData, code: string) => {
@@ -661,6 +850,121 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
         )}
       </View>
 
+      {/* Live Games Section */}
+      <View style={styles.gamesCard}>
+        <View style={styles.gamesHeader}>
+          <Text style={styles.gamesTitle}>🏸 Live Games</Text>
+          <View style={styles.gameControls}>
+            {isOwner ? (
+              <TouchableOpacity 
+                style={styles.courtSettingsButton} 
+                onPress={() => setShowCourtSettings(true)}
+              >
+                <Text style={styles.courtSettingsText}>⚙️ Courts ({sessionData.courtCount || 1})</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.courtInfoDisplay}>
+                <Text style={styles.courtInfoText}>Courts: {sessionData.courtCount || 1}</Text>
+              </View>
+            )}
+            <TouchableOpacity 
+              style={styles.createGameButton} 
+              onPress={() => setShowCreateGame(true)}
+            >
+              <Text style={styles.createGameText}>➕ New Game</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {sessionData.games && sessionData.games.length > 0 ? (
+          <View style={styles.gamesList}>
+            {sessionData.games
+              .sort((a, b) => b.gameNumber - a.gameNumber)
+              .slice(0, 5)
+              .map((game) => (
+                <View key={game.id} style={styles.gameItem}>
+                  <View style={styles.gameHeader}>
+                    <Text style={styles.gameNumber}>Game #{game.gameNumber}</Text>
+                    {game.courtName && (
+                      <Text style={styles.courtName}>{game.courtName}</Text>
+                    )}
+                    <View style={[styles.gameStatusBadge, getGameStatusStyle(game.status)]}>
+                      <Text style={styles.gameStatusText}>{game.status}</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.teamsRow}>
+                    <View style={styles.team}>
+                      <Text style={styles.teamLabel}>Team 1</Text>
+                      <Text style={styles.teamPlayers}>
+                        {game.team1Player1} & {game.team1Player2}
+                      </Text>
+                      <Text style={styles.teamScore}>{game.team1FinalScore}</Text>
+                    </View>
+                    
+                    <Text style={styles.vsText}>VS</Text>
+                    
+                    <View style={styles.team}>
+                      <Text style={styles.teamLabel}>Team 2</Text>
+                      <Text style={styles.teamPlayers}>
+                        {game.team2Player1} & {game.team2Player2}
+                      </Text>
+                      <Text style={styles.teamScore}>{game.team2FinalScore}</Text>
+                    </View>
+                  </View>
+                  
+                  {game.status === 'IN_PROGRESS' && (
+                    <View style={styles.gameActions}>
+                      <TouchableOpacity 
+                        style={styles.switchTeamsButton}
+                        onPress={() => {
+                          setSelectedGame(game);
+                          setShowTeamSwitch(true);
+                        }}
+                      >
+                        <Text style={styles.switchTeamsText}>🔄 Switch Teams</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={styles.finishGameButton}
+                        onPress={() => {
+                          setSelectedGame(game);
+                          setScoreForm({
+                            team1FinalScore: game.team1FinalScore,
+                            team2FinalScore: game.team2FinalScore
+                          });
+                          setShowScoreGame(true);
+                        }}
+                      >
+                        <Text style={styles.finishGameText}>🏁 Finish Game</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  
+                  {game.winnerTeam && (
+                    <View style={styles.winnerBadge}>
+                      <Text style={styles.winnerText}>
+                        🏆 {game.winnerTeam === 1 
+                          ? `${game.team1Player1} & ${game.team1Player2}` 
+                          : `${game.team2Player1} & ${game.team2Player2}`} won!
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+          </View>
+        ) : (
+          <View style={styles.noGamesContainer}>
+            <Text style={styles.noGamesText}>No games yet. Start your first game!</Text>
+            <TouchableOpacity 
+              style={styles.startFirstGameButton} 
+              onPress={() => setShowCreateGame(true)}
+            >
+              <Text style={styles.startFirstGameText}>🏸 Create First Game</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
       <View style={styles.playersCard}>
         <Text style={styles.playersTitle}>Players ({sessionData.players?.length || 0})</Text>
         
@@ -754,6 +1058,516 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
           </View>
         </View>
       </Modal>
+
+      {/* Court Settings Modal */}
+      <Modal
+        visible={showCourtSettings}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowCourtSettings(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Court Settings</Text>
+            
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Number of Courts:</Text>
+              <View style={styles.counterControls}>
+                <TouchableOpacity 
+                  style={styles.counterButton}
+                  onPress={() => setCourtSettings(prev => ({ 
+                    ...prev, 
+                    courtCount: Math.max(1, prev.courtCount - 1) 
+                  }))}
+                >
+                  <Text style={styles.counterButtonText}>−</Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.counterValue}>{courtSettings.courtCount}</Text>
+                
+                <TouchableOpacity 
+                  style={styles.counterButton}
+                  onPress={() => setCourtSettings(prev => ({ 
+                    ...prev, 
+                    courtCount: Math.min(10, prev.courtCount + 1) 
+                  }))}
+                >
+                  <Text style={styles.counterButtonText}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowCourtSettings(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.modalAddButton}
+                onPress={async () => {
+                  try {
+                    console.log('🔧 Court settings update:', {
+                      shareCode,
+                      deviceId,
+                      courtCount: courtSettings.courtCount,
+                      isOwner,
+                      sessionOwnerDeviceId: sessionData?.ownerDeviceId
+                    });
+                    
+                    const response = await fetch(`${API_BASE_URL}/mvp-sessions/${shareCode}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        ownerDeviceId: deviceId,
+                        courtCount: courtSettings.courtCount
+                      })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                      setShowCourtSettings(false);
+                      refreshSessionData();
+                      Alert.alert('Settings Saved', `Court count set to ${courtSettings.courtCount}`);
+                    } else {
+                      Alert.alert('Error', result.message || 'Failed to save settings');
+                    }
+                  } catch (error) {
+                    console.error('Save court settings error:', error);
+                    Alert.alert('Error', 'Failed to save court settings: ' + error.message);
+                  }
+                }}
+              >
+                <Text style={styles.modalAddText}>Save Settings</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Create Game Modal */}
+      <Modal
+        visible={showCreateGame}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowCreateGame(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Create New Game</Text>
+            
+            {/* Team 1 */}
+            <Text style={styles.teamSectionTitle}>Team 1</Text>
+            <View style={styles.playerSelectionRow}>
+              <View style={styles.playerDropdown}>
+                <Text style={styles.playerLabel}>Player 1:</Text>
+                <TouchableOpacity 
+                  style={styles.playerSelector}
+                  onPress={() => {
+                    const availablePlayers = sessionData?.players?.filter(p => p.status === 'ACTIVE') || [];
+                    Alert.alert(
+                      'Select Player 1 (Team 1)', 
+                      'Choose a player:', 
+                      availablePlayers.map(player => ({
+                        text: player.name,
+                        onPress: () => setGameForm(prev => ({ ...prev, team1Player1: player.name }))
+                      })).concat([{ text: 'Cancel', style: 'cancel' }])
+                    );
+                  }}
+                >
+                  <Text style={styles.playerSelectorText}>
+                    {gameForm.team1Player1 || 'Select Player'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.playerDropdown}>
+                <Text style={styles.playerLabel}>Player 2:</Text>
+                <TouchableOpacity 
+                  style={styles.playerSelector}
+                  onPress={() => {
+                    const availablePlayers = sessionData?.players?.filter(p => p.status === 'ACTIVE' && p.name !== gameForm.team1Player1) || [];
+                    Alert.alert(
+                      'Select Player 2 (Team 1)', 
+                      'Choose a player:', 
+                      availablePlayers.map(player => ({
+                        text: player.name,
+                        onPress: () => setGameForm(prev => ({ ...prev, team1Player2: player.name }))
+                      })).concat([{ text: 'Cancel', style: 'cancel' }])
+                    );
+                  }}
+                >
+                  <Text style={styles.playerSelectorText}>
+                    {gameForm.team1Player2 || 'Select Player'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            {/* Team 2 */}
+            <Text style={styles.teamSectionTitle}>Team 2</Text>
+            <View style={styles.playerSelectionRow}>
+              <View style={styles.playerDropdown}>
+                <Text style={styles.playerLabel}>Player 1:</Text>
+                <TouchableOpacity 
+                  style={styles.playerSelector}
+                  onPress={() => {
+                    const usedPlayers = [gameForm.team1Player1, gameForm.team1Player2].filter(Boolean);
+                    const availablePlayers = sessionData?.players?.filter(p => 
+                      p.status === 'ACTIVE' && !usedPlayers.includes(p.name)
+                    ) || [];
+                    Alert.alert(
+                      'Select Player 1 (Team 2)', 
+                      'Choose a player:', 
+                      availablePlayers.map(player => ({
+                        text: player.name,
+                        onPress: () => setGameForm(prev => ({ ...prev, team2Player1: player.name }))
+                      })).concat([{ text: 'Cancel', style: 'cancel' }])
+                    );
+                  }}
+                >
+                  <Text style={styles.playerSelectorText}>
+                    {gameForm.team2Player1 || 'Select Player'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.playerDropdown}>
+                <Text style={styles.playerLabel}>Player 2:</Text>
+                <TouchableOpacity 
+                  style={styles.playerSelector}
+                  onPress={() => {
+                    const usedPlayers = [gameForm.team1Player1, gameForm.team1Player2, gameForm.team2Player1].filter(Boolean);
+                    const availablePlayers = sessionData?.players?.filter(p => 
+                      p.status === 'ACTIVE' && !usedPlayers.includes(p.name)
+                    ) || [];
+                    Alert.alert(
+                      'Select Player 2 (Team 2)', 
+                      'Choose a player:', 
+                      availablePlayers.map(player => ({
+                        text: player.name,
+                        onPress: () => setGameForm(prev => ({ ...prev, team2Player2: player.name }))
+                      })).concat([{ text: 'Cancel', style: 'cancel' }])
+                    );
+                  }}
+                >
+                  <Text style={styles.playerSelectorText}>
+                    {gameForm.team2Player2 || 'Select Player'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            {/* Court Selection */}
+            <Text style={styles.teamSectionTitle}>Court (Optional)</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder={`Court 1, Court 2, etc.`}
+              value={gameForm.courtName}
+              onChangeText={(text) => setGameForm(prev => ({ ...prev, courtName: text }))}
+              maxLength={50}
+            />
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setShowCreateGame(false);
+                  setGameForm({
+                    team1Player1: '',
+                    team1Player2: '',
+                    team2Player1: '',
+                    team2Player2: '',
+                    courtName: ''
+                  });
+                }}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.modalAddButton, 
+                  (!gameForm.team1Player1 || !gameForm.team1Player2 || !gameForm.team2Player1 || !gameForm.team2Player2) 
+                    && styles.disabledButton
+                ]}
+                onPress={createGame}
+                disabled={!gameForm.team1Player1 || !gameForm.team1Player2 || !gameForm.team2Player1 || !gameForm.team2Player2}
+              >
+                <Text style={styles.modalAddText}>Create Game</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Score Game Modal */}
+      <Modal
+        visible={showScoreGame}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowScoreGame(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Finish Game #{selectedGame?.gameNumber}</Text>
+            
+            <View style={styles.scoreSection}>
+              <Text style={styles.scoreInstruction}>Enter final set scores (0-2, no ties allowed)</Text>
+              
+              {/* Team 1 Score */}
+              <View style={styles.teamScoreRow}>
+                <Text style={styles.teamScoreLabel}>
+                  {selectedGame?.team1Player1} & {selectedGame?.team1Player2}
+                </Text>
+                <View style={styles.scoreControls}>
+                  <TouchableOpacity 
+                    style={styles.scoreButton}
+                    onPress={() => setScoreForm(prev => ({ 
+                      ...prev, 
+                      team1FinalScore: Math.max(0, prev.team1FinalScore - 1) 
+                    }))}
+                  >
+                    <Text style={styles.scoreButtonText}>−</Text>
+                  </TouchableOpacity>
+                  
+                  <Text style={styles.scoreValue}>{scoreForm.team1FinalScore}</Text>
+                  
+                  <TouchableOpacity 
+                    style={styles.scoreButton}
+                    onPress={() => setScoreForm(prev => ({ 
+                      ...prev, 
+                      team1FinalScore: Math.min(2, prev.team1FinalScore + 1) 
+                    }))}
+                  >
+                    <Text style={styles.scoreButtonText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              
+              {/* Team 2 Score */}
+              <View style={styles.teamScoreRow}>
+                <Text style={styles.teamScoreLabel}>
+                  {selectedGame?.team2Player1} & {selectedGame?.team2Player2}
+                </Text>
+                <View style={styles.scoreControls}>
+                  <TouchableOpacity 
+                    style={styles.scoreButton}
+                    onPress={() => setScoreForm(prev => ({ 
+                      ...prev, 
+                      team2FinalScore: Math.max(0, prev.team2FinalScore - 1) 
+                    }))}
+                  >
+                    <Text style={styles.scoreButtonText}>−</Text>
+                  </TouchableOpacity>
+                  
+                  <Text style={styles.scoreValue}>{scoreForm.team2FinalScore}</Text>
+                  
+                  <TouchableOpacity 
+                    style={styles.scoreButton}
+                    onPress={() => setScoreForm(prev => ({ 
+                      ...prev, 
+                      team2FinalScore: Math.min(2, prev.team2FinalScore + 1) 
+                    }))}
+                  >
+                    <Text style={styles.scoreButtonText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setShowScoreGame(false);
+                  setSelectedGame(null);
+                  setScoreForm({ team1FinalScore: 0, team2FinalScore: 0 });
+                }}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.modalAddButton, 
+                  (scoreForm.team1FinalScore === scoreForm.team2FinalScore) && styles.disabledButton
+                ]}
+                onPress={updateGameScore}
+                disabled={scoreForm.team1FinalScore === scoreForm.team2FinalScore}
+              >
+                <Text style={styles.modalAddText}>Finish Game</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Team Switch Modal */}
+      <Modal
+        visible={showTeamSwitch}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowTeamSwitch(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>🔄 Switch Teams - Game #{selectedGame?.gameNumber}</Text>
+            <Text style={styles.switchTeamsInstruction}>
+              Drag players between teams or select from dropdowns to rearrange partnerships
+            </Text>
+            
+            {/* Current Teams Display */}
+            <View style={styles.currentTeamsContainer}>
+              <Text style={styles.currentTeamsLabel}>Current Teams:</Text>
+              <View style={styles.currentTeamsRow}>
+                <View style={styles.currentTeam}>
+                  <Text style={styles.currentTeamLabel}>Team 1</Text>
+                  <Text style={styles.currentTeamPlayers}>
+                    {selectedGame?.team1Player1} & {selectedGame?.team1Player2}
+                  </Text>
+                </View>
+                <Text style={styles.currentVsText}>VS</Text>
+                <View style={styles.currentTeam}>
+                  <Text style={styles.currentTeamLabel}>Team 2</Text>
+                  <Text style={styles.currentTeamPlayers}>
+                    {selectedGame?.team2Player1} & {selectedGame?.team2Player2}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* New Team Configuration */}
+            <View style={styles.newTeamsContainer}>
+              <Text style={styles.newTeamsLabel}>New Team Arrangement:</Text>
+              
+              {/* Team 1 Selection */}
+              <View style={styles.teamSelectionRow}>
+                <Text style={styles.teamSelectionLabel}>Team 1:</Text>
+                <View style={styles.playerSelections}>
+                  <TouchableOpacity 
+                    style={styles.playerSelector}
+                    onPress={() => {
+                      // Show player selection for team1Player1
+                      // For now, we'll use simple text input - can be enhanced later
+                    }}
+                  >
+                    <TextInput
+                      style={styles.playerInput}
+                      value={teamSwitchForm.team1Player1}
+                      onChangeText={(text) => setTeamSwitchForm(prev => ({ ...prev, team1Player1: text }))}
+                      placeholder="Player 1"
+                      placeholderTextColor="#999"
+                    />
+                  </TouchableOpacity>
+                  <Text style={styles.andText}>&</Text>
+                  <TouchableOpacity style={styles.playerSelector}>
+                    <TextInput
+                      style={styles.playerInput}
+                      value={teamSwitchForm.team1Player2}
+                      onChangeText={(text) => setTeamSwitchForm(prev => ({ ...prev, team1Player2: text }))}
+                      placeholder="Player 2"
+                      placeholderTextColor="#999"
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Team 2 Selection */}
+              <View style={styles.teamSelectionRow}>
+                <Text style={styles.teamSelectionLabel}>Team 2:</Text>
+                <View style={styles.playerSelections}>
+                  <TouchableOpacity style={styles.playerSelector}>
+                    <TextInput
+                      style={styles.playerInput}
+                      value={teamSwitchForm.team2Player1}
+                      onChangeText={(text) => setTeamSwitchForm(prev => ({ ...prev, team2Player1: text }))}
+                      placeholder="Player 1"
+                      placeholderTextColor="#999"
+                    />
+                  </TouchableOpacity>
+                  <Text style={styles.andText}>&</Text>
+                  <TouchableOpacity style={styles.playerSelector}>
+                    <TextInput
+                      style={styles.playerInput}
+                      value={teamSwitchForm.team2Player2}
+                      onChangeText={(text) => setTeamSwitchForm(prev => ({ ...prev, team2Player2: text }))}
+                      placeholder="Player 2"
+                      placeholderTextColor="#999"
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Quick Switch Presets */}
+              <View style={styles.quickSwitchContainer}>
+                <Text style={styles.quickSwitchLabel}>Quick Actions:</Text>
+                <View style={styles.quickSwitchButtons}>
+                  <TouchableOpacity 
+                    style={styles.quickSwitchButton}
+                    onPress={() => {
+                      // Partner swap: swap partners within teams
+                      if (selectedGame) {
+                        setTeamSwitchForm({
+                          team1Player1: selectedGame.team1Player2,
+                          team1Player2: selectedGame.team1Player1,
+                          team2Player1: selectedGame.team2Player2,
+                          team2Player2: selectedGame.team2Player1
+                        });
+                      }
+                    }}
+                  >
+                    <Text style={styles.quickSwitchText}>🔄 Partner Swap</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.quickSwitchButton}
+                    onPress={() => {
+                      // Complete team swap
+                      if (selectedGame) {
+                        setTeamSwitchForm({
+                          team1Player1: selectedGame.team2Player1,
+                          team1Player2: selectedGame.team2Player2,
+                          team2Player1: selectedGame.team1Player1,
+                          team2Player2: selectedGame.team1Player2
+                        });
+                      }
+                    }}
+                  >
+                    <Text style={styles.quickSwitchText}>↔️ Team Swap</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setShowTeamSwitch(false);
+                  setSelectedGame(null);
+                  setTeamSwitchForm({
+                    team1Player1: '',
+                    team1Player2: '',
+                    team2Player1: '',
+                    team2Player2: ''
+                  });
+                }}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.modalAddButton}
+                onPress={updateGameTeams}
+              >
+                <Text style={styles.modalAddText}>Update Teams</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -808,6 +1622,21 @@ const getConnectionStatusStyle = (status: string) => {
       return { backgroundColor: '#f44336' }; // Red
     default:
       return { backgroundColor: '#9E9E9E' }; // Gray
+  }
+};
+
+const getGameStatusStyle = (status: string) => {
+  switch (status) {
+    case 'IN_PROGRESS':
+      return { backgroundColor: '#FF9800' };
+    case 'COMPLETED':
+      return { backgroundColor: '#4CAF50' };
+    case 'PAUSED':
+      return { backgroundColor: '#9E9E9E' };
+    case 'CANCELLED':
+      return { backgroundColor: '#f44336' };
+    default:
+      return { backgroundColor: '#9E9E9E' };
   }
 };
 
@@ -1209,5 +2038,445 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: '#ccc',
+  },
+  // Live Games Styles
+  gamesCard: {
+    backgroundColor: 'white',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  gamesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  gamesTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#212121',
+  },
+  gameControls: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  courtSettingsButton: {
+    backgroundColor: '#E8F5E9',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+  },
+  courtSettingsText: {
+    color: '#4CAF50',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  courtInfoDisplay: {
+    backgroundColor: '#F5F5F5',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+  },
+  courtInfoText: {
+    color: '#666',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  createGameButton: {
+    backgroundColor: '#E3F2FD',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+  },
+  createGameText: {
+    color: '#2196F3',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  gamesList: {
+    gap: 12,
+  },
+  gameItem: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+  },
+  gameHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  gameNumber: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#212121',
+  },
+  courtName: {
+    fontSize: 12,
+    color: '#666',
+    backgroundColor: '#fff',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  gameStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  gameStatusText: {
+    fontSize: 10,
+    color: 'white',
+    fontWeight: '600',
+  },
+  teamsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  team: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  teamLabel: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  teamPlayers: {
+    fontSize: 14,
+    color: '#212121',
+    fontWeight: '500',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  teamScore: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2196F3',
+  },
+  vsText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#666',
+    marginHorizontal: 16,
+  },
+  finishGameButton: {
+    backgroundColor: '#FF6B35',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    alignSelf: 'center',
+  },
+  finishGameText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  winnerBadge: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    alignSelf: 'center',
+    marginTop: 8,
+  },
+  winnerText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  noGamesContainer: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  noGamesText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  startFirstGameButton: {
+    backgroundColor: '#2196F3',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+  },
+  startFirstGameText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  // Court Settings Modal Styles
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  settingLabel: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '600',
+  },
+  counterControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  counterButton: {
+    backgroundColor: '#2196F3',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  counterButtonText: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  counterValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    minWidth: 30,
+    textAlign: 'center',
+  },
+  // Game Creation Modal Styles
+  teamSectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+    marginTop: 16,
+  },
+  playerSelectionRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 8,
+  },
+  playerDropdown: {
+    flex: 1,
+  },
+  playerLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  playerSelector: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#fff',
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  playerSelectorText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  // Score Game Modal Styles
+  scoreSection: {
+    marginVertical: 20,
+  },
+  scoreInstruction: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  teamScoreRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+  },
+  teamScoreLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+  },
+  scoreControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  scoreButton: {
+    backgroundColor: '#2196F3',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scoreButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  scoreValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    minWidth: 24,
+    textAlign: 'center',
+  },
+
+  // Team Switching Styles
+  gameActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginTop: 10,
+  },
+  switchTeamsButton: {
+    backgroundColor: '#FF9800',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    flex: 1,
+    alignItems: 'center',
+  },
+  switchTeamsText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  switchTeamsInstruction: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  currentTeamsContainer: {
+    marginBottom: 20,
+    padding: 15,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+  },
+  currentTeamsLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  currentTeamsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  currentTeam: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  currentTeamLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 4,
+  },
+  currentTeamPlayers: {
+    fontSize: 14,
+    color: '#333',
+    textAlign: 'center',
+  },
+  currentVsText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#999',
+    marginHorizontal: 10,
+  },
+  newTeamsContainer: {
+    marginBottom: 20,
+  },
+  newTeamsLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 15,
+  },
+  teamSelectionRow: {
+    marginBottom: 15,
+  },
+  teamSelectionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  playerSelections: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  playerSelector: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 6,
+    backgroundColor: 'white',
+  },
+  playerInput: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#333',
+  },
+  andText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    paddingHorizontal: 5,
+  },
+  quickSwitchContainer: {
+    marginTop: 15,
+    padding: 15,
+    backgroundColor: '#F0F8FF',
+    borderRadius: 8,
+  },
+  quickSwitchLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 10,
+  },
+  quickSwitchButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  quickSwitchButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 6,
+    flex: 1,
+    alignItems: 'center',
+  },
+  quickSwitchText: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

@@ -260,6 +260,47 @@ class SessionApiService {
     return `https://badminton-group.app/join/${shareCode}`;
   }
 
+  // Create a new game
+  async createGame(shareCode: string, gameData: {
+    team1Player1: string;
+    team1Player2: string;
+    team2Player1: string;
+    team2Player2: string;
+    courtName?: string;
+  }): Promise<ApiResponse<{ game: SessionGame }>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}/games`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(gameData),
+      });
+
+      return this.handleResponse<ApiResponse<{ game: SessionGame }>>(response);
+    } catch (error) {
+      console.error('Error creating game:', error);
+      throw error;
+    }
+  }
+
+  // Update game score (finish game)
+  async updateGameScore(shareCode: string, gameId: string, scores: {
+    team1FinalScore: number;
+    team2FinalScore: number;
+  }): Promise<ApiResponse<{ game: SessionGame }>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}/games/${gameId}/score`, {
+        method: 'PUT',
+        headers: this.getHeaders(),
+        body: JSON.stringify(scores),
+      });
+
+      return this.handleResponse<ApiResponse<{ game: SessionGame }>>(response);
+    } catch (error) {
+      console.error('Error updating game score:', error);
+      throw error;
+    }
+  }
+
   // Validate session data
   validateSessionData(data: Partial<CreateSessionRequest>): string[] {
     const errors: string[] = [];

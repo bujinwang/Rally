@@ -22,6 +22,7 @@ model MvpSession {
   skillLevel  String?
   cost        Float?
   description String?
+  courtCount  Int      @default(1) // Number of available courts
 
   // Owner info stored directly (no user account required)
   ownerName   String
@@ -90,6 +91,7 @@ model MvpGame {
   startTime DateTime?
   endTime   DateTime?
   duration  Int?        // Duration in minutes
+  lastTeamChange DateTime? // Track when teams were last switched
   
   // Status
   status MvpGameStatus @default(IN_PROGRESS)

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../config/database';
 import { body, param, validationResult } from 'express-validator';
+import { generateOptimalRotation, getRotationExplanation } from '../utils/rotationAlgorithm';
 
 const router = Router();
 
@@ -96,6 +97,11 @@ router.get('/:shareCode', async (req, res) => {
           orderBy: {
             joinedAt: 'asc'
           }
+        },
+        games: {
+          orderBy: {
+            gameNumber: 'desc'
+          }
         }
       }
     });
@@ -126,7 +132,7 @@ router.get('/:shareCode', async (req, res) => {
       status: session.status,
       playerCount: session.players?.length || 0,
       players: session.players || [],
-      games: [], // Will add games later if needed
+      games: session.games || [],
       createdAt: session.createdAt,
       updatedAt: session.updatedAt
     };
@@ -287,6 +293,9 @@ router.get('/join/:shareCode', async (req, res) => {
       include: {
         players: {
           orderBy: { joinedAt: 'asc' }
+        },
+        games: {
+          orderBy: { gameNumber: 'desc' }
         }
       }
     });
@@ -334,6 +343,7 @@ router.get('/join/:shareCode', async (req, res) => {
             losses: player.losses,
             joinedAt: player.joinedAt
           })),
+          games: session.games || [],
           createdAt: session.createdAt
         }
       },
@@ -586,6 +596,146 @@ router.get('/my-sessions/:deviceId', async (req, res) => {
       error: {
         code: 'INTERNAL_ERROR',
         message: 'Failed to fetch sessions'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Update session settings (owner only)
+router.put('/:shareCode', async (req, res) => {
+  try {
+    const { shareCode } = req.params;
+    const { ownerDeviceId, courtCount, maxPlayers, location, description, skillLevel, cost } = req.body;
+
+    const session = await prisma.mvpSession.findUnique({
+      where: { shareCode }
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Session not found'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Check if the requester is the owner (if ownerDeviceId is provided)
+    if (ownerDeviceId && session.ownerDeviceId !== ownerDeviceId) {
+      console.log('🚫 Session update denied:', {
+        providedDeviceId: ownerDeviceId,
+        sessionOwnerDeviceId: session.ownerDeviceId,
+        shareCode
+      });
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Only the session owner can update the session'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // If no ownerDeviceId provided, allow update (for testing purposes)
+    if (!ownerDeviceId) {
+      console.log('⚠️ Session update without ownership check:', { shareCode });
+    }
+
+    // Build update data object with only provided fields
+    const updateData: any = {};
+    if (courtCount !== undefined) updateData.courtCount = courtCount;
+    if (maxPlayers !== undefined) updateData.maxPlayers = maxPlayers;
+    if (location !== undefined) updateData.location = location;
+    if (description !== undefined) updateData.description = description;
+    if (skillLevel !== undefined) updateData.skillLevel = skillLevel;
+    if (cost !== undefined) updateData.cost = cost;
+
+    const updatedSession = await prisma.mvpSession.update({
+      where: { shareCode },
+      data: updateData,
+      include: {
+        players: {
+          orderBy: { joinedAt: 'asc' }
+        },
+        games: {
+          orderBy: { gameNumber: 'desc' }
+        }
+      }
+    });
+
+    // Emit real-time update to all clients in this session
+    if (req.app.get('io')) {
+      req.app.get('io').to(`session-${shareCode}`).emit('mvp-session-updated', {
+        session: {
+          id: updatedSession.id,
+          name: updatedSession.name,
+          scheduledAt: updatedSession.scheduledAt,
+          location: updatedSession.location,
+          maxPlayers: updatedSession.maxPlayers,
+          courtCount: updatedSession.courtCount,
+          status: updatedSession.status,
+          ownerName: updatedSession.ownerName,
+          ownerDeviceId: updatedSession.ownerDeviceId,
+          shareCode: updatedSession.shareCode,
+          playerCount: updatedSession.players.length,
+          players: updatedSession.players.map(player => ({
+            id: player.id,
+            name: player.name,
+            status: player.status,
+            gamesPlayed: player.gamesPlayed,
+            wins: player.wins,
+            losses: player.losses,
+            joinedAt: player.joinedAt
+          })),
+          games: updatedSession.games || [],
+          createdAt: updatedSession.createdAt
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        session: {
+          id: updatedSession.id,
+          name: updatedSession.name,
+          scheduledAt: updatedSession.scheduledAt,
+          location: updatedSession.location,
+          maxPlayers: updatedSession.maxPlayers,
+          courtCount: updatedSession.courtCount,
+          status: updatedSession.status,
+          ownerName: updatedSession.ownerName,
+          ownerDeviceId: updatedSession.ownerDeviceId,
+          shareCode: updatedSession.shareCode,
+          playerCount: updatedSession.players.length,
+          players: updatedSession.players.map(player => ({
+            id: player.id,
+            name: player.name,
+            status: player.status,
+            gamesPlayed: player.gamesPlayed,
+            wins: player.wins,
+            losses: player.losses,
+            joinedAt: player.joinedAt
+          })),
+          games: updatedSession.games || [],
+          createdAt: updatedSession.createdAt
+        }
+      },
+      message: 'Session updated successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Update session error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to update session'
       },
       timestamp: new Date().toISOString()
     });
@@ -926,6 +1076,466 @@ router.post('/:shareCode/add-player', async (req, res) => {
         code: 'INTERNAL_ERROR',
         message: 'Failed to add player'
       },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Game Management Routes
+
+// Create a new game
+router.post('/:shareCode/games', async (req, res) => {
+  try {
+    const { shareCode } = req.params;
+    const { team1Player1, team1Player2, team2Player1, team2Player2, courtName } = req.body;
+
+    // Validate required fields
+    if (!team1Player1 || !team1Player2 || !team2Player1 || !team2Player2) {
+      return res.status(400).json({
+        success: false,
+        message: 'All four players are required',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Find session
+    const session = await prisma.mvpSession.findFirst({
+      where: { shareCode },
+      include: { games: true }
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: 'Session not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Calculate next game number
+    const gameNumber = (session.games.length || 0) + 1;
+
+    // Create game
+    const game = await prisma.mvpGame.create({
+      data: {
+        sessionId: session.id,
+        gameNumber,
+        team1Player1,
+        team1Player2,
+        team2Player1,
+        team2Player2,
+        courtName,
+        startTime: new Date(),
+        status: 'IN_PROGRESS'
+      }
+    });
+
+    res.status(201).json({
+      success: true,
+      data: { game },
+      message: 'Game created successfully',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error creating game:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Update game score (finish game)
+router.put('/:shareCode/games/:gameId/score', async (req, res) => {
+  try {
+    const { shareCode, gameId } = req.params;
+    const { team1FinalScore, team2FinalScore } = req.body;
+
+    // Validate scores
+    if (typeof team1FinalScore !== 'number' || typeof team2FinalScore !== 'number') {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid scores are required (0-2)',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    if (team1FinalScore < 0 || team1FinalScore > 2 || team2FinalScore < 0 || team2FinalScore > 2) {
+      return res.status(400).json({
+        success: false,
+        message: 'Scores must be between 0 and 2',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    if (team1FinalScore === team2FinalScore) {
+      return res.status(400).json({
+        success: false,
+        message: 'Game cannot end in a tie',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Find session and game
+    const session = await prisma.mvpSession.findFirst({
+      where: { shareCode }
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: 'Session not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const game = await prisma.mvpGame.findFirst({
+      where: { id: gameId, sessionId: session.id }
+    });
+
+    if (!game) {
+      return res.status(404).json({
+        success: false,
+        message: 'Game not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Determine winner
+    const winnerTeam = team1FinalScore > team2FinalScore ? 1 : 2;
+
+    // Update game
+    const updatedGame = await prisma.mvpGame.update({
+      where: { id: gameId },
+      data: {
+        team1FinalScore,
+        team2FinalScore,
+        winnerTeam,
+        status: 'COMPLETED',
+        endTime: new Date(),
+        duration: game.startTime ? Math.round((new Date().getTime() - game.startTime.getTime()) / (1000 * 60)) : null
+      }
+    });
+
+    // Update player stats
+    const players = [game.team1Player1, game.team1Player2, game.team2Player1, game.team2Player2];
+    const winners = winnerTeam === 1 ? [game.team1Player1, game.team1Player2] : [game.team2Player1, game.team2Player2];
+    const losers = winnerTeam === 1 ? [game.team2Player1, game.team2Player2] : [game.team1Player1, game.team1Player2];
+
+    // Update all players' games played
+    await prisma.mvpPlayer.updateMany({
+      where: {
+        sessionId: session.id,
+        name: { in: players }
+      },
+      data: {
+        gamesPlayed: { increment: 1 }
+      }
+    });
+
+    // Update winners
+    await prisma.mvpPlayer.updateMany({
+      where: {
+        sessionId: session.id,
+        name: { in: winners }
+      },
+      data: {
+        wins: { increment: 1 }
+      }
+    });
+
+    // Update losers
+    await prisma.mvpPlayer.updateMany({
+      where: {
+        sessionId: session.id,
+        name: { in: losers }
+      },
+      data: {
+        losses: { increment: 1 }
+      }
+    });
+
+    // Emit Socket.IO update
+    try {
+      const { io } = await import('../server');
+      const updatedSession = await prisma.mvpSession.findFirst({
+        where: { shareCode },
+        include: {
+          players: {
+            select: {
+              id: true,
+              name: true,
+              status: true,
+              joinedAt: true,
+              gamesPlayed: true,
+              wins: true,
+              losses: true
+            }
+          },
+          games: {
+            orderBy: { gameNumber: 'desc' }
+          }
+        }
+      });
+
+      if (updatedSession) {
+        io.to(`session-${shareCode}`).emit('mvp-session-updated', {
+          session: updatedSession,
+          timestamp: new Date().toISOString()
+        });
+        console.log(`📡 Socket.IO: Game completed for ${shareCode} - ${winners.join(' & ')} beat ${losers.join(' & ')} ${team1FinalScore}-${team2FinalScore}`);
+      }
+    } catch (error) {
+      console.warn('Failed to emit socket update:', error instanceof Error ? error.message : 'Unknown error');
+    }
+
+    res.json({
+      success: true,
+      data: { game: updatedGame },
+      message: 'Game score updated successfully',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error updating game score:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Update teams during live game (team switching)
+router.put('/:shareCode/games/:gameId/teams', async (req, res) => {
+  try {
+    const { shareCode, gameId } = req.params;
+    const { team1Player1, team1Player2, team2Player1, team2Player2 } = req.body;
+
+    // Validate required fields
+    if (!team1Player1 || !team1Player2 || !team2Player1 || !team2Player2) {
+      return res.status(400).json({
+        success: false,
+        message: 'All four players are required',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Find session and game
+    const session = await prisma.mvpSession.findFirst({
+      where: { shareCode }
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: 'Session not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const game = await prisma.mvpGame.findFirst({
+      where: { 
+        id: gameId, 
+        sessionId: session.id,
+        status: 'IN_PROGRESS' // Only allow team changes for active games
+      }
+    });
+
+    if (!game) {
+      return res.status(404).json({
+        success: false,
+        message: 'Active game not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Validate that all players exist in the session
+    const sessionPlayers = await prisma.mvpPlayer.findMany({
+      where: { 
+        sessionId: session.id,
+        name: { in: [team1Player1, team1Player2, team2Player1, team2Player2] }
+      }
+    });
+
+    if (sessionPlayers.length !== 4) {
+      return res.status(400).json({
+        success: false,
+        message: 'All players must be part of this session',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Update game with new teams
+    const updatedGame = await prisma.mvpGame.update({
+      where: { id: gameId },
+      data: {
+        team1Player1,
+        team1Player2,
+        team2Player1,
+        team2Player2,
+        lastTeamChange: new Date() // Track when teams were last changed
+      }
+    });
+
+    // Emit Socket.IO update for real-time team switching
+    try {
+      const { io } = await import('../server');
+      const updatedSession = await prisma.mvpSession.findFirst({
+        where: { shareCode },
+        include: {
+          players: {
+            select: {
+              id: true,
+              name: true,
+              status: true,
+              joinedAt: true,
+              gamesPlayed: true,
+              wins: true,
+              losses: true
+            }
+          },
+          games: {
+            orderBy: { gameNumber: 'desc' }
+          }
+        }
+      });
+
+      if (updatedSession) {
+        io.to(`session-${shareCode}`).emit('mvp-session-updated', {
+          session: updatedSession,
+          gameUpdate: {
+            type: 'team_switch',
+            gameId: gameId,
+            newTeams: {
+              team1: [team1Player1, team1Player2],
+              team2: [team2Player1, team2Player2]
+            }
+          },
+          timestamp: new Date().toISOString()
+        });
+        console.log(`📡 Socket.IO: Team switch for game ${gameId} in session ${shareCode}`);
+      }
+    } catch (error) {
+      console.warn('Failed to emit socket update for team switch:', error instanceof Error ? error.message : 'Unknown error');
+    }
+
+    res.json({
+      success: true,
+      data: { 
+        game: updatedGame,
+        newTeams: {
+          team1: [team1Player1, team1Player2],
+          team2: [team2Player1, team2Player2]
+        }
+      },
+      message: 'Teams updated successfully',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error updating game teams:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get optimal rotation suggestions for a session
+router.get('/:shareCode/rotation', async (req, res) => {
+  try {
+    const { shareCode } = req.params;
+
+    // Find session with players and games
+    const session = await prisma.mvpSession.findFirst({
+      where: { shareCode },
+      include: {
+        players: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            gamesPlayed: true,
+            wins: true,
+            losses: true,
+            joinedAt: true
+          },
+          orderBy: { joinedAt: 'asc' }
+        },
+        games: {
+          where: { status: { in: ['IN_PROGRESS', 'COMPLETED'] } },
+          orderBy: { gameNumber: 'asc' }
+        }
+      }
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: 'Session not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Convert database data to algorithm format
+    const players = session.players.map(p => ({
+      id: p.id,
+      name: p.name,
+      status: p.status as 'ACTIVE' | 'RESTING' | 'LEFT',
+      gamesPlayed: p.gamesPlayed,
+      wins: p.wins,
+      losses: p.losses,
+      joinedAt: p.joinedAt
+    }));
+
+    const gameHistory = session.games.map(g => ({
+      id: g.id,
+      gameNumber: g.gameNumber,
+      team1Player1: g.team1Player1,
+      team1Player2: g.team1Player2,
+      team2Player1: g.team2Player1,
+      team2Player2: g.team2Player2,
+      winnerTeam: g.winnerTeam || undefined,
+      status: g.status as 'IN_PROGRESS' | 'COMPLETED'
+    }));
+
+    // Create courts based on session court count
+    const courts = Array.from({ length: session.courtCount }, (_, index) => ({
+      id: `court-${index + 1}`,
+      name: `Court ${index + 1}`,
+      isAvailable: true
+    }));
+
+    // Generate rotation suggestions
+    const rotationResult = generateOptimalRotation(players, gameHistory, courts);
+    const explanation = getRotationExplanation(rotationResult.suggestedGames, rotationResult.fairnessMetrics);
+
+    res.json({
+      success: true,
+      data: {
+        rotation: rotationResult,
+        explanation,
+        sessionStats: {
+          totalPlayers: players.length,
+          activePlayers: players.filter(p => p.status === 'ACTIVE').length,
+          totalGames: gameHistory.filter(g => g.status === 'COMPLETED').length,
+          averageGamesPlayed: rotationResult.fairnessMetrics.averageGamesPlayed,
+          gameVariance: rotationResult.fairnessMetrics.gameVariance
+        }
+      },
+      message: 'Rotation calculated successfully',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error calculating rotation:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
       timestamp: new Date().toISOString()
     });
   }
