@@ -20,6 +20,23 @@ export interface GameHistory {
   team2Player2: string;
   winnerTeam?: number;
   status: 'IN_PROGRESS' | 'COMPLETED';
+  matchId?: string;
+  gameInMatch?: number;
+}
+
+export interface MatchHistory {
+  id: string;
+  matchNumber: number;
+  team1Player1: string;
+  team1Player2: string;
+  team2Player1: string;
+  team2Player2: string;
+  team1GamesWon: number;
+  team2GamesWon: number;
+  winnerTeam?: number;
+  status: 'IN_PROGRESS' | 'COMPLETED';
+  bestOf: number;
+  games: GameHistory[];
 }
 
 export interface Court {
@@ -180,7 +197,8 @@ function calculateRecentPlayAvoidance(players: Player[], gameHistory: GameHistor
 export function generateOptimalRotation(
   players: Player[],
   gameHistory: GameHistory[],
-  courts: Court[]
+  courts: Court[],
+  matchHistory: MatchHistory[] = []
 ): RotationResult {
   const activePlayers = players
     .filter(p => p.status === 'ACTIVE')
@@ -230,7 +248,7 @@ export function generateOptimalRotation(
     .slice(0, 8); // Show next 8 players in queue
   
   // Calculate overall fairness metrics
-  const fairnessMetrics = calculateFairnessMetrics(players, gameHistory);
+  const fairnessMetrics = calculateFairnessMetrics(players, gameHistory, matchHistory);
   
   return {
     suggestedGames,
@@ -291,7 +309,7 @@ function findBestPlayerCombination(
 /**
  * Calculate overall session fairness metrics
  */
-function calculateFairnessMetrics(players: Player[], gameHistory: GameHistory[]) {
+function calculateFairnessMetrics(players: Player[], gameHistory: GameHistory[], matchHistory: MatchHistory[] = []) {
   const activePlayers = players.filter(p => p.status === 'ACTIVE');
   const gamesPlayed = activePlayers.map(p => p.gamesPlayed);
   

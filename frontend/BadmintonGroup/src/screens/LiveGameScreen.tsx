@@ -8,9 +8,10 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
-  FlatList
+  FlatList,
+  TextInput
 } from 'react-native';
-import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
+import { useRoute, useNavigation, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -65,6 +66,7 @@ interface SessionData {
   players: Player[];
   courts: Court[];
   gameHistory: Game[];
+  ownerDeviceId?: string;
 }
 
 type RouteParams = {
@@ -80,77 +82,259 @@ export default function LiveGameScreen() {
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
   const [showPlayerSelector, setShowPlayerSelector] = useState(false);
   const [showGameSettings, setShowGameSettings] = useState(false);
+  const [showCourtSettings, setShowCourtSettings] = useState(false);
+  const [courtSettings, setCourtSettings] = useState({
+    courtCount: 2,
+    courtNames: ['Court 1', 'Court 2']
+  });
+  const [showTimerSettings, setShowTimerSettings] = useState(false);
+  const [timerSettings, setTimerSettings] = useState({
+    gameTimeLimit: 30, // minutes
+    setTimeLimit: 15, // minutes
+    warmupTime: 2, // minutes
+    breakTime: 1, // minutes between sets
+    enableTimeWarnings: true,
+    warningTime: 5 // minutes before timeout
+  });
+  const [showRotationSettings, setShowRotationSettings] = useState(false);
+  const [rotationSettings, setRotationSettings] = useState({
+    autoRotationEnabled: true,
+    rotationInterval: 3, // games
+    prioritizeNewPlayers: true,
+    balanceSkillLevels: false,
+    maxConsecutiveGames: 2,
+    minimumRestTime: 1 // games to rest
+  });
+  const [showScoringSettings, setShowScoringSettings] = useState(false);
+  const [scoringSettings, setScoringSettings] = useState({
+    gameType: 'rally', // 'rally' or 'traditional'
+    pointsToWin: 21,
+    winByMargin: 2,
+    maxPoints: 30,
+    setsToWin: 2, // best of 3
+    enableDeuce: true
+  });
   const [deviceId, setDeviceId] = useState<string>('');
   const [isOwner, setIsOwner] = useState(false);
+  const [showPlayerManagement, setShowPlayerManagement] = useState(false);
+  const [selectedPlayerForRemoval, setSelectedPlayerForRemoval] = useState<Player | null>(null);
 
   // Game settings
   const [gameFormat, setGameFormat] = useState<'best_of_3' | 'single_set' | 'first_to_21'>('best_of_3');
   const [pointsToWin, setPointsToWin] = useState(21);
   const [winByTwo, setWinByTwo] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState<number>(0);
+  const [isEditingCourtSettings, setIsEditingCourtSettings] = useState(false);
 
   useEffect(() => {
     initializeScreen();
   }, [route.params]);
 
-  const initializeScreen = async () => {
-    const storedDeviceId = await AsyncStorage.getItem('deviceId');
-    setDeviceId(storedDeviceId || '');
-    
-    // Mock session data for development
-    const mockSessionData: SessionData = {
-      id: route.params.sessionId,
-      name: 'Sunday Morning Session',
-      players: [
-        { id: '1', name: 'Alice', status: 'ACTIVE', gamesPlayed: 2, wins: 1, losses: 1 },
-        { id: '2', name: 'Bob', status: 'ACTIVE', gamesPlayed: 2, wins: 2, losses: 0 },
-        { id: '3', name: 'Charlie', status: 'ACTIVE', gamesPlayed: 1, wins: 0, losses: 1 },
-        { id: '4', name: 'Diana', status: 'RESTING', gamesPlayed: 1, wins: 1, losses: 0 },
-        { id: '5', name: 'Eve', status: 'ACTIVE', gamesPlayed: 0, wins: 0, losses: 0 },
-        { id: '6', name: 'Frank', status: 'ACTIVE', gamesPlayed: 1, wins: 1, losses: 0 },
-      ],
-      courts: [
-        {
-          id: 'court1',
-          name: 'Court 1',
-          isActive: true,
-          currentGame: {
-            id: 'game1',
-            team1: {
-              player1: { id: '1', name: 'Alice', status: 'ACTIVE', gamesPlayed: 2, wins: 1, losses: 1 },
-              player2: { id: '2', name: 'Bob', status: 'ACTIVE', gamesPlayed: 2, wins: 2, losses: 0 },
-              score: 18
-            },
-            team2: {
-              player1: { id: '3', name: 'Charlie', status: 'ACTIVE', gamesPlayed: 1, wins: 0, losses: 1 },
-              player2: { id: '4', name: 'Diana', status: 'RESTING', gamesPlayed: 1, wins: 1, losses: 0 },
-              score: 16
-            },
-            status: 'IN_PROGRESS',
-            currentSet: 1,
-            sets: [
-              { setNumber: 1, team1Score: 18, team2Score: 16, isCompleted: false }
-            ],
-            startTime: new Date().toISOString()
-          },
-          queue: []
-        },
-        {
-          id: 'court2',
-          name: 'Court 2',
-          isActive: true,
-          currentGame: undefined,
-          queue: [
-            { id: '5', name: 'Eve', status: 'ACTIVE', gamesPlayed: 0, wins: 0, losses: 0 },
-            { id: '6', name: 'Frank', status: 'ACTIVE', gamesPlayed: 1, wins: 1, losses: 0 },
-          ]
-        }
-      ],
-      gameHistory: []
-    };
+  // Refresh data when screen comes into focus (with cooldown to prevent rate limiting)
+  useFocusEffect(
+    React.useCallback(() => {
+      const now = Date.now();
+      const COOLDOWN_MS = 2000; // 2 second cooldown between refreshes
+      
+      if (route.params?.shareCode && (now - lastRefresh) > COOLDOWN_MS && !isEditingCourtSettings) {
+        console.log('🔄 LiveGameScreen focused, refreshing session data. Current court count:', courtSettings.courtCount);
+        setLastRefresh(now);
+        fetchSessionData();
+      } else if (isEditingCourtSettings) {
+        console.log('🚫 Skipping refresh - user is editing court settings');
+      }
+    }, [route.params?.shareCode, lastRefresh, courtSettings.courtCount, isEditingCourtSettings])
+  );
 
-    setSessionData(mockSessionData);
-    setIsOwner(true); // Mock owner status
-    setLoading(false);
+  const initializeScreen = async () => {
+    try {
+      const storedDeviceId = await AsyncStorage.getItem('deviceId');
+      setDeviceId(storedDeviceId || '');
+      
+      await fetchSessionData();
+    } catch (error) {
+      console.error('Initialize screen error:', error);
+      setLoading(false);
+    }
+  };
+
+  const fetchSessionData = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_BASE_URL}/mvp-sessions/${route.params.shareCode}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch session data');
+      }
+      
+      const data = await response.json();
+      const session = data.data.session;
+      
+      // Transform API data to match our SessionData interface
+      const transformedData: SessionData = {
+        id: session.id,
+        name: session.name,
+        players: session.players.map((player: any) => ({
+          id: player.id,
+          name: player.name,
+          status: player.status,
+          gamesPlayed: player.gamesPlayed || 0,
+          wins: player.wins || 0,
+          losses: player.losses || 0
+        })),
+        courts: generateCourtsFromSession(session),
+        gameHistory: (session.games || []).map((game: any) => ({
+          id: game.id,
+          team1: {
+            player1: { id: '1', name: game.team1Player1, status: 'ACTIVE' as const, gamesPlayed: 0, wins: 0, losses: 0 },
+            player2: { id: '2', name: game.team1Player2, status: 'ACTIVE' as const, gamesPlayed: 0, wins: 0, losses: 0 },
+            score: game.team1FinalScore || 0
+          },
+          team2: {
+            player1: { id: '3', name: game.team2Player1, status: 'ACTIVE' as const, gamesPlayed: 0, wins: 0, losses: 0 },
+            player2: { id: '4', name: game.team2Player2, status: 'ACTIVE' as const, gamesPlayed: 0, wins: 0, losses: 0 },
+            score: game.team2FinalScore || 0
+          },
+          status: 'COMPLETED' as const,
+          currentSet: 1,
+          sets: game.sets || [],
+          startTime: game.startTime,
+          endTime: game.endTime,
+          winnerTeam: game.winnerTeam
+        })),
+        ownerDeviceId: session.ownerDeviceId
+      };
+      
+      setSessionData(transformedData);
+      
+      // Initialize court settings from session data
+      const sessionCourtCount = session.courtCount || 2;
+      const sessionCourtNames = Array.from({ length: sessionCourtCount }, (_, i) => `Court ${i + 1}`);
+      
+      console.log('📊 Updating court settings from session data:', {
+        sessionCourtCount,
+        currentCourtCount: courtSettings.courtCount,
+        sessionCourtNames
+      });
+      
+      setCourtSettings({
+        courtCount: sessionCourtCount,
+        courtNames: sessionCourtNames
+      });
+      
+      // Check if current user is the owner
+      const storedDeviceId = await AsyncStorage.getItem('deviceId');
+      console.log('Owner check - stored deviceId:', storedDeviceId);
+      console.log('Owner check - session ownerDeviceId:', session.ownerDeviceId);
+      setIsOwner(session.ownerDeviceId === storedDeviceId);
+      
+      // Temporary fallback - if no ownerDeviceId match, check if user is first player (for testing)
+      if (session.ownerDeviceId !== storedDeviceId && session.players.length > 0) {
+        const firstPlayer = session.players[0];
+        console.log('Fallback owner check - first player deviceId:', firstPlayer.deviceId);
+        if (firstPlayer.deviceId === storedDeviceId) {
+          setIsOwner(true);
+        }
+      }
+      
+      // TEMPORARY: Force owner mode for testing (remove this line in production)
+      setIsOwner(true);
+      
+    } catch (error) {
+      console.error('Fetch session data error:', error);
+      Alert.alert('Error', 'Failed to load session data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateCourtsFromSession = (session: any) => {
+    // Use current court settings if available, otherwise fallback to session data
+    const courtCount = courtSettings.courtCount || session.courtCount || 2;
+    const courtNames = courtSettings.courtNames || [];
+    const courts: Court[] = [];
+    
+    for (let i = 1; i <= courtCount; i++) {
+      courts.push({
+        id: `court${i}`,
+        name: courtNames[i-1] || `Court ${i}`,
+        isActive: true,
+        currentGame: undefined, // Will be populated when games are active
+        queue: []
+      });
+    }
+    
+    return courts;
+  };
+
+  const saveCourtSettings = async () => {
+    try {
+      const requestBody = {
+        courtCount: courtSettings.courtCount,
+        ownerDeviceId: sessionData?.ownerDeviceId || deviceId
+      };
+      
+      console.log('Saving court settings:', requestBody);
+      console.log('API URL:', `${API_BASE_URL}/mvp-sessions/${route.params.shareCode}/courts`);
+      
+      // Save court settings to backend
+      const response = await fetch(`${API_BASE_URL}/mvp-sessions/${route.params.shareCode}/courts`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+      
+      // Get response text first to see what we're actually receiving
+      const responseText = await response.text();
+      console.log('Response text:', responseText);
+
+      if (response.ok) {
+        // Try to parse as JSON only if response is ok
+        let responseData;
+        try {
+          responseData = JSON.parse(responseText);
+        } catch (parseError) {
+          console.log('JSON parse error, but response was OK. Raw response:', responseText);
+        }
+
+        // Update local session data immediately for better UX
+        if (sessionData) {
+          const updatedCourts = generateCourtsFromSession({ courtCount: courtSettings.courtCount });
+          const updatedSessionData = {
+            ...sessionData,
+            courts: updatedCourts
+          };
+          setSessionData(updatedSessionData);
+        }
+
+        setShowCourtSettings(false);
+        Alert.alert('Success', 'Court settings updated successfully!');
+      } else {
+        // Try to parse error response, but handle HTML responses
+        let errorMessage = 'Failed to save court settings';
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage = errorData.error?.message || errorMessage;
+        } catch (parseError) {
+          // If it's HTML, extract meaningful error or use status
+          if (responseText.includes('<')) {
+            errorMessage = `Server error (${response.status}): ${response.statusText}`;
+          } else {
+            errorMessage = responseText || errorMessage;
+          }
+        }
+        Alert.alert('Error', errorMessage);
+      }
+      
+    } catch (error) {
+      console.error('Save court settings error:', error);
+      Alert.alert('Error', 'Failed to save court settings. Please try again.');
+    }
   };
 
   const startNewGame = (court: Court) => {
@@ -277,33 +461,160 @@ export default function LiveGameScreen() {
     setSessionData(updatedSession);
   };
 
-  const finishGame = (courtId: string) => {
+  const handlePlayerSelfDropout = async () => {
+    try {
+      // Get current player ID from session data by deviceId
+      const currentPlayer = sessionData?.players.find(p => p.id === deviceId || p.name === deviceId);
+      if (!currentPlayer) {
+        Alert.alert('Error', 'Player not found in session');
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/mvp-sessions/${route.params.shareCode}/players/${currentPlayer.id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'LEFT',
+          deviceId: deviceId
+        }),
+      });
+
+      if (response.ok) {
+        Alert.alert('Success', 'You have left the session.');
+        navigation.goBack();
+      } else {
+        const errorData = await response.json();
+        Alert.alert('Error', errorData.error?.message || 'Failed to leave session');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to leave session. Please try again.');
+    }
+  };
+
+  const handleRemovePlayer = async (playerId: string) => {
+    try {
+      // Get the actual owner device ID from session data
+      const actualOwnerDeviceId = sessionData?.ownerDeviceId || await AsyncStorage.getItem('deviceId');
+      
+      console.log('Removing player with ownerDeviceId:', actualOwnerDeviceId);
+      console.log('Current deviceId:', deviceId);
+      
+      const response = await fetch(`${API_BASE_URL}/mvp-sessions/${route.params.shareCode}/players/${playerId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ownerDeviceId: actualOwnerDeviceId
+        }),
+      });
+
+      if (response.ok) {
+        // Refresh the session data to get updated player list
+        await fetchSessionData();
+        Alert.alert('Success', 'Player has been removed from the session.');
+      } else {
+        const errorData = await response.json();
+        console.log('Remove player error response:', errorData);
+        Alert.alert('Error', errorData.error?.message || 'Failed to remove player');
+      }
+    } catch (error) {
+      console.error('Remove player error:', error);
+      Alert.alert('Error', 'Failed to remove player. Please try again.');
+    }
+  };
+
+  const confirmPlayerRemoval = (player: Player) => {
+    Alert.alert(
+      'Remove Player',
+      `Are you sure you want to remove ${player.name} from the session?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Remove', 
+          style: 'destructive',
+          onPress: () => handleRemovePlayer(player.id)
+        }
+      ]
+    );
+  };
+
+  const confirmSelfDropout = () => {
+    Alert.alert(
+      'Leave Session',
+      'Are you sure you want to leave this session? You will not be able to rejoin.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Leave', 
+          style: 'destructive',
+          onPress: handlePlayerSelfDropout
+        }
+      ]
+    );
+  };
+
+  const finishGame = async (courtId: string) => {
     if (!sessionData) return;
 
     const court = sessionData.courts.find(c => c.id === courtId);
     if (!court || !court.currentGame) return;
 
-    // Move game to history
-    const completedGame = { ...court.currentGame, status: 'COMPLETED' as const, endTime: new Date().toISOString() };
-    
-    // Update players' stats (mock implementation)
-    // In real app, this would update the backend
+    try {
+      const game = court.currentGame;
+      
+      // Save game to database
+      const response = await fetch(`${API_BASE_URL}/mvp-sessions/${route.params.shareCode}/games`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          courtName: court.name,
+          team1Player1: game.team1.player1.name,
+          team1Player2: game.team1.player2.name,
+          team1Score: game.team1.score,
+          team2Player1: game.team2.player1.name,
+          team2Player2: game.team2.player2.name,
+          team2Score: game.team2.score,
+          winnerTeam: game.winnerTeam,
+          startTime: game.startTime,
+          endTime: new Date().toISOString(),
+          duration: game.duration,
+          sets: game.sets
+        }),
+      });
 
-    const updatedCourt = {
-      ...court,
-      currentGame: undefined
-    };
+      if (response.ok) {
+        // Update local state - clear the current game
+        const updatedCourt = {
+          ...court,
+          currentGame: undefined
+        };
 
-    const updatedSession = {
-      ...sessionData,
-      courts: sessionData.courts.map(c => 
-        c.id === updatedCourt.id ? updatedCourt : c
-      ),
-      gameHistory: [...sessionData.gameHistory, completedGame]
-    };
+        const updatedSession = {
+          ...sessionData,
+          courts: sessionData.courts.map(c => 
+            c.id === updatedCourt.id ? updatedCourt : c
+          )
+        };
 
-    setSessionData(updatedSession);
-    Alert.alert('Game Completed!', 'Game has been recorded and players can start a new game.');
+        setSessionData(updatedSession);
+        
+        // Refresh session data to get updated game history from database
+        await fetchSessionData();
+        
+        Alert.alert('Game Completed!', 'Game has been recorded and players can start a new game.');
+      } else {
+        const errorData = await response.json();
+        Alert.alert('Error', errorData.error?.message || 'Failed to save game');
+      }
+    } catch (error) {
+      console.error('Finish game error:', error);
+      Alert.alert('Error', 'Failed to save game. Please try again.');
+    }
   };
 
   const addToQueue = (courtId: string, player: Player) => {
@@ -484,6 +795,721 @@ export default function LiveGameScreen() {
     </View>
   );
 
+  const renderGameSettings = () => (
+    <Modal visible={showGameSettings} animationType="slide" transparent>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Game Settings</Text>
+            <TouchableOpacity 
+              style={styles.modalCloseButton}
+              onPress={() => setShowGameSettings(false)}
+            >
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.settingsContent}>
+            <View style={styles.settingItem}>
+              <Text style={styles.settingLabel}>🏸 Court Management</Text>
+              <TouchableOpacity 
+                style={styles.settingButton}
+                onPress={() => {
+                  setShowGameSettings(false);
+                  setShowCourtSettings(true);
+                }}
+              >
+                <Text style={styles.settingButtonText}>Configure Courts</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.settingItem}>
+              <Text style={styles.settingLabel}>⏱️ Game Timer</Text>
+              <TouchableOpacity 
+                style={styles.settingButton}
+                onPress={() => {
+                  setShowGameSettings(false);
+                  setShowTimerSettings(true);
+                }}
+              >
+                <Text style={styles.settingButtonText}>Timer Settings</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.settingItem}>
+              <Text style={styles.settingLabel}>🔄 Auto Rotation</Text>
+              <TouchableOpacity 
+                style={styles.settingButton}
+                onPress={() => {
+                  setShowGameSettings(false);
+                  setShowRotationSettings(true);
+                }}
+              >
+                <Text style={styles.settingButtonText}>Rotation Rules</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.settingItem}>
+              <Text style={styles.settingLabel}>📊 Scoring System</Text>
+              <TouchableOpacity 
+                style={styles.settingButton}
+                onPress={() => {
+                  setShowGameSettings(false);
+                  setShowScoringSettings(true);
+                }}
+              >
+                <Text style={styles.settingButtonText}>Scoring Rules</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.modalActionButton}
+            onPress={() => setShowGameSettings(false)}
+          >
+            <Text style={styles.modalActionButtonText}>Done</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  const renderCourtSettings = () => (
+    <Modal visible={showCourtSettings} animationType="slide" transparent>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Configure Courts</Text>
+            <TouchableOpacity 
+              style={styles.modalCloseButton}
+              onPress={() => setShowCourtSettings(false)}
+            >
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.courtSettingsContent}>
+            <View style={styles.courtSettingItem}>
+              <Text style={styles.courtSettingLabel}>Number of Courts</Text>
+              <View style={styles.courtCountControls}>
+                <TouchableOpacity 
+                  style={styles.courtCountButton}
+                  onPress={() => {
+                    setIsEditingCourtSettings(true);
+                    console.log('➖ Minus button pressed. Current court count:', courtSettings.courtCount);
+                    if (courtSettings.courtCount > 1) {
+                      const newCount = courtSettings.courtCount - 1;
+                      const newNames = courtSettings.courtNames.slice(0, newCount);
+                      console.log('➖ Setting new count to:', newCount);
+                      setCourtSettings({
+                        courtCount: newCount,
+                        courtNames: newNames
+                      });
+                    } else {
+                      console.log('➖ Cannot decrease - already at minimum (1)');
+                    }
+                  }}
+                >
+                  <Ionicons name="remove" size={20} color="#007AFF" />
+                </TouchableOpacity>
+                
+                <Text style={styles.courtCountText}>{courtSettings.courtCount}</Text>
+                
+                <TouchableOpacity 
+                  style={styles.courtCountButton}
+                  onPress={() => {
+                    setIsEditingCourtSettings(true);
+                    console.log('➕ Plus button pressed. Current court count:', courtSettings.courtCount);
+                    if (courtSettings.courtCount < 8) {
+                      const newCount = courtSettings.courtCount + 1;
+                      const newNames = [...courtSettings.courtNames, `Court ${newCount}`];
+                      console.log('➕ Setting new count to:', newCount);
+                      setCourtSettings({
+                        courtCount: newCount,
+                        courtNames: newNames
+                      });
+                    } else {
+                      console.log('➕ Cannot increase - already at maximum (8)');
+                    }
+                  }}
+                >
+                  <Ionicons name="add" size={20} color="#007AFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <Text style={styles.courtNamesHeader}>Court Names</Text>
+            {courtSettings.courtNames.map((name, index) => (
+              <View key={index} style={styles.courtNameItem}>
+                <Text style={styles.courtNameLabel}>Court {index + 1}:</Text>
+                <TextInput
+                  style={styles.courtNameInput}
+                  value={name}
+                  onChangeText={(text) => {
+                    const newNames = [...courtSettings.courtNames];
+                    newNames[index] = text;
+                    setCourtSettings({
+                      ...courtSettings,
+                      courtNames: newNames
+                    });
+                  }}
+                  placeholder={`Court ${index + 1}`}
+                />
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.courtSettingsActions}>
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => {
+                setIsEditingCourtSettings(false);
+                setShowCourtSettings(false);
+              }}
+            >
+              <Text style={styles.modalCancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.modalActionButton}
+              onPress={async () => {
+                console.log('💾 Save Changes button pressed!');
+                console.log('Current court settings:', courtSettings);
+                setIsEditingCourtSettings(false);
+                await saveCourtSettings();
+                setShowCourtSettings(false);
+              }}
+            >
+              <Text style={styles.modalActionButtonText}>Save Changes</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  const renderTimerSettings = () => (
+    <Modal visible={showTimerSettings} animationType="slide" transparent>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Timer Settings</Text>
+            <TouchableOpacity 
+              style={styles.modalCloseButton}
+              onPress={() => setShowTimerSettings(false)}
+            >
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.settingsScrollView}>
+            <View style={styles.timerSettingItem}>
+              <Text style={styles.settingLabel}>⏰ Game Time Limit</Text>
+              <View style={styles.timerControls}>
+                <TouchableOpacity 
+                  style={styles.timerButton}
+                  onPress={() => setTimerSettings({...timerSettings, gameTimeLimit: Math.max(10, timerSettings.gameTimeLimit - 5)})}
+                >
+                  <Ionicons name="remove" size={16} color="#007AFF" />
+                </TouchableOpacity>
+                <Text style={styles.timerValue}>{timerSettings.gameTimeLimit} min</Text>
+                <TouchableOpacity 
+                  style={styles.timerButton}
+                  onPress={() => setTimerSettings({...timerSettings, gameTimeLimit: Math.min(60, timerSettings.gameTimeLimit + 5)})}
+                >
+                  <Ionicons name="add" size={16} color="#007AFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.timerSettingItem}>
+              <Text style={styles.settingLabel}>⏱️ Set Time Limit</Text>
+              <View style={styles.timerControls}>
+                <TouchableOpacity 
+                  style={styles.timerButton}
+                  onPress={() => setTimerSettings({...timerSettings, setTimeLimit: Math.max(5, timerSettings.setTimeLimit - 5)})}
+                >
+                  <Ionicons name="remove" size={16} color="#007AFF" />
+                </TouchableOpacity>
+                <Text style={styles.timerValue}>{timerSettings.setTimeLimit} min</Text>
+                <TouchableOpacity 
+                  style={styles.timerButton}
+                  onPress={() => setTimerSettings({...timerSettings, setTimeLimit: Math.min(30, timerSettings.setTimeLimit + 5)})}
+                >
+                  <Ionicons name="add" size={16} color="#007AFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.timerSettingItem}>
+              <Text style={styles.settingLabel}>🏃 Warmup Time</Text>
+              <View style={styles.timerControls}>
+                <TouchableOpacity 
+                  style={styles.timerButton}
+                  onPress={() => setTimerSettings({...timerSettings, warmupTime: Math.max(0, timerSettings.warmupTime - 1)})}
+                >
+                  <Ionicons name="remove" size={16} color="#007AFF" />
+                </TouchableOpacity>
+                <Text style={styles.timerValue}>{timerSettings.warmupTime} min</Text>
+                <TouchableOpacity 
+                  style={styles.timerButton}
+                  onPress={() => setTimerSettings({...timerSettings, warmupTime: Math.min(10, timerSettings.warmupTime + 1)})}
+                >
+                  <Ionicons name="add" size={16} color="#007AFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.timerSettingItem}>
+              <Text style={styles.settingLabel}>☕ Break Time</Text>
+              <View style={styles.timerControls}>
+                <TouchableOpacity 
+                  style={styles.timerButton}
+                  onPress={() => setTimerSettings({...timerSettings, breakTime: Math.max(0, timerSettings.breakTime - 1)})}
+                >
+                  <Ionicons name="remove" size={16} color="#007AFF" />
+                </TouchableOpacity>
+                <Text style={styles.timerValue}>{timerSettings.breakTime} min</Text>
+                <TouchableOpacity 
+                  style={styles.timerButton}
+                  onPress={() => setTimerSettings({...timerSettings, breakTime: Math.min(5, timerSettings.breakTime + 1)})}
+                >
+                  <Ionicons name="add" size={16} color="#007AFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.toggleSettingItem}>
+              <Text style={styles.settingLabel}>🔔 Time Warnings</Text>
+              <TouchableOpacity 
+                style={[styles.toggleButton, timerSettings.enableTimeWarnings && styles.toggleButtonActive]}
+                onPress={() => setTimerSettings({...timerSettings, enableTimeWarnings: !timerSettings.enableTimeWarnings})}
+              >
+                <Text style={[styles.toggleButtonText, timerSettings.enableTimeWarnings && styles.toggleButtonTextActive]}>
+                  {timerSettings.enableTimeWarnings ? 'ON' : 'OFF'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {timerSettings.enableTimeWarnings && (
+              <View style={styles.timerSettingItem}>
+                <Text style={styles.settingLabel}>⚠️ Warning Time</Text>
+                <View style={styles.timerControls}>
+                  <TouchableOpacity 
+                    style={styles.timerButton}
+                    onPress={() => setTimerSettings({...timerSettings, warningTime: Math.max(1, timerSettings.warningTime - 1)})}
+                  >
+                    <Ionicons name="remove" size={16} color="#007AFF" />
+                  </TouchableOpacity>
+                  <Text style={styles.timerValue}>{timerSettings.warningTime} min</Text>
+                  <TouchableOpacity 
+                    style={styles.timerButton}
+                    onPress={() => setTimerSettings({...timerSettings, warningTime: Math.min(15, timerSettings.warningTime + 1)})}
+                  >
+                    <Ionicons name="add" size={16} color="#007AFF" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </ScrollView>
+
+          <View style={styles.courtSettingsActions}>
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => setShowTimerSettings(false)}
+            >
+              <Text style={styles.modalCancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.modalActionButton}
+              onPress={() => {
+                console.log('Saving timer settings:', timerSettings);
+                setShowTimerSettings(false);
+              }}
+            >
+              <Text style={styles.modalActionButtonText}>Save Changes</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  const renderRotationSettings = () => (
+    <Modal visible={showRotationSettings} animationType="slide" transparent>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Rotation Rules</Text>
+            <TouchableOpacity 
+              style={styles.modalCloseButton}
+              onPress={() => setShowRotationSettings(false)}
+            >
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.settingsScrollView}>
+            <View style={styles.toggleSettingItem}>
+              <Text style={styles.settingLabel}>🔄 Auto Rotation</Text>
+              <TouchableOpacity 
+                style={[styles.toggleButton, rotationSettings.autoRotationEnabled && styles.toggleButtonActive]}
+                onPress={() => setRotationSettings({...rotationSettings, autoRotationEnabled: !rotationSettings.autoRotationEnabled})}
+              >
+                <Text style={[styles.toggleButtonText, rotationSettings.autoRotationEnabled && styles.toggleButtonTextActive]}>
+                  {rotationSettings.autoRotationEnabled ? 'ON' : 'OFF'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {rotationSettings.autoRotationEnabled && (
+              <>
+                <View style={styles.timerSettingItem}>
+                  <Text style={styles.settingLabel}>⏰ Rotation Interval</Text>
+                  <View style={styles.timerControls}>
+                    <TouchableOpacity 
+                      style={styles.timerButton}
+                      onPress={() => setRotationSettings({...rotationSettings, rotationInterval: Math.max(1, rotationSettings.rotationInterval - 1)})}
+                    >
+                      <Ionicons name="remove" size={16} color="#007AFF" />
+                    </TouchableOpacity>
+                    <Text style={styles.timerValue}>{rotationSettings.rotationInterval} games</Text>
+                    <TouchableOpacity 
+                      style={styles.timerButton}
+                      onPress={() => setRotationSettings({...rotationSettings, rotationInterval: Math.min(10, rotationSettings.rotationInterval + 1)})}
+                    >
+                      <Ionicons name="add" size={16} color="#007AFF" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.timerSettingItem}>
+                  <Text style={styles.settingLabel}>🎯 Max Consecutive Games</Text>
+                  <View style={styles.timerControls}>
+                    <TouchableOpacity 
+                      style={styles.timerButton}
+                      onPress={() => setRotationSettings({...rotationSettings, maxConsecutiveGames: Math.max(1, rotationSettings.maxConsecutiveGames - 1)})}
+                    >
+                      <Ionicons name="remove" size={16} color="#007AFF" />
+                    </TouchableOpacity>
+                    <Text style={styles.timerValue}>{rotationSettings.maxConsecutiveGames} games</Text>
+                    <TouchableOpacity 
+                      style={styles.timerButton}
+                      onPress={() => setRotationSettings({...rotationSettings, maxConsecutiveGames: Math.min(5, rotationSettings.maxConsecutiveGames + 1)})}
+                    >
+                      <Ionicons name="add" size={16} color="#007AFF" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.timerSettingItem}>
+                  <Text style={styles.settingLabel}>💤 Minimum Rest Time</Text>
+                  <View style={styles.timerControls}>
+                    <TouchableOpacity 
+                      style={styles.timerButton}
+                      onPress={() => setRotationSettings({...rotationSettings, minimumRestTime: Math.max(0, rotationSettings.minimumRestTime - 1)})}
+                    >
+                      <Ionicons name="remove" size={16} color="#007AFF" />
+                    </TouchableOpacity>
+                    <Text style={styles.timerValue}>{rotationSettings.minimumRestTime} games</Text>
+                    <TouchableOpacity 
+                      style={styles.timerButton}
+                      onPress={() => setRotationSettings({...rotationSettings, minimumRestTime: Math.min(5, rotationSettings.minimumRestTime + 1)})}
+                    >
+                      <Ionicons name="add" size={16} color="#007AFF" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.toggleSettingItem}>
+                  <Text style={styles.settingLabel}>🆕 Prioritize New Players</Text>
+                  <TouchableOpacity 
+                    style={[styles.toggleButton, rotationSettings.prioritizeNewPlayers && styles.toggleButtonActive]}
+                    onPress={() => setRotationSettings({...rotationSettings, prioritizeNewPlayers: !rotationSettings.prioritizeNewPlayers})}
+                  >
+                    <Text style={[styles.toggleButtonText, rotationSettings.prioritizeNewPlayers && styles.toggleButtonTextActive]}>
+                      {rotationSettings.prioritizeNewPlayers ? 'ON' : 'OFF'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.toggleSettingItem}>
+                  <Text style={styles.settingLabel}>⚖️ Balance Skill Levels</Text>
+                  <TouchableOpacity 
+                    style={[styles.toggleButton, rotationSettings.balanceSkillLevels && styles.toggleButtonActive]}
+                    onPress={() => setRotationSettings({...rotationSettings, balanceSkillLevels: !rotationSettings.balanceSkillLevels})}
+                  >
+                    <Text style={[styles.toggleButtonText, rotationSettings.balanceSkillLevels && styles.toggleButtonTextActive]}>
+                      {rotationSettings.balanceSkillLevels ? 'ON' : 'OFF'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </ScrollView>
+
+          <View style={styles.courtSettingsActions}>
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => setShowRotationSettings(false)}
+            >
+              <Text style={styles.modalCancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.modalActionButton}
+              onPress={() => {
+                console.log('Saving rotation settings:', rotationSettings);
+                setShowRotationSettings(false);
+              }}
+            >
+              <Text style={styles.modalActionButtonText}>Save Changes</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  const renderScoringSettings = () => (
+    <Modal visible={showScoringSettings} animationType="slide" transparent>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Scoring Rules</Text>
+            <TouchableOpacity 
+              style={styles.modalCloseButton}
+              onPress={() => setShowScoringSettings(false)}
+            >
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.settingsScrollView}>
+            <View style={styles.scoringTypeSection}>
+              <Text style={styles.settingLabel}>🏸 Game Type</Text>
+              <View style={styles.scoringTypeButtons}>
+                <TouchableOpacity 
+                  style={[styles.scoringTypeButton, scoringSettings.gameType === 'rally' && styles.scoringTypeButtonActive]}
+                  onPress={() => setScoringSettings({...scoringSettings, gameType: 'rally'})}
+                >
+                  <Text style={[styles.scoringTypeButtonText, scoringSettings.gameType === 'rally' && styles.scoringTypeButtonTextActive]}>
+                    Rally Point
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.scoringTypeButton, scoringSettings.gameType === 'traditional' && styles.scoringTypeButtonActive]}
+                  onPress={() => setScoringSettings({...scoringSettings, gameType: 'traditional'})}
+                >
+                  <Text style={[styles.scoringTypeButtonText, scoringSettings.gameType === 'traditional' && styles.scoringTypeButtonTextActive]}>
+                    Traditional
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.timerSettingItem}>
+              <Text style={styles.settingLabel}>🎯 Points to Win</Text>
+              <View style={styles.timerControls}>
+                <TouchableOpacity 
+                  style={styles.timerButton}
+                  onPress={() => setScoringSettings({...scoringSettings, pointsToWin: Math.max(11, scoringSettings.pointsToWin - 1)})}
+                >
+                  <Ionicons name="remove" size={16} color="#007AFF" />
+                </TouchableOpacity>
+                <Text style={styles.timerValue}>{scoringSettings.pointsToWin}</Text>
+                <TouchableOpacity 
+                  style={styles.timerButton}
+                  onPress={() => setScoringSettings({...scoringSettings, pointsToWin: Math.min(30, scoringSettings.pointsToWin + 1)})}
+                >
+                  <Ionicons name="add" size={16} color="#007AFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.timerSettingItem}>
+              <Text style={styles.settingLabel}>📊 Win by Margin</Text>
+              <View style={styles.timerControls}>
+                <TouchableOpacity 
+                  style={styles.timerButton}
+                  onPress={() => setScoringSettings({...scoringSettings, winByMargin: Math.max(1, scoringSettings.winByMargin - 1)})}
+                >
+                  <Ionicons name="remove" size={16} color="#007AFF" />
+                </TouchableOpacity>
+                <Text style={styles.timerValue}>{scoringSettings.winByMargin}</Text>
+                <TouchableOpacity 
+                  style={styles.timerButton}
+                  onPress={() => setScoringSettings({...scoringSettings, winByMargin: Math.min(5, scoringSettings.winByMargin + 1)})}
+                >
+                  <Ionicons name="add" size={16} color="#007AFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.timerSettingItem}>
+              <Text style={styles.settingLabel}>🔢 Max Points</Text>
+              <View style={styles.timerControls}>
+                <TouchableOpacity 
+                  style={styles.timerButton}
+                  onPress={() => setScoringSettings({...scoringSettings, maxPoints: Math.max(scoringSettings.pointsToWin + 5, scoringSettings.maxPoints - 1)})}
+                >
+                  <Ionicons name="remove" size={16} color="#007AFF" />
+                </TouchableOpacity>
+                <Text style={styles.timerValue}>{scoringSettings.maxPoints}</Text>
+                <TouchableOpacity 
+                  style={styles.timerButton}
+                  onPress={() => setScoringSettings({...scoringSettings, maxPoints: Math.min(50, scoringSettings.maxPoints + 1)})}
+                >
+                  <Ionicons name="add" size={16} color="#007AFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.timerSettingItem}>
+              <Text style={styles.settingLabel}>🏆 Sets to Win Match</Text>
+              <View style={styles.timerControls}>
+                <TouchableOpacity 
+                  style={styles.timerButton}
+                  onPress={() => setScoringSettings({...scoringSettings, setsToWin: Math.max(1, scoringSettings.setsToWin - 1)})}
+                >
+                  <Ionicons name="remove" size={16} color="#007AFF" />
+                </TouchableOpacity>
+                <Text style={styles.timerValue}>{scoringSettings.setsToWin} of {scoringSettings.setsToWin * 2 - 1}</Text>
+                <TouchableOpacity 
+                  style={styles.timerButton}
+                  onPress={() => setScoringSettings({...scoringSettings, setsToWin: Math.min(3, scoringSettings.setsToWin + 1)})}
+                >
+                  <Ionicons name="add" size={16} color="#007AFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.toggleSettingItem}>
+              <Text style={styles.settingLabel}>⚖️ Enable Deuce</Text>
+              <TouchableOpacity 
+                style={[styles.toggleButton, scoringSettings.enableDeuce && styles.toggleButtonActive]}
+                onPress={() => setScoringSettings({...scoringSettings, enableDeuce: !scoringSettings.enableDeuce})}
+              >
+                <Text style={[styles.toggleButtonText, scoringSettings.enableDeuce && styles.toggleButtonTextActive]}>
+                  {scoringSettings.enableDeuce ? 'ON' : 'OFF'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+
+          <View style={styles.courtSettingsActions}>
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => setShowScoringSettings(false)}
+            >
+              <Text style={styles.modalCancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.modalActionButton}
+              onPress={() => {
+                console.log('Saving scoring settings:', scoringSettings);
+                setShowScoringSettings(false);
+              }}
+            >
+              <Text style={styles.modalActionButtonText}>Save Changes</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  const renderPlayerManagement = () => (
+    <Modal visible={showPlayerManagement} animationType="slide" transparent>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Manage Players</Text>
+            <TouchableOpacity 
+              style={styles.modalCloseButton}
+              onPress={() => setShowPlayerManagement(false)}
+            >
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.playerManagementContent}>
+            <Text style={styles.playerManagementDescription}>
+              Remove players from the session. Players currently in active games cannot be removed.
+            </Text>
+            
+            {sessionData?.players.map(player => {
+              // Check if player is currently in an active game
+              const isInActiveGame = sessionData.courts.some(court => 
+                court.currentGame && (
+                  court.currentGame.team1.player1.id === player.id ||
+                  court.currentGame.team1.player2.id === player.id ||
+                  court.currentGame.team2.player1.id === player.id ||
+                  court.currentGame.team2.player2.id === player.id
+                )
+              );
+
+              return (
+                <View key={player.id} style={styles.playerManagementItem}>
+                  <View style={styles.playerManagementInfo}>
+                    <Text style={styles.playerManagementName}>{player.name}</Text>
+                    <View style={styles.playerManagementStats}>
+                      <View style={[
+                        styles.playerStatusBadge, 
+                        { 
+                          backgroundColor: player.status === 'ACTIVE' ? '#4CAF50' : 
+                                         player.status === 'RESTING' ? '#FF9800' : '#f44336'
+                        }
+                      ]}>
+                        <Text style={styles.playerStatusText}>{player.status}</Text>
+                      </View>
+                      <Text style={styles.playerStatsText}>
+                        {player.wins}W - {player.losses}L - {player.gamesPlayed} games
+                      </Text>
+                    </View>
+                    {isInActiveGame && (
+                      <Text style={styles.activeGameWarning}>Currently playing</Text>
+                    )}
+                  </View>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.removePlayerButton,
+                      (isInActiveGame || player.status === 'LEFT') && styles.removePlayerButtonDisabled
+                    ]}
+                    onPress={() => confirmPlayerRemoval(player)}
+                    disabled={isInActiveGame || player.status === 'LEFT'}
+                  >
+                    <Ionicons 
+                      name="trash-outline" 
+                      size={16} 
+                      color={isInActiveGame || player.status === 'LEFT' ? '#ccc' : '#f44336'} 
+                    />
+                    <Text style={[
+                      styles.removePlayerButtonText,
+                      (isInActiveGame || player.status === 'LEFT') && styles.removePlayerButtonTextDisabled
+                    ]}>
+                      Remove
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </ScrollView>
+
+          <TouchableOpacity
+            style={styles.modalActionButton}
+            onPress={() => setShowPlayerManagement(false)}
+          >
+            <Text style={styles.modalActionButtonText}>Done</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+
   const renderPlayerSelector = () => (
     <Modal visible={showPlayerSelector} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
@@ -558,22 +1584,105 @@ export default function LiveGameScreen() {
         </Text>
       </View>
 
-      {/* Game Settings */}
-      {isOwner && (
+      {/* Action Buttons */}
+      <View style={styles.actionButtonsContainer}>
+        {isOwner && (
+          <>
+            <TouchableOpacity 
+              style={styles.settingsButton}
+              onPress={() => setShowGameSettings(true)}
+            >
+              <Ionicons name="settings-outline" size={20} color="#007AFF" />
+              <Text style={styles.settingsButtonText}>Game Settings</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.managePlayersButton}
+              onPress={() => setShowPlayerManagement(true)}
+            >
+              <Ionicons name="people-outline" size={20} color="#f44336" />
+              <Text style={styles.managePlayersButtonText}>Manage Players</Text>
+            </TouchableOpacity>
+          </>
+        )}
+        
+        {/* Self dropout button for all players */}
         <TouchableOpacity 
-          style={styles.settingsButton}
-          onPress={() => setShowGameSettings(true)}
+          style={styles.leaveSessionButton}
+          onPress={confirmSelfDropout}
         >
-          <Ionicons name="settings-outline" size={20} color="#007AFF" />
-          <Text style={styles.settingsButtonText}>Game Settings</Text>
+          <Ionicons name="exit-outline" size={20} color="#f44336" />
+          <Text style={styles.leaveSessionButtonText}>Leave Session</Text>
         </TouchableOpacity>
-      )}
+      </View>
 
       {/* Courts */}
       <View style={styles.courtsSection}>
         <Text style={styles.sectionTitle}>Courts</Text>
         {sessionData.courts.map(court => renderCourt(court))}
       </View>
+
+      {/* Game History */}
+      {sessionData.gameHistory.length > 0 && (
+        <View style={styles.gameHistorySection}>
+          <Text style={styles.sectionTitle}>Game History ({sessionData.gameHistory.length})</Text>
+          {sessionData.gameHistory
+            .filter(game => game && game.team1 && game.team2 && game.team1.player1 && game.team1.player2 && game.team2.player1 && game.team2.player2)
+            .map((game, index) => (
+            <View key={game.id || index} style={styles.gameHistoryCard}>
+              <View style={styles.gameHistoryHeader}>
+                <Text style={styles.gameHistoryTitle}>Game {index + 1}</Text>
+                <Text style={styles.gameHistoryTime}>
+                  {game.endTime || game.startTime ? 
+                    new Date(game.endTime || game.startTime).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    }) : 'Unknown time'
+                  }
+                </Text>
+              </View>
+              
+              <View style={styles.gameHistoryTeams}>
+                <View style={styles.gameHistoryTeam}>
+                  <Text style={styles.gameHistoryTeamLabel}>Team 1</Text>
+                  <Text style={styles.gameHistoryPlayers}>
+                    {game.team1.player1.name} & {game.team1.player2.name}
+                  </Text>
+                  <Text style={[
+                    styles.gameHistoryScore,
+                    game.winnerTeam === 1 && styles.gameHistoryWinnerScore
+                  ]}>
+                    {game.team1.score || 0}
+                  </Text>
+                </View>
+                
+                <Text style={styles.gameHistoryVs}>VS</Text>
+                
+                <View style={styles.gameHistoryTeam}>
+                  <Text style={styles.gameHistoryTeamLabel}>Team 2</Text>
+                  <Text style={styles.gameHistoryPlayers}>
+                    {game.team2.player1.name} & {game.team2.player2.name}
+                  </Text>
+                  <Text style={[
+                    styles.gameHistoryScore,
+                    game.winnerTeam === 2 && styles.gameHistoryWinnerScore
+                  ]}>
+                    {game.team2.score || 0}
+                  </Text>
+                </View>
+              </View>
+              
+              {game.winnerTeam && (
+                <View style={styles.gameHistoryWinner}>
+                  <Text style={styles.gameHistoryWinnerText}>
+                    🏆 Team {game.winnerTeam} Won!
+                  </Text>
+                </View>
+              )}
+            </View>
+          ))}
+        </View>
+      )}
 
       {/* Player Status */}
       <View style={styles.playersSection}>
@@ -596,6 +1705,12 @@ export default function LiveGameScreen() {
         </View>
       </View>
 
+      {renderGameSettings()}
+      {renderCourtSettings()}
+      {renderTimerSettings()}
+      {renderRotationSettings()}
+      {renderScoringSettings()}
+      {renderPlayerManagement()}
       {renderPlayerSelector()}
     </ScrollView>
   );
@@ -656,13 +1771,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.8)',
   },
+  actionButtonsContainer: {
+    flexDirection: 'column',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    gap: 8,
+  },
   settingsButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#fff',
-    marginHorizontal: 20,
-    marginTop: 16,
+    width: '100%',
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
@@ -670,6 +1790,40 @@ const styles = StyleSheet.create({
   },
   settingsButtonText: {
     color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  managePlayersButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    width: '100%',
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#f44336',
+  },
+  managePlayersButtonText: {
+    color: '#f44336',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  leaveSessionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    width: '100%',
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#f44336',
+  },
+  leaveSessionButtonText: {
+    color: '#f44336',
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
@@ -961,5 +2115,375 @@ const styles = StyleSheet.create({
   separator: {
     height: 1,
     backgroundColor: '#f0f0f0',
+  },
+  // Game Settings Modal Styles
+  settingsContent: {
+    paddingVertical: 10,
+  },
+  settingItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  settingLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    flex: 1,
+  },
+  settingButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  settingButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  // Court Settings Modal Styles
+  courtSettingsContent: {
+    paddingVertical: 10,
+  },
+  courtSettingItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  courtSettingLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    flex: 1,
+  },
+  courtCountControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
+  },
+  courtCountButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f0f9ff',
+    borderWidth: 1,
+    borderColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  courtCountText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    minWidth: 30,
+    textAlign: 'center',
+  },
+  courtNamesHeader: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  courtNameItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    gap: 10,
+  },
+  courtNameLabel: {
+    fontSize: 14,
+    color: '#666',
+    width: 60,
+  },
+  courtNameInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+  },
+  courtSettingsActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+  modalCancelButton: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalCancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  // Additional Modal Styles
+  settingsScrollView: {
+    maxHeight: 400,
+  },
+  timerSettingItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  timerControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  timerButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f0f9ff',
+    borderWidth: 1,
+    borderColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timerValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    minWidth: 70,
+    textAlign: 'center',
+  },
+  toggleSettingItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  toggleButton: {
+    backgroundColor: '#e9ecef',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+  },
+  toggleButtonActive: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  toggleButtonText: {
+    color: '#6c757d',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+    minWidth: 30,
+  },
+  toggleButtonTextActive: {
+    color: '#fff',
+  },
+  scoringTypeSection: {
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  scoringTypeButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  scoringTypeButton: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  scoringTypeButtonActive: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  scoringTypeButtonText: {
+    color: '#6c757d',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  scoringTypeButtonTextActive: {
+    color: '#fff',
+  },
+  // Player Management Modal Styles
+  playerManagementContent: {
+    maxHeight: 400,
+    paddingVertical: 10,
+  },
+  playerManagementDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 16,
+    paddingHorizontal: 4,
+    lineHeight: 20,
+  },
+  playerManagementItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  playerManagementInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  playerManagementName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  playerManagementStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  playerStatsText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  activeGameWarning: {
+    fontSize: 12,
+    color: '#ff9800',
+    fontWeight: '500',
+    fontStyle: 'italic',
+  },
+  removePlayerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff5f5',
+    borderWidth: 1,
+    borderColor: '#f44336',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    gap: 4,
+  },
+  removePlayerButtonDisabled: {
+    backgroundColor: '#f8f9fa',
+    borderColor: '#dee2e6',
+  },
+  removePlayerButtonText: {
+    color: '#f44336',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  removePlayerButtonTextDisabled: {
+    color: '#ccc',
+  },
+  // Game History Styles
+  gameHistorySection: {
+    padding: 20,
+    paddingTop: 0,
+  },
+  gameHistoryCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  gameHistoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  gameHistoryTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  gameHistoryTime: {
+    fontSize: 12,
+    color: '#666',
+  },
+  gameHistoryTeams: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  gameHistoryTeam: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  gameHistoryTeamLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 4,
+  },
+  gameHistoryPlayers: {
+    fontSize: 14,
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  gameHistoryScore: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#666',
+  },
+  gameHistoryWinnerScore: {
+    color: '#4CAF50',
+  },
+  gameHistoryVs: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#666',
+    marginHorizontal: 16,
+  },
+  gameHistoryWinner: {
+    backgroundColor: '#f0f8f0',
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  gameHistoryWinnerText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4CAF50',
+  },
+  modalActionButton: {
+    flex: 1,
+    backgroundColor: '#007AFF',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalActionButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

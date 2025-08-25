@@ -41,6 +41,7 @@ model MvpSession {
   // Relations
   players MvpPlayer[]
   games   MvpGame[]
+  matches MvpMatch[]
 
   @@map("mvp_sessions")
 }
@@ -60,6 +61,24 @@ model MvpPlayer {
   gamesPlayed  Int      @default(0)
   wins         Int      @default(0)
   losses       Int      @default(0)
+  
+  // Match Statistics
+  matchesPlayed Int @default(0)
+  matchWins     Int @default(0) 
+  matchLosses   Int @default(0)
+  
+  // Detailed Statistics
+  totalSetsWon    Int @default(0)
+  totalSetsLost   Int @default(0)
+  totalPlayTime   Int @default(0)  // Total play time in minutes
+  
+  // Partnership Statistics (JSON field for flexible tracking)
+  partnershipStats Json?  // Track performance with different partners
+  
+  // Performance Metrics
+  winRate       Float @default(0.0)    // Overall win percentage
+  matchWinRate  Float @default(0.0)    // Match win percentage
+  averageGameDuration Float @default(0.0)  // Average game duration in minutes
 
   @@unique([sessionId, name]) // Prevent duplicate names in same session
   @@unique([sessionId, deviceId]) // Prevent same device joining same session twice
@@ -67,14 +86,61 @@ model MvpPlayer {
 }
 
 // MVP Game tracking for session history
-model MvpGame {
+// Match groups multiple games together (e.g., best of 3 games)
+model MvpMatch {
   id        String @id @default(cuid())
   sessionId String
   session   MvpSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
+  // Match metadata
+  matchNumber Int       // Sequential match number in session
+  courtName   String?   // "Court 1", "Court 2", etc.
+  
+  // Teams (consistent across all games in match)
+  team1Player1 String   // Player names for flexibility
+  team1Player2 String
+  team2Player1 String
+  team2Player2 String
+  
+  // Match format
+  bestOf      Int @default(3)    // Best of X games (3 or 5 typical)
+  
+  // Match results
+  team1GamesWon Int @default(0)  // Games won by team 1
+  team2GamesWon Int @default(0)  // Games won by team 2
+  winnerTeam    Int?             // 1 or 2, determined when match is complete
+  
+  // Timing
+  startTime DateTime?
+  endTime   DateTime?
+  duration  Int?        // Duration in minutes
+  
+  // Status
+  status MvpMatchStatus @default(IN_PROGRESS)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  games MvpGame[]
+
+  @@map("mvp_matches")
+}
+
+model MvpGame {
+  id        String @id @default(cuid())
+  sessionId String
+  session   MvpSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  // Match relationship (optional - games can exist without matches for casual play)
+  matchId   String?
+  match     MvpMatch? @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
   // Game metadata
   courtName   String?   // "Court 1", "Court 2", etc.
   gameNumber  Int       // Sequential game number in session
+  gameInMatch Int?      // Game number within the match (1, 2, 3, etc.)
   
   // Teams (stored as JSON or separate fields)
   team1Player1 String   // Player names for flexibility
@@ -140,6 +206,13 @@ enum MvpPlayerStatus {
 }
 
 enum MvpGameStatus {
+  IN_PROGRESS
+  COMPLETED
+  PAUSED
+  CANCELLED
+}
+
+enum MvpMatchStatus {
   IN_PROGRESS
   COMPLETED
   PAUSED

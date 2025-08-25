@@ -46,9 +46,51 @@ interface Game {
   endTime?: string;
   duration?: number;
   status: 'IN_PROGRESS' | 'COMPLETED' | 'PAUSED' | 'CANCELLED';
+  matchId?: string;
+  gameInMatch?: number;
   createdAt: string;
   updatedAt: string;
 }
+
+interface Match {
+  id: string;
+  matchNumber: number;
+  courtName?: string;
+  team1Player1: string;
+  team1Player2: string;
+  team2Player1: string;
+  team2Player2: string;
+  team1GamesWon: number;
+  team2GamesWon: number;
+  winnerTeam?: number;
+  bestOf: number;
+  startTime?: string;
+  endTime?: string;
+  duration?: number;
+  status: 'IN_PROGRESS' | 'COMPLETED' | 'PAUSED' | 'CANCELLED';
+  games: Game[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface PlayerStats {
+  gamesPlayed: number;
+  wins: number;
+  losses: number;
+  matchesPlayed: number;
+  matchWins: number;
+  matchLosses: number;
+  totalSetsWon: number;
+  totalSetsLost: number;
+  totalPlayTime: number;
+  winRate: number;
+  matchWinRate: number;
+  averageGameDuration: number;
+  partnershipStats: any;
+}
+
+
+
 
 interface SessionData {
   id: string;
@@ -62,6 +104,7 @@ interface SessionData {
   playerCount: number;
   players: Player[];
   games: Game[];
+  matches: Match[];
   createdAt: string;
   shareCode: string;
   courtCount?: number;
@@ -97,6 +140,7 @@ export default function SessionDetailScreen() {
     courtCount: 1
   });
   const [showTeamSwitch, setShowTeamSwitch] = useState(false);
+  
   const [teamSwitchForm, setTeamSwitchForm] = useState({
     team1Player1: '',
     team1Player2: '',
@@ -120,7 +164,6 @@ export default function SessionDetailScreen() {
   }, [selectedGame, showTeamSwitch]);
   const {
     isConnected: isSocketConnected,
-    connectionStatus,
     lastUpdated,
     error: realTimeError,
     isActive: isAutoRefreshActive,
@@ -523,6 +566,8 @@ export default function SessionDetailScreen() {
     }
   };
 
+
+
   const formatSessionForClipboard = (session: SessionData, code: string) => {
     const date = new Date(session.scheduledAt);
     
@@ -805,7 +850,7 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
             style={styles.copyButton} 
             onPress={() => sessionData && copySessionToClipboard(sessionData, shareCode)}
           >
-            <Text style={styles.copyButtonText}>📋 Copy Info</Text>
+            <Text style={styles.copyButtonText}>📋 Copy</Text>
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.shareButton} onPress={shareSession}>
@@ -813,17 +858,9 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.liveGameButton} onPress={startLiveGames}>
-            <Text style={styles.liveGameButtonText}>🏸 Live Games</Text>
+            <Text style={styles.liveGameButtonText}>🏸 Games</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.refreshButton} onPress={refreshSessionData}>
-            <View style={styles.refreshButtonContent}>
-              <View style={[styles.connectionIndicator, getConnectionStatusStyle(connectionStatus)]} />
-              <Text style={styles.refreshButtonText}>
-                {isAutoRefreshActive ? '🔄 Auto-Refresh' : '🔄 Refresh'}
-              </Text>
-            </View>
-          </TouchableOpacity>
         </View>
         
         {isOwner && (
@@ -850,120 +887,6 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
         )}
       </View>
 
-      {/* Live Games Section */}
-      <View style={styles.gamesCard}>
-        <View style={styles.gamesHeader}>
-          <Text style={styles.gamesTitle}>🏸 Live Games</Text>
-          <View style={styles.gameControls}>
-            {isOwner ? (
-              <TouchableOpacity 
-                style={styles.courtSettingsButton} 
-                onPress={() => setShowCourtSettings(true)}
-              >
-                <Text style={styles.courtSettingsText}>⚙️ Courts ({sessionData.courtCount || 1})</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.courtInfoDisplay}>
-                <Text style={styles.courtInfoText}>Courts: {sessionData.courtCount || 1}</Text>
-              </View>
-            )}
-            <TouchableOpacity 
-              style={styles.createGameButton} 
-              onPress={() => setShowCreateGame(true)}
-            >
-              <Text style={styles.createGameText}>➕ New Game</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {sessionData.games && sessionData.games.length > 0 ? (
-          <View style={styles.gamesList}>
-            {sessionData.games
-              .sort((a, b) => b.gameNumber - a.gameNumber)
-              .slice(0, 5)
-              .map((game) => (
-                <View key={game.id} style={styles.gameItem}>
-                  <View style={styles.gameHeader}>
-                    <Text style={styles.gameNumber}>Game #{game.gameNumber}</Text>
-                    {game.courtName && (
-                      <Text style={styles.courtName}>{game.courtName}</Text>
-                    )}
-                    <View style={[styles.gameStatusBadge, getGameStatusStyle(game.status)]}>
-                      <Text style={styles.gameStatusText}>{game.status}</Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.teamsRow}>
-                    <View style={styles.team}>
-                      <Text style={styles.teamLabel}>Team 1</Text>
-                      <Text style={styles.teamPlayers}>
-                        {game.team1Player1} & {game.team1Player2}
-                      </Text>
-                      <Text style={styles.teamScore}>{game.team1FinalScore}</Text>
-                    </View>
-                    
-                    <Text style={styles.vsText}>VS</Text>
-                    
-                    <View style={styles.team}>
-                      <Text style={styles.teamLabel}>Team 2</Text>
-                      <Text style={styles.teamPlayers}>
-                        {game.team2Player1} & {game.team2Player2}
-                      </Text>
-                      <Text style={styles.teamScore}>{game.team2FinalScore}</Text>
-                    </View>
-                  </View>
-                  
-                  {game.status === 'IN_PROGRESS' && (
-                    <View style={styles.gameActions}>
-                      <TouchableOpacity 
-                        style={styles.switchTeamsButton}
-                        onPress={() => {
-                          setSelectedGame(game);
-                          setShowTeamSwitch(true);
-                        }}
-                      >
-                        <Text style={styles.switchTeamsText}>🔄 Switch Teams</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={styles.finishGameButton}
-                        onPress={() => {
-                          setSelectedGame(game);
-                          setScoreForm({
-                            team1FinalScore: game.team1FinalScore,
-                            team2FinalScore: game.team2FinalScore
-                          });
-                          setShowScoreGame(true);
-                        }}
-                      >
-                        <Text style={styles.finishGameText}>🏁 Finish Game</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                  
-                  {game.winnerTeam && (
-                    <View style={styles.winnerBadge}>
-                      <Text style={styles.winnerText}>
-                        🏆 {game.winnerTeam === 1 
-                          ? `${game.team1Player1} & ${game.team1Player2}` 
-                          : `${game.team2Player1} & ${game.team2Player2}`} won!
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              ))}
-          </View>
-        ) : (
-          <View style={styles.noGamesContainer}>
-            <Text style={styles.noGamesText}>No games yet. Start your first game!</Text>
-            <TouchableOpacity 
-              style={styles.startFirstGameButton} 
-              onPress={() => setShowCreateGame(true)}
-            >
-              <Text style={styles.startFirstGameText}>🏸 Create First Game</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
 
       <View style={styles.playersCard}>
         <Text style={styles.playersTitle}>Players ({sessionData.players?.length || 0})</Text>
@@ -984,7 +907,7 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
                   {player.name === sessionData?.ownerName && ' ⭐'}
                 </Text>
                 <Text style={styles.playerMeta}>
-                  Joined: {new Date(player.joinedAt).toLocaleDateString()}
+                  Joined: {new Date(player.joinedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                 </Text>
               </View>
               
@@ -1611,19 +1534,6 @@ const getSessionStatusText = (status: string) => {
   }
 };
 
-const getConnectionStatusStyle = (status: string) => {
-  switch (status) {
-    case 'connected':
-      return { backgroundColor: '#4CAF50' }; // Green
-    case 'connecting':
-    case 'reconnecting':
-      return { backgroundColor: '#FF9800' }; // Orange
-    case 'disconnected':
-      return { backgroundColor: '#f44336' }; // Red
-    default:
-      return { backgroundColor: '#9E9E9E' }; // Gray
-  }
-};
 
 const getGameStatusStyle = (status: string) => {
   switch (status) {
@@ -1747,69 +1657,58 @@ const styles = StyleSheet.create({
   },
   actionButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     marginTop: 16,
     borderTopWidth: 1,
     borderTopColor: '#EEEEEE',
     paddingTop: 20,
+    gap: 8,
   },
   copyButton: {
     backgroundColor: '#E8F5E9', // Lighter green
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     borderRadius: 20,
     alignItems: 'center',
+    flex: 1,
+    minWidth: 70,
   },
   copyButtonText: {
     color: '#4CAF50', // Darker green text
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   shareButton: {
     backgroundColor: '#E3F2FD', // Lighter blue
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     borderRadius: 20,
     alignItems: 'center',
+    flex: 1,
+    minWidth: 70,
   },
   shareButtonText: {
     color: '#2196F3', // Darker blue text
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   liveGameButton: {
     backgroundColor: '#FFE0B2', // Orange background
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     borderRadius: 20,
     alignItems: 'center',
+    flex: 1,
+    minWidth: 80,
   },
   liveGameButtonText: {
     color: '#FF6B35', // Orange text
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: 'bold',
-  },
-  refreshButton: {
-    backgroundColor: '#FFF3E0', // Lighter orange
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    alignItems: 'center',
-  },
-  refreshButtonText: {
-    color: '#FF9800', // Darker orange text
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  refreshButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  connectionIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    textAlign: 'center',
   },
   playersCard: {
     backgroundColor: 'white',
@@ -1849,14 +1748,13 @@ const styles = StyleSheet.create({
   },
   playerInfo: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
   },
   playerName: {
     fontSize: 17,
     fontWeight: '600',
     color: '#212121',
-    marginLeft: 8,
   },
   playerMeta: {
     fontSize: 12,
@@ -2038,34 +1936,6 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: '#ccc',
-  },
-  // Live Games Styles
-  gamesCard: {
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  gamesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  gamesTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#212121',
-  },
-  gameControls: {
-    flexDirection: 'row',
-    gap: 8,
   },
   courtSettingsButton: {
     backgroundColor: '#E8F5E9',
