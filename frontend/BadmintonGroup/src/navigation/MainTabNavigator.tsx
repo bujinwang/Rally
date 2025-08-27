@@ -14,6 +14,7 @@ import SessionOverviewScreen from '../screens/SessionOverviewScreen';
 import PlayerProfileScreen from '../screens/PlayerProfileScreen';
 import LiveGameScreen from '../screens/LiveGameScreen';
 import SessionHistoryScreen from '../screens/SessionHistoryScreen';
+import RotationScreen from '../screens/rotation/RotationScreen';
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
@@ -60,6 +61,11 @@ function HomeStackNavigator() {
         component={SessionHistoryScreen}
         options={{ title: 'Session History' }}
       />
+      <HomeStack.Screen
+        name="RotationQueue"
+        component={RotationScreen}
+        options={{ title: 'Fair Play Queue' }}
+      />
     </HomeStack.Navigator>
   );
 }
@@ -103,6 +109,11 @@ function SessionsStackNavigator() {
         name="SessionHistory"
         component={SessionHistoryScreen}
         options={{ title: 'Session History' }}
+      />
+      <SessionsStack.Screen
+        name="RotationQueue"
+        component={RotationScreen}
+        options={{ title: 'Fair Play Queue' }}
       />
     </SessionsStack.Navigator>
   );

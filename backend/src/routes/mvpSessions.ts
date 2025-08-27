@@ -3,6 +3,7 @@ import { prisma } from '../config/database';
 import { body, param, validationResult } from 'express-validator';
 import { generateOptimalRotation, getRotationExplanation } from '../utils/rotationAlgorithm';
 import { updatePlayerGameStatistics, updatePlayerMatchStatistics, getPlayerStatistics, getSessionStatistics, getSessionLeaderboard } from '../utils/statisticsService';
+import { io } from '../server';
 
 const router = Router();
 
@@ -89,6 +90,7 @@ router.get('/:shareCode', async (req, res) => {
           select: {
             id: true,
             name: true,
+            deviceId: true,
             status: true,
             joinedAt: true,
             gamesPlayed: true,
@@ -102,7 +104,11 @@ router.get('/:shareCode', async (req, res) => {
             totalPlayTime: true,
             winRate: true,
             matchWinRate: true,
-            averageGameDuration: true
+            averageGameDuration: true,
+            restGamesRemaining: true,
+            restRequestedAt: true,
+            restRequestedBy: true,
+            partnershipStats: true
           },
           orderBy: {
             joinedAt: 'asc'
@@ -184,6 +190,7 @@ const createSessionValidation = [
   body('name').optional().isLength({ min: 1, max: 200 }).withMessage('Session name must be valid if provided'),
   body('scheduledAt').isISO8601().withMessage('Valid date/time required'),
   body('location').optional().isLength({ max: 255 }),
+  body('maxPlayers').optional().isInt({ min: 2, max: 50 }).withMessage('Max players must be between 2 and 50'),
   body('ownerName').isLength({ min: 1, max: 100 }).withMessage('Owner name is required'),
   body('ownerDeviceId').optional().isLength({ max: 255 })
 ];
@@ -233,7 +240,7 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
         name: sessionData.name,
         scheduledAt: new Date(sessionData.scheduledAt),
         location: sessionData.location,
-        maxPlayers: 50, // Default max players
+        maxPlayers: sessionData.maxPlayers || 20, // Use the value from frontend, default to 20
         ownerName: sessionData.ownerName,
         ownerDeviceId: sessionData.ownerDeviceId,
         shareCode,
@@ -328,6 +335,17 @@ router.get('/join/:shareCode', async (req, res) => {
       }
     });
 
+    // Add debugging to see what's actually in the database
+    console.log('🔍 DEBUG: Session data from database:', {
+      shareCode,
+      sessionId: session?.id,
+      ownerName: session?.ownerName,
+      ownerDeviceId: session?.ownerDeviceId,
+      ownerDeviceIdType: typeof session?.ownerDeviceId,
+      ownerDeviceIdIsNull: session?.ownerDeviceId === null,
+      ownerDeviceIdIsUndefined: session?.ownerDeviceId === undefined
+    });
+
     if (!session) {
       return res.status(404).json({
         success: false,
@@ -356,20 +374,36 @@ router.get('/join/:shareCode', async (req, res) => {
         session: {
           id: session.id,
           name: session.name,
+          shareCode: session.shareCode,
           scheduledAt: session.scheduledAt,
           location: session.location,
           maxPlayers: session.maxPlayers,
           courtCount: session.courtCount, // Include courtCount
           status: session.status,
           ownerName: session.ownerName,
+          ownerDeviceId: session.ownerDeviceId,
           playerCount: session.players.length,
           players: session.players.map(player => ({
             id: player.id,
             name: player.name,
+            deviceId: player.deviceId,
             status: player.status,
             gamesPlayed: player.gamesPlayed,
             wins: player.wins,
             losses: player.losses,
+            matchesPlayed: player.matchesPlayed,
+            matchWins: player.matchWins,
+            matchLosses: player.matchLosses,
+            totalSetsWon: player.totalSetsWon,
+            totalSetsLost: player.totalSetsLost,
+            totalPlayTime: player.totalPlayTime,
+            winRate: player.winRate,
+            matchWinRate: player.matchWinRate,
+            averageGameDuration: player.averageGameDuration,
+            restGamesRemaining: player.restGamesRemaining,
+            restRequestedAt: player.restRequestedAt,
+            restRequestedBy: player.restRequestedBy,
+            partnershipStats: player.partnershipStats,
             joinedAt: player.joinedAt
           })),
           games: session.games || [],
@@ -653,8 +687,11 @@ router.put('/:shareCode', async (req, res) => {
       });
     }
 
-    // Check if the requester is the owner (if ownerDeviceId is provided)
-    if (ownerDeviceId && session.ownerDeviceId !== ownerDeviceId) {
+    // Special case: Allow setting ownerDeviceId if it's currently null/undefined
+    const canSetOwnerDeviceId = !session.ownerDeviceId && ownerDeviceId;
+    
+    // Check if the requester is the owner (if ownerDeviceId is provided and session already has one)
+    if (ownerDeviceId && session.ownerDeviceId && session.ownerDeviceId !== ownerDeviceId) {
       console.log('🚫 Session update denied:', {
         providedDeviceId: ownerDeviceId,
         sessionOwnerDeviceId: session.ownerDeviceId,
@@ -683,6 +720,32 @@ router.put('/:shareCode', async (req, res) => {
     if (description !== undefined) updateData.description = description;
     if (skillLevel !== undefined) updateData.skillLevel = skillLevel;
     if (cost !== undefined) updateData.cost = cost;
+    
+    // Allow setting ownerDeviceId if it's currently null/undefined
+    if (canSetOwnerDeviceId) {
+      updateData.ownerDeviceId = ownerDeviceId;
+      console.log('✅ Setting ownerDeviceId for session:', { shareCode, ownerDeviceId });
+      
+      // Also update the owner player's deviceId if they don't have one
+      const ownerPlayer = await prisma.mvpPlayer.findFirst({
+        where: {
+          sessionId: session.id,
+          name: session.ownerName
+        }
+      });
+      
+      if (ownerPlayer && !ownerPlayer.deviceId) {
+        await prisma.mvpPlayer.update({
+          where: { id: ownerPlayer.id },
+          data: { deviceId: ownerDeviceId }
+        });
+        console.log('✅ Also updated owner player deviceId:', { 
+          playerId: ownerPlayer.id, 
+          playerName: ownerPlayer.name, 
+          deviceId: ownerDeviceId 
+        });
+      }
+    }
 
     const updatedSession = await prisma.mvpSession.update({
       where: { shareCode },
@@ -714,6 +777,16 @@ router.put('/:shareCode', async (req, res) => {
           where: { shareCode },
           include: {
             players: {
+              select: {
+                id: true,
+                name: true,
+                deviceId: true,
+                status: true,
+                gamesPlayed: true,
+                wins: true,
+                losses: true,
+                joinedAt: true
+              },
               orderBy: { joinedAt: 'asc' }
             },
             games: {
@@ -744,9 +817,10 @@ router.put('/:shareCode', async (req, res) => {
               ownerDeviceId: freshSession.ownerDeviceId,
               shareCode: freshSession.shareCode,
               playerCount: freshSession.players.length,
-              players: freshSession.players.map(player => ({
+              players: updatedSession.players.map(player => ({
                 id: player.id,
                 name: player.name,
+                deviceId: player.deviceId,
                 status: player.status,
                 gamesPlayed: player.gamesPlayed,
                 wins: player.wins,
@@ -968,7 +1042,7 @@ router.put('/reactivate/:shareCode', async (req, res) => {
 router.delete('/:shareCode/players/:playerId', async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
-    const { ownerDeviceId } = req.body;
+    const { deviceId: ownerDeviceId } = req.body;
 
     const session = await prisma.mvpSession.findUnique({
       where: { shareCode }
@@ -986,6 +1060,14 @@ router.delete('/:shareCode/players/:playerId', async (req, res) => {
     }
 
     // Check if the requester is the owner
+    console.log('🔍 Remove player ownership check:', {
+      sessionOwnerDeviceId: session.ownerDeviceId,
+      requestOwnerDeviceId: ownerDeviceId,
+      match: session.ownerDeviceId === ownerDeviceId,
+      sessionOwnerDeviceIdType: typeof session.ownerDeviceId,
+      requestOwnerDeviceIdType: typeof ownerDeviceId
+    });
+    
     if (session.ownerDeviceId !== ownerDeviceId) {
       return res.status(403).json({
         success: false,
@@ -1050,7 +1132,7 @@ router.delete('/:shareCode/players/:playerId', async (req, res) => {
 router.post('/:shareCode/add-player', async (req, res) => {
   try {
     const { shareCode } = req.params;
-    const { name, ownerDeviceId } = req.body;
+    const { playerName, deviceId: ownerDeviceId } = req.body;
 
     const session = await prisma.mvpSession.findUnique({
       where: { shareCode },
@@ -1069,6 +1151,14 @@ router.post('/:shareCode/add-player', async (req, res) => {
     }
 
     // Check if the requester is the owner
+    console.log('🔍 Add player ownership check:', {
+      sessionOwnerDeviceId: session.ownerDeviceId,
+      requestOwnerDeviceId: ownerDeviceId,
+      match: session.ownerDeviceId === ownerDeviceId,
+      sessionOwnerDeviceIdType: typeof session.ownerDeviceId,
+      requestOwnerDeviceIdType: typeof ownerDeviceId
+    });
+    
     if (session.ownerDeviceId !== ownerDeviceId) {
       return res.status(403).json({
         success: false,
@@ -1104,7 +1194,7 @@ router.post('/:shareCode/add-player', async (req, res) => {
     }
 
     // Check if player name already exists
-    const existingPlayer = session.players.find(p => p.name.toLowerCase() === name.toLowerCase());
+    const existingPlayer = session.players.find(p => p.name.toLowerCase() === playerName.toLowerCase());
     if (existingPlayer) {
       return res.status(409).json({
         success: false,
@@ -1119,7 +1209,7 @@ router.post('/:shareCode/add-player', async (req, res) => {
     const player = await prisma.mvpPlayer.create({
       data: {
         sessionId: session.id,
-        name: name.trim(),
+        name: playerName.trim(),
         deviceId: 'manual_' + Math.random().toString(36).substr(2, 9),
         status: 'ACTIVE'
       }
@@ -1505,6 +1595,7 @@ router.get('/:shareCode/rotation', async (req, res) => {
           select: {
             id: true,
             name: true,
+            deviceId: true,
             status: true,
             gamesPlayed: true,
             wins: true,
@@ -1518,6 +1609,10 @@ router.get('/:shareCode/rotation', async (req, res) => {
             winRate: true,
             matchWinRate: true,
             averageGameDuration: true,
+            restGamesRemaining: true,
+            restRequestedAt: true,
+            restRequestedBy: true,
+            partnershipStats: true,
             joinedAt: true
           },
           orderBy: { joinedAt: 'asc' }
@@ -2968,14 +3063,15 @@ router.put('/:shareCode/courts', async (req, res) => {
             shareCode: updatedSession.shareCode,
             playerCount: updatedSession.players.length,
             players: updatedSession.players.map(player => ({
-              id: player.id,
-              name: player.name,
-              status: player.status,
-              gamesPlayed: player.gamesPlayed,
-              wins: player.wins,
-              losses: player.losses,
-              joinedAt: player.joinedAt
-            })),
+                id: player.id,
+                name: player.name,
+                deviceId: player.deviceId,
+                status: player.status,
+                gamesPlayed: player.gamesPlayed,
+                wins: player.wins,
+                losses: player.losses,
+                joinedAt: player.joinedAt
+              })),
             games: updatedSession.games || [],
             matches: updatedSession.matches || [],
             createdAt: updatedSession.createdAt
@@ -3011,6 +3107,329 @@ router.put('/:shareCode/courts', async (req, res) => {
       error: {
         code: 'INTERNAL_ERROR',
         message: 'Failed to update court settings'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Rest Management Routes
+
+// Set player rest status (self or owner-managed)
+router.put('/:shareCode/players/:playerId/rest', async (req, res) => {
+  try {
+    const { shareCode, playerId } = req.params;
+    const { gamesCount = 1, requestedBy, deviceId, ownerDeviceId } = req.body;
+
+    // Validate games count
+    if (gamesCount < 0 || gamesCount > 5) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_GAMES_COUNT',
+          message: 'Games count must be between 0 and 5'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const session = await prisma.mvpSession.findUnique({
+      where: { shareCode },
+      include: {
+        players: true,
+        games: { where: { status: 'IN_PROGRESS' } }
+      }
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'SESSION_NOT_FOUND',
+          message: 'Session not found'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const player = session.players.find(p => p.id === playerId);
+    if (!player) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'PLAYER_NOT_FOUND',
+          message: 'Player not found in session'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Check authorization - either player themselves or session owner
+    const isOwner = session.ownerDeviceId === ownerDeviceId;
+    const isPlayerThemselves = player.deviceId === deviceId;
+
+    if (!isOwner && !isPlayerThemselves) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Only the player themselves or session owner can manage rest'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Check if player is in active game
+    const isInActiveGame = session.games.some(game => 
+      game.team1Player1 === player.name ||
+      game.team1Player2 === player.name ||
+      game.team2Player1 === player.name ||
+      game.team2Player2 === player.name
+    );
+
+    if (isInActiveGame && gamesCount > 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'PLAYER_IN_ACTIVE_GAME',
+          message: 'Cannot set rest while player is in an active game'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Update player rest status
+    const updatedPlayer = await prisma.mvpPlayer.update({
+      where: { id: playerId },
+      data: {
+        status: gamesCount > 0 ? 'RESTING' : 'ACTIVE',
+        restGamesRemaining: gamesCount,
+        restRequestedAt: gamesCount > 0 ? new Date() : null,
+        restRequestedBy: gamesCount > 0 ? (isOwner ? session.ownerName : 'self') : null
+      }
+    });
+
+    // Emit real-time update
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        const updatedSession = await prisma.mvpSession.findUnique({
+          where: { shareCode },
+          include: {
+            players: { orderBy: { joinedAt: 'asc' } },
+            games: { orderBy: { gameNumber: 'desc' } }
+          }
+        });
+
+        if (updatedSession) {
+          io.to(`session-${shareCode}`).emit('mvp-session-updated', {
+            session: updatedSession,
+            playerRestChanged: {
+              playerId: playerId,
+              playerName: player.name,
+              restGamesRemaining: gamesCount,
+              requestedBy: isOwner ? session.ownerName : 'self',
+              action: gamesCount > 0 ? 'rest_started' : 'rest_ended'
+            },
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to emit socket update:', error instanceof Error ? error.message : 'Unknown error');
+    }
+
+    const actionMessage = gamesCount > 0 
+      ? `Player is now resting for ${gamesCount} game(s)`
+      : 'Player is no longer resting';
+
+    res.json({
+      success: true,
+      data: {
+        player: {
+          id: updatedPlayer.id,
+          name: updatedPlayer.name,
+          status: updatedPlayer.status,
+          restGamesRemaining: updatedPlayer.restGamesRemaining,
+          restRequestedAt: updatedPlayer.restRequestedAt,
+          restRequestedBy: updatedPlayer.restRequestedBy
+        }
+      },
+      message: actionMessage,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Set player rest error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to set player rest status'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get rest status for all players in session
+router.get('/:shareCode/rest-status', async (req, res) => {
+  try {
+    const { shareCode } = req.params;
+
+    const session = await prisma.mvpSession.findUnique({
+      where: { shareCode },
+      include: {
+        players: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            restGamesRemaining: true,
+            restRequestedAt: true,
+            restRequestedBy: true
+          },
+          orderBy: { joinedAt: 'asc' }
+        }
+      }
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'SESSION_NOT_FOUND',
+          message: 'Session not found'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const restingPlayers = session.players.filter(p => p.status === 'RESTING');
+    const activePlayers = session.players.filter(p => p.status === 'ACTIVE');
+
+    res.json({
+      success: true,
+      data: {
+        restingPlayers,
+        activePlayers,
+        totalPlayers: session.players.length
+      },
+      message: 'Rest status retrieved successfully',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Get rest status error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to get rest status'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * Leave session by device ID (for web interface)
+ * DELETE /:shareCode/leave-by-device
+ */
+router.delete('/:shareCode/leave-by-device', async (req, res) => {
+  try {
+    const { shareCode } = req.params;
+    const { deviceId } = req.body;
+
+    if (!deviceId) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'DEVICE_ID_REQUIRED',
+          message: 'Device ID is required'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Find the session
+    const session = await prisma.mvpSession.findUnique({
+      where: { shareCode }
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'SESSION_NOT_FOUND',
+          message: 'Session not found'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Find the player by deviceId
+    const player = await prisma.mvpPlayer.findFirst({
+      where: {
+        sessionId: session.id,
+        deviceId,
+        status: 'ACTIVE'
+      }
+    });
+
+    if (!player) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'PLAYER_NOT_FOUND',
+          message: 'You are not currently registered for this session'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Update player status to LEFT
+    const updatedPlayer = await prisma.mvpPlayer.update({
+      where: { id: player.id },
+      data: { status: 'LEFT' }
+    });
+
+    // Emit socket event for real-time updates
+    if (typeof io !== 'undefined') {
+      io.to(`session-${shareCode}`).emit('mvp-session-updated', {
+        type: 'player-left',
+        player: {
+          id: updatedPlayer.id,
+          name: updatedPlayer.name,
+          status: updatedPlayer.status
+        },
+        sessionId: session.id,
+        shareCode: session.shareCode
+      });
+      
+      console.log(`📡 Socket.IO: Player ${player.name} left session ${shareCode} via web interface`);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        player: {
+          id: updatedPlayer.id,
+          name: updatedPlayer.name,
+          status: updatedPlayer.status
+        }
+      },
+      message: 'Successfully left the session',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Leave session by device error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to leave session'
       },
       timestamp: new Date().toISOString()
     });

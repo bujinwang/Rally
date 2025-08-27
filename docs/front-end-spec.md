@@ -194,13 +194,170 @@ graph TD
 
 ### Core Components
 
+#### Enhanced Queue Position Component
+
+**Component:** `EnhancedQueueItem`
+
+**Purpose:** Display queue position with prominent numbering, estimated wait times, and clear visual hierarchy
+
+**Visual Specifications:**
+- **Position Badge:** 40px circular badge, primary blue (#2E7D32)
+- **Number Typography:** Bold, 18px, white text, high contrast
+- **Player Name:** 16px medium weight, dark gray (#212121)
+- **Game Count:** 14px regular, neutral gray (#757575) with shuttlecock icon
+- **Wait Time:** 12px medium, accent orange (#FF6F00) with clock icon
+
+**Layout Structure:**
+```tsx
+interface QueueItemProps {
+  position: number;
+  player: MvpPlayer;
+  estimatedWaitTime: number;
+  isNextUp: boolean;
+  gameCount: number;
+}
+```
+
+**Implementation Details:**
+- Badge positioned absolute left with 8px margin
+- Content area with 52px left margin for badge clearance
+- Vertical alignment center with 16px vertical padding
+- 8px bottom margin between items
+- Subtle elevation (2dp) for card-like appearance
+
+**States:**
+- **Default:** Standard styling with estimated wait time
+- **Next Up:** Highlighted with accent color border and "Next up!" text
+- **Currently Playing:** Dimmed opacity (0.6) with "Playing" indicator
+- **Just Finished:** Green accent with "Just finished" and updated game count
+
+#### Enhanced Scoring Interface Component
+
+**Component:** `EnhancedScoreButton`
+
+**Purpose:** Provide large, accessible touch targets with haptic feedback for accurate scoring during gameplay
+
+**Dimensions & Touch Targets:**
+- **Minimum Size:** 60px x 60px (exceeds WCAG 44px requirement)
+- **Preferred Size:** 72px x 72px for optimal thumb access
+- **Touch Area:** Extends 8px beyond visual bounds for easier hitting
+- **Spacing:** 24px minimum between score buttons
+
+**Visual Design:**
+- **Border:** 2px solid primary green (#2E7D32)
+- **Background:** White with subtle shadow (2dp elevation)
+- **Icon:** +/- symbols at 24px with 2px stroke weight
+- **Typography:** Score display at 32px bold, monospace font
+
+**Interaction Patterns:**
+```tsx
+interface ScoreButtonProps {
+  currentScore: number;
+  onScoreChange: (newScore: number) => void;
+  team: 'team1' | 'team2';
+  disabled?: boolean;
+  maxScore?: number;
+}
+```
+
+**Haptic Feedback Integration:**
+- **Single Tap:** Light impact (iOS: .light, Android: CLOCK_TICK)
+- **Long Press Rapid:** Medium impact every 200ms during rapid scoring
+- **Invalid Action:** Heavy impact with error state
+- **Game Point:** Medium impact with celebration animation
+
+**States:**
+- **Default:** Ready for interaction with subtle hover effect
+- **Pressed:** Scale to 0.95 with immediate haptic response
+- **Long Pressing:** Continuous visual pulse during rapid scoring
+- **Disabled:** Reduced opacity (0.4) with no interactions
+- **Error:** Red border flash for invalid score attempts
+
+#### Up Next Banner Component
+
+**Component:** `UpNextBanner`
+
+**Purpose:** Display next players in queue during active games for better flow awareness
+
+**Display Logic:**
+```tsx
+interface UpNextBannerProps {
+  nextPlayers: MvpPlayer[];
+  queueLength: number;
+  showDuringGame: boolean;
+  courtId: string;
+}
+```
+
+**Visibility Rules:**
+- Show when court status is "Playing"
+- Hide when queue has fewer than 2 players
+- Auto-hide after 10 seconds (user preference)
+- Reappear on queue changes or user tap
+
+**Visual Design:**
+- **Background:** Subtle blue tint (5% opacity of primary color)
+- **Border:** 1px solid with 20% opacity of primary
+- **Padding:** 12px vertical, 16px horizontal
+- **Corner Radius:** 8px for soft, approachable feel
+- **Typography:** "Up Next:" at 14px medium, player names at 16px regular
+
+**Layout Structure:**
+- Horizontal layout with "Up Next:" label on left
+- Player names with small position indicators (1, 2)
+- Estimated time until their turn on right
+- Dismiss button (×) in top-right corner
+
+**Animation Behavior:**
+- **Entrance:** Slide down from top over 300ms with ease-out
+- **Content Updates:** Smooth fade transition (200ms) for player changes  
+- **Dismissal:** Fade out over 200ms, slide up over 250ms
+- **Reappearance:** Gentle bounce-in effect to indicate new information
+
+#### Wait Time Calculation System
+
+**Component:** `WaitTimeCalculator` (Service/Hook)
+
+**Purpose:** Provide accurate wait time estimates based on historical game data and current queue position
+
+**Calculation Algorithm:**
+```tsx
+interface WaitTimeService {
+  calculateWaitTime(position: number, courtId: string): {
+    minutes: number;
+    confidence: 'high' | 'medium' | 'low';
+    lastUpdated: Date;
+  };
+  updateGameHistory(courtId: string, duration: number): void;
+  getAverageGameDuration(courtId: string): number;
+}
+```
+
+**Historical Data Management:**
+- Store last 10 completed games per court
+- Weight recent games more heavily (80% vs 20% for older games)
+- Track time of day patterns (morning vs evening game lengths)
+- Account for player skill level variations
+
+**Display Formats:**
+- **Precise:** "~8 min" for confident estimates (5+ historical games)
+- **Range:** "8-12 min" for moderate confidence (2-4 games)
+- **Generic:** "~15 min" for new courts with no data
+- **Immediate:** "Next up!" for position #1 when game ending soon
+
+**Update Frequency:**
+- Recalculate every 30 seconds during active games
+- Immediate update when games start/finish
+- Smart batching to prevent excessive re-renders
+- Progressive accuracy improvement over time
+
 #### LiveGameCard Component
 
 **Purpose:** Display real-time game status with scoring, timing, and team information in compact, glanceable format
 
 **Variants:** 
 - Active (currently playing with live updates)
-- Queued (waiting to start with player assignments)
+- Queued (waiting to start with player assignments)  
 - Completed (finished with final scores and statistics)
 
 **States:** 
@@ -452,34 +609,199 @@ graph TD
 - Visual indicators for connection status that don't disrupt gameplay flow
 - Smart retry mechanisms with user feedback for failed operations
 
-## Next Steps
+## Implementation Roadmap
 
-### Immediate Actions
+### Phase 1: Enhanced Queue Management (Week 1-2)
 
-1. **Design System Integration Review**
-   - Audit existing React Native component library against new Enhanced Live Games components
-   - Identify gaps between current design tokens and Enhanced Live Games requirements
-   - Create component mapping document for development team
+**Sprint Goals:** Implement prominent queue numbering, wait time calculations, and improved visual hierarchy
 
-2. **Technical Architecture Planning**
-   - Review backend API endpoints for live games functionality compatibility
-   - Plan Socket.io integration for real-time game state synchronization
-   - Define state management approach for live game data in Redux store
+**Development Tasks:**
+- [ ] **Create EnhancedQueueItem Component**
+  - Implement position badge with circular design
+  - Add wait time display with calculation hook
+  - Create state management for queue position updates
+  - Add smooth transitions for position changes
 
-3. **Development Environment Setup**
-   - Configure testing environment for live games features
-   - Set up device testing matrix for different screen sizes and orientations
-   - Prepare staging environment for beta testing with session organizers
+- [ ] **Build WaitTimeCalculator Service**
+  - Implement game duration tracking in local storage
+  - Create historical data averaging algorithm
+  - Add confidence scoring for time estimates
+  - Build real-time recalculation logic
 
-4. **Priority Feature Implementation Planning**
-   - Phase 1: Core live game tracking (score entry, game state)
-   - Phase 2: Real-time synchronization and multi-device support
-   - Phase 3: Advanced analytics and session management integration
+- [ ] **Update LiveGameScreen Integration**  
+  - Replace current queue list with enhanced components
+  - Add real-time updates via existing socket connection
+  - Implement position change animations
+  - Test across different queue sizes and states
 
-5. **User Testing Preparation**
-   - Recruit beta test group from existing session organizers
-   - Prepare usability testing scenarios for live game workflows
-   - Set up feedback collection system for iterative improvements
+**Testing Priorities:**
+- Queue position accuracy across devices
+- Wait time calculation precision
+- Animation performance during rapid changes
+- Accessibility with screen readers
+
+### Phase 2: Enhanced Scoring Interface (Week 3-4)
+
+**Sprint Goals:** Implement larger touch targets, haptic feedback, and improved scoring UX
+
+**Development Tasks:**
+- [ ] **Redesign Score Button Components**
+  - Increase button size to 72px minimum
+  - Add extended touch areas for easier targeting
+  - Implement visual state feedback (pressed, disabled, error)
+  - Create long-press rapid scoring functionality
+
+- [ ] **Integrate Haptic Feedback System**
+  - Add React Native Haptics library
+  - Implement different haptic types for various actions
+  - Create user preference toggle for haptic intensity
+  - Add fallback visual feedback when haptics unavailable
+
+- [ ] **Enhanced Score Display**
+  - Implement larger, more readable score typography
+  - Add visual feedback for score changes
+  - Create celebration animations for game points
+  - Improve contrast for outdoor visibility
+
+**Testing Priorities:**
+- Touch accuracy on various device sizes
+- Haptic feedback across iOS/Android devices
+- Score entry speed and error reduction
+- Battery impact during extended sessions
+
+### Phase 3: Next Players Visibility (Week 5)
+
+**Sprint Goals:** Add "Up Next" banner and queue flow awareness during active games
+
+**Development Tasks:**
+- [ ] **Create UpNextBanner Component**
+  - Design slide-in animation from top
+  - Implement auto-hide after 10 seconds
+  - Add manual dismiss functionality
+  - Create responsive layout for different screen sizes
+
+- [ ] **Queue State Management Updates**
+  - Add logic to show/hide banner based on game state
+  - Implement next players calculation
+  - Create smooth transitions for queue changes
+  - Add user preference for banner behavior
+
+- [ ] **Integration with LiveGameScreen**
+  - Position banner below court status
+  - Ensure proper z-index layering
+  - Add touch-through prevention where needed
+  - Test with multiple concurrent games
+
+**Testing Priorities:**
+- Banner visibility timing and behavior
+- Queue accuracy during rapid game changes
+- Performance impact of additional animations
+- User comprehension of next player information
+
+### Phase 4: Polish & Optimization (Week 6)
+
+**Sprint Goals:** Performance optimization, accessibility improvements, and final UX polish
+
+**Development Tasks:**
+- [ ] **Performance Optimization**
+  - Optimize re-render cycles for real-time updates
+  - Implement smart batching for socket updates
+  - Add memory management for game history
+  - Profile and optimize animation performance
+
+- [ ] **Accessibility Enhancements**
+  - Complete WCAG 2.1 AA compliance audit
+  - Add comprehensive VoiceOver/TalkBack support
+  - Test with high contrast and large text settings
+  - Implement reduced motion preferences
+
+- [ ] **User Testing & Refinement**
+  - Conduct usability testing with target users
+  - Collect feedback on wait time accuracy
+  - Test haptic feedback preferences
+  - Refine animations based on user behavior
+
+**Testing Priorities:**
+- End-to-end user flows with real sessions
+- Accessibility testing with assistive technologies
+- Performance testing during peak usage
+- Cross-device synchronization accuracy
+
+### Technical Implementation Notes
+
+**State Management Approach:**
+```tsx
+// Redux slice for enhanced queue management
+interface EnhancedQueueState {
+  queueItems: QueueItem[];
+  waitTimeHistory: Record<string, GameDuration[]>;
+  preferences: {
+    hapticFeedback: boolean;
+    showUpNextBanner: boolean;
+    waitTimeConfidence: 'high' | 'medium' | 'low';
+  };
+}
+```
+
+**Real-time Update Strategy:**
+- Debounce rapid updates (300ms) to prevent animation conflicts
+- Use optimistic updates for immediate user feedback
+- Implement conflict resolution for simultaneous updates
+- Add retry logic with exponential backoff
+
+**Performance Monitoring:**
+- Track rendering performance during real-time updates
+- Monitor memory usage during extended sessions
+- Measure battery impact of haptic feedback
+- Profile animation frame rates on various devices
+
+### Success Metrics
+
+**Quantitative Goals:**
+- Queue position recognition time: < 2 seconds (baseline: 5+ seconds)
+- Scoring accuracy improvement: 95%+ (reduce mis-taps by 60%)
+- Wait time prediction accuracy: ±3 minutes for confident estimates
+- User interaction response time: < 16ms for 60fps performance
+
+**Qualitative Indicators:**
+- User feedback on queue transparency and fairness perception
+- Reduction in "when is my turn?" questions during sessions
+- Improved flow and coordination during game transitions
+- Positive reception of haptic feedback enhancements
+
+### Risk Mitigation
+
+**Technical Risks:**
+- **Haptic Feedback Device Compatibility:** Test across wide range of devices, provide visual alternatives
+- **Real-time Performance Impact:** Implement performance monitoring, graceful degradation options
+- **Battery Consumption:** Optimize update frequencies, provide power-saving modes
+
+**User Experience Risks:**  
+- **Information Overload:** Use progressive disclosure, user-controlled visibility settings
+- **Change Resistance:** Implement gradual rollout, maintain familiar interaction patterns
+- **Accessibility Gaps:** Conduct expert review, test with users who have disabilities
+
+### Next Steps
+
+1. **Development Team Handoff**
+   - Review component specifications and technical requirements
+   - Align on Redux state management approach
+   - Confirm haptic feedback library selection and integration approach
+
+2. **Design System Updates**
+   - Update component library with new enhanced components
+   - Create Storybook stories for development and testing
+   - Document interaction patterns and animation specifications
+
+3. **Beta Testing Program**
+   - Recruit 10-15 session organizers for early testing
+   - Create feedback collection system for iterative improvements
+   - Set up staged rollout plan for gradual feature introduction
+
+4. **Implementation Kickoff**
+   - Begin Phase 1 development with enhanced queue management
+   - Set up performance monitoring and testing infrastructure
+   - Establish weekly check-ins for progress tracking and issue resolution
 
 ### Design Handoff Checklist
 

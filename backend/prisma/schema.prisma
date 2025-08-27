@@ -79,6 +79,11 @@ model MvpPlayer {
   winRate       Float @default(0.0)    // Overall win percentage
   matchWinRate  Float @default(0.0)    // Match win percentage
   averageGameDuration Float @default(0.0)  // Average game duration in minutes
+  
+  // Rest Management
+  restGamesRemaining Int @default(0)     // Games remaining in rest period
+  restRequestedAt    DateTime?           // When rest was requested
+  restRequestedBy    String?             // Who requested rest ("self" or owner name)
 
   @@unique([sessionId, name]) // Prevent duplicate names in same session
   @@unique([sessionId, deviceId]) // Prevent same device joining same session twice

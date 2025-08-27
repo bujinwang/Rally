@@ -178,33 +178,6 @@ class MvpApiService extends ApiService {
     }, true);
   }
 
-  // Utility method: Get device ID
-  async getDeviceId(): Promise<string> {
-    // Try to get existing device ID from storage
-    try {
-      const { StorageService } = require('./storageService');
-      const deviceId = await StorageService.getDeviceId();
-      if (deviceId) {
-        return deviceId;
-      }
-    } catch (error) {
-      console.error('Error getting stored device ID:', error);
-    }
-
-    // Generate new device ID
-    const newDeviceId = 'device_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
-    
-    // Store it
-    try {
-      const { StorageService } = require('./storageService');
-      await StorageService.setDeviceId(newDeviceId);
-    } catch (error) {
-      console.error('Error storing device ID:', error);
-    }
-
-    return newDeviceId;
-  }
-
   // Utility method: Format session for share message (WeChat/WhatsApp)
   formatSessionForShare(session: MvpSession): string {
     const date = new Date(session.scheduledAt).toLocaleDateString('zh-CN', {

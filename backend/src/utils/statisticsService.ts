@@ -126,6 +126,40 @@ export async function updatePlayerGameStatistics(
   for (const playerName of allPlayers) {
     await recalculatePlayerMetrics(sessionId, playerName);
   }
+  
+  // Update rest counters for all resting players
+  await updateRestCounters(sessionId);
+}
+
+/**
+ * Update rest counters for all resting players after a game completes
+ */
+async function updateRestCounters(sessionId: string): Promise<void> {
+  // Decrement rest games remaining for all resting players
+  await prisma.mvpPlayer.updateMany({
+    where: {
+      sessionId,
+      status: 'RESTING',
+      restGamesRemaining: { gt: 0 }
+    },
+    data: {
+      restGamesRemaining: { decrement: 1 }
+    }
+  });
+
+  // Auto-activate players whose rest period has ended
+  await prisma.mvpPlayer.updateMany({
+    where: {
+      sessionId,
+      status: 'RESTING',
+      restGamesRemaining: { lte: 0 }
+    },
+    data: {
+      status: 'ACTIVE',
+      restRequestedAt: null,
+      restRequestedBy: null
+    }
+  });
 }
 
 /**

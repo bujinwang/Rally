@@ -26,6 +26,7 @@ import { colors, spacing, typography } from '../theme/theme';
 import { mvpApiService, MvpSession, MvpPlayer } from '../services/mvpApiService';
 import { createShareableLinks } from '../components/ShareLinkHandler';
 import { socketService } from '../services/socketService';
+import sessionApi from '../services/sessionApi';
 
 // Redux (if needed)
 // import { useAppDispatch, useAppSelector } from '../store';
@@ -125,7 +126,7 @@ export const SessionOverviewScreen: React.FC<SessionOverviewScreenProps> = () =>
   
   const initializeDeviceId = async () => {
     try {
-      const id = await mvpApiService.getDeviceId();
+      const id = await sessionApi.getDeviceId();
       setDeviceId(id);
     } catch (error) {
       console.error('Failed to get device ID:', error);

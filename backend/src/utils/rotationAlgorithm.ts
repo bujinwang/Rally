@@ -9,6 +9,11 @@ export interface Player {
   wins: number;
   losses: number;
   joinedAt: Date;
+  // Fair Play Queue enhancements
+  lastGameNumber?: number; // Track when player last played
+  restGamesRemaining?: number; // Games to rest (default 1)
+  restPreference?: number; // Player's preferred rest games (1-3)
+  queuePosition?: number; // Manual queue adjustments
 }
 
 export interface GameHistory {
@@ -192,22 +197,85 @@ function calculateRecentPlayAvoidance(players: Player[], gameHistory: GameHistor
 }
 
 /**
- * Generate optimal game suggestions for available courts
+ * Calculate Fair Play priority score for queue ordering
+ * Higher score = higher priority for next game
+ */
+export function calculateQueuePriority(player: Player, currentGameNumber: number, allPlayers: Player[]): number {
+  let priority = 0;
+  
+  // Base priority: players with fewer games get higher priority
+  const maxGames = Math.max(...allPlayers.map(p => p.gamesPlayed || 0), 1);
+  const gamesPriorityWeight = (maxGames - (player.gamesPlayed || 0)) * 10;
+  priority += gamesPriorityWeight;
+  
+  // Rest bonus: players who have waited longer get priority boost
+  const gamesSinceLastPlay = currentGameNumber - (player.lastGameNumber || 0);
+  const restBonus = Math.min(gamesSinceLastPlay * 5, 25); // Cap at 25 points
+  priority += restBonus;
+  
+  // Rest requirement check: if player still needs rest, give negative priority
+  const restRemaining = player.restGamesRemaining || 0;
+  if (restRemaining > 0) {
+    priority -= 100; // Strong negative priority if still resting
+  }
+  
+  // Status check: RESTING players get negative priority unless rest is complete
+  if (player.status === 'RESTING' && restRemaining > 0) {
+    priority -= 200; // Even stronger negative priority for explicitly resting players
+  }
+  
+  // Manual queue adjustment override
+  if (player.queuePosition !== undefined) {
+    priority += (100 - player.queuePosition) * 2; // Higher for lower queue positions
+  }
+  
+  return priority;
+}
+
+/**
+ * Update player rest status after a game
+ */
+export function updatePlayerRestStatus(player: Player, currentGameNumber: number, playedInThisGame: boolean): Player {
+  const updatedPlayer = { ...player };
+  
+  if (playedInThisGame) {
+    // Player just finished a game
+    updatedPlayer.lastGameNumber = currentGameNumber;
+    updatedPlayer.restGamesRemaining = updatedPlayer.restPreference || 1;
+  } else {
+    // Player is waiting/resting
+    updatedPlayer.restGamesRemaining = Math.max(0, (updatedPlayer.restGamesRemaining || 0) - 1);
+  }
+  
+  return updatedPlayer;
+}
+
+/**
+ * Generate optimal game suggestions for available courts with Fair Play algorithm
  */
 export function generateOptimalRotation(
   players: Player[],
   gameHistory: GameHistory[],
   courts: Court[],
-  matchHistory: MatchHistory[] = []
+  matchHistory: MatchHistory[] = [],
+  currentGameNumber: number = gameHistory.length + 1
 ): RotationResult {
-  const activePlayers = players
-    .filter(p => p.status === 'ACTIVE')
+  // Update global reference for priority calculation
+  const globalPlayers = players;
+  
+  const availablePlayersWithPriority = players
+    .filter(p => p.status === 'ACTIVE' || (p.status === 'RESTING' && (p.restGamesRemaining || 0) === 0))
+    .map(p => ({
+      ...p,
+      priority: calculateQueuePriority(p, currentGameNumber, players)
+    }))
+    .filter(p => p.priority >= 0) // Exclude players who still need rest
     .sort((a, b) => {
-      // Primary sort: fewer games played (prioritize players who need games)
-      if (a.gamesPlayed !== b.gamesPlayed) {
-        return a.gamesPlayed - b.gamesPlayed;
+      // Primary sort: higher priority first
+      if (a.priority !== b.priority) {
+        return b.priority - a.priority;
       }
-      // Secondary sort: joined earlier (FIFO for equal games)
+      // Secondary sort: joined earlier (FIFO for equal priority)
       return a.joinedAt.getTime() - b.joinedAt.getTime();
     });
   
@@ -217,7 +285,7 @@ export function generateOptimalRotation(
   
   // Generate games for each available court
   for (const court of availableCourts) {
-    const remainingPlayers = activePlayers.filter(p => !usedPlayers.has(p.id));
+    const remainingPlayers = availablePlayersWithPriority.filter(p => !usedPlayers.has(p.id));
     
     if (remainingPlayers.length < 4) {
       break; // Not enough players for another game
@@ -242,8 +310,8 @@ export function generateOptimalRotation(
     }
   }
   
-  // Calculate next in line (players waiting for next rotation)
-  const nextInLine = activePlayers
+  // Calculate next in line (players waiting for next rotation) - prioritized order
+  const nextInLine = availablePlayersWithPriority
     .filter(p => !usedPlayers.has(p.id))
     .slice(0, 8); // Show next 8 players in queue
   
@@ -370,4 +438,131 @@ export function getRotationExplanation(
   });
   
   return explanation;
+}
+
+/**
+ * Fair Play Queue Management Functions
+ */
+
+/**
+ * Set player rest preference (1-3 games)
+ */
+export function setPlayerRestPreference(player: Player, restGames: number): Player {
+  return {
+    ...player,
+    restPreference: Math.max(1, Math.min(3, restGames)) // Clamp between 1-3
+  };
+}
+
+/**
+ * Manually adjust player queue position
+ */
+export function adjustPlayerQueuePosition(player: Player, newPosition: number): Player {
+  return {
+    ...player,
+    queuePosition: Math.max(0, newPosition)
+  };
+}
+
+/**
+ * Skip next game for a player (extends rest by 1)
+ */
+export function skipPlayerNextGame(player: Player): Player {
+  return {
+    ...player,
+    restGamesRemaining: (player.restGamesRemaining || 0) + 1
+  };
+}
+
+/**
+ * Make player ready immediately (clears rest requirement)
+ */
+export function makePlayerReady(player: Player): Player {
+  return {
+    ...player,
+    restGamesRemaining: 0
+  };
+}
+
+/**
+ * Get queue with priority scores for display
+ */
+export function getQueueWithPriorities(
+  players: Player[], 
+  currentGameNumber: number
+): Array<Player & { priority: number; queueRank: number; restStatus: string }> {
+  return players
+    .filter(p => p.status === 'ACTIVE')
+    .map(p => ({
+      ...p,
+      priority: calculateQueuePriority(p, currentGameNumber, players)
+    }))
+    .sort((a, b) => {
+      if (a.priority !== b.priority) {
+        return b.priority - a.priority;
+      }
+      return a.joinedAt.getTime() - b.joinedAt.getTime();
+    })
+    .map((player, index) => ({
+      ...player,
+      queueRank: index + 1,
+      restStatus: getPlayerRestStatus(player, currentGameNumber)
+    }));
+}
+
+/**
+ * Get human-readable rest status
+ */
+export function getPlayerRestStatus(player: Player, currentGameNumber: number): string {
+  const restRemaining = player.restGamesRemaining || 0;
+  
+  if (restRemaining > 0) {
+    return `Resting ${restRemaining} more game${restRemaining === 1 ? '' : 's'}`;
+  }
+  
+  const gamesSinceLastPlay = currentGameNumber - (player.lastGameNumber || 0);
+  if (gamesSinceLastPlay === 0) {
+    return 'Just played';
+  } else if (gamesSinceLastPlay === 1) {
+    return 'Ready to play';
+  } else {
+    return `Ready (waited ${gamesSinceLastPlay} games)`;
+  }
+}
+
+/**
+ * Auto-update all players' rest status after a game completes
+ */
+export function updateAllPlayersAfterGame(
+  players: Player[], 
+  gameNumber: number, 
+  playersInGame: string[]
+): Player[] {
+  return players.map(player => 
+    updatePlayerRestStatus(player, gameNumber, playersInGame.includes(player.name))
+  );
+}
+
+/**
+ * Swap two players in the queue (drag & drop support)
+ */
+export function swapPlayersInQueue(players: Player[], playerId1: string, playerId2: string): Player[] {
+  const player1 = players.find(p => p.id === playerId1);
+  const player2 = players.find(p => p.id === playerId2);
+  
+  if (!player1 || !player2) {
+    return players;
+  }
+  
+  // Swap their manual queue positions
+  const tempPosition = player1.queuePosition;
+  
+  return players.map(p => {
+    if (p.id === playerId1) {
+      return { ...p, queuePosition: player2.queuePosition };
+    } else if (p.id === playerId2) {
+      return { ...p, queuePosition: tempPosition };
+    }
+    return p;
+  });
 }

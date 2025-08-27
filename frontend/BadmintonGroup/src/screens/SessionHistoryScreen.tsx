@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import sessionHistoryApi, { SessionHistoryItem, PlayerStats, GameResult, SessionHistoryUtils } from '../services/sessionHistoryApi';
+import sessionApi from '../services/sessionApi';
 import { DEVICE_ID_KEY } from '../config/api';
 
 // Use interfaces from the API service
@@ -36,7 +37,7 @@ export default function SessionHistoryScreen() {
   }, []);
 
   const initializeScreen = async () => {
-    const storedDeviceId = await AsyncStorage.getItem(DEVICE_ID_KEY);
+    const storedDeviceId = await sessionApi.getDeviceId();
     setDeviceId(storedDeviceId || '');
     await fetchSessionHistory(storedDeviceId || undefined);
   };

@@ -11,19 +11,22 @@ import {
    TextInput,
    Modal
  } from 'react-native';
- import { useRoute, useNavigation } from '@react-navigation/native';
+ import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
  import * as Clipboard from 'expo-clipboard';
  import AsyncStorage from '@react-native-async-storage/async-storage';
- import { createShareableLinks } from '../components/ShareLinkHandler';
- import { useRealTimeSession } from '../hooks/useRealTimeSession';
- import { useSelector } from 'react-redux';
- import { selectRealTimeStatus } from '../store/slices/realTimeSlice';
+import { createShareableLinks } from '../components/ShareLinkHandler';
+import { useRealTimeSession } from '../hooks/useRealTimeSession';
+import { useSelector } from 'react-redux';
+import { selectRealTimeStatus } from '../store/slices/realTimeSlice';
+import { DEVICE_ID_KEY } from '../config/api';
+import { sessionApi } from '../services/sessionApi';
 
 const API_BASE_URL = 'http://localhost:3001/api/v1';
 
 interface Player {
   id: string;
   name: string;
+  deviceId: string; // Add this field
   status: string;
   gamesPlayed: number;
   wins: number;
@@ -174,7 +177,7 @@ export default function SessionDetailScreen() {
     sessionId: shareCode,
     fallbackInterval: 15000, // 15 seconds
     enableOptimisticUpdates: true,
-    autoStart: false, // We'll start manually after session data loads
+    autoStart: false,
   });
 
   useEffect(() => {
@@ -226,9 +229,19 @@ export default function SessionDetailScreen() {
     }
   }, [shareCode, deviceId]);
 
+  // Refresh session data when screen becomes focused (e.g., returning from Live Game)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (shareCode && deviceId) {
+        console.log('🔄 Screen focused, refreshing session data...');
+        fetchSessionData(shareCode, deviceId);
+      }
+    }, [shareCode, deviceId])
+  );
+
   const initializeScreen = async () => {
     // Get device ID to check ownership
-    const storedDeviceId = await AsyncStorage.getItem('deviceId');
+    const storedDeviceId = await AsyncStorage.getItem(DEVICE_ID_KEY);
     if (storedDeviceId) {
       setDeviceId(storedDeviceId);
     }
@@ -248,15 +261,87 @@ export default function SessionDetailScreen() {
     }
   };
 
+  const claimOwnershipIfNeeded = async (session: SessionData, currentDeviceId: string) => {
+    console.log('🔍 claimOwnershipIfNeeded called with:', {
+      currentDeviceId,
+      ownerName: session.ownerName,
+      ownerDeviceId: session.ownerDeviceId,
+      playersCount: session.players.length
+    });
+    
+    // Debug: Log all players and their deviceIds
+    console.log('🔍 Players data:', session.players.map(p => ({
+      id: p.id,
+      name: p.name,
+      deviceId: p.deviceId,
+      hasDeviceId: !!p.deviceId
+    })));
+    
+    // Check if user is the owner by name but ownerDeviceId is missing
+    // First try to find by deviceId, then fall back to checking if any player deviceIds are missing
+    const userPlayer = session.players.find(p => p.deviceId === currentDeviceId);
+    console.log('🔍 User player found by deviceId:', userPlayer);
+    
+    // If no player found by deviceId AND most players have null deviceIds (legacy sessions), 
+    // we can assume this is a legacy session and try name-based ownership claiming
+    const playersWithoutDeviceId = session.players.filter(p => !p.deviceId);
+    const isLegacySession = playersWithoutDeviceId.length === session.players.length;
+    console.log('🔍 Legacy session check:', { 
+      isLegacySession, 
+      playersWithoutDeviceId: playersWithoutDeviceId.length, 
+      totalPlayers: session.players.length 
+    });
+    
+    // For legacy sessions, we can't match by deviceId, so we allow claiming based on ownerName
+    const canClaimOwnership = userPlayer?.name === session.ownerName || (isLegacySession && !session.ownerDeviceId);
+    console.log('🔍 Can claim ownership:', canClaimOwnership, {
+      userPlayerName: userPlayer?.name,
+      sessionOwnerName: session.ownerName,
+      isLegacySession,
+      ownerDeviceIdMissing: !session.ownerDeviceId
+    });
+    
+    const ownerDeviceIdMissing = !session.ownerDeviceId;
+    console.log('🔍 Owner device ID missing:', ownerDeviceIdMissing);
+    
+    if (canClaimOwnership && ownerDeviceIdMissing) {
+      console.log('🔧 Claiming session ownership for:', session.shareCode);
+      try {
+        await sessionApi.claimSessionOwnership(session.shareCode);
+        console.log('✅ Successfully claimed session ownership');
+        // Refresh session data to get updated ownerDeviceId
+        fetchSessionData(session.shareCode, currentDeviceId);
+      } catch (error) {
+        console.error('❌ Failed to claim session ownership:', error);
+      }
+    } else {
+      console.log('🔍 Not claiming ownership:', {
+        canClaimOwnership,
+        ownerDeviceIdMissing,
+        reason: !canClaimOwnership ? 'Cannot claim ownership' : 'Owner device ID already set'
+      });
+    }
+  };
+
   const fetchSessionData = async (code: string, deviceId?: string) => {
     try {
       setLoading(true);
       const response = await fetch(`${API_BASE_URL}/mvp-sessions/join/${code}`);
       const result = await response.json();
 
+      // Add debug logging to see the raw response
+      console.log('🔍 Raw API response:', JSON.stringify(result, null, 2));
+      console.log('🔍 Session object:', JSON.stringify(result.data?.session, null, 2));
+
       if (result.success) {
         const session = result.data.session;
         setSessionData(session);
+        
+        // Auto-claim ownership if needed
+        if (deviceId) {
+          await claimOwnershipIfNeeded(session, deviceId);
+        }
+        
         // Initialize court settings from session data
         setCourtSettings({
           courtCount: session.courtCount || 1
@@ -264,7 +349,7 @@ export default function SessionDetailScreen() {
         // Check if current device is the owner
         console.log('🔍 Ownership check:', {
           currentDeviceId: deviceId,
-          sessionOwnerDeviceId: session.ownerDeviceId,
+          ownerDeviceId: session.ownerDeviceId,
           isOwner: deviceId && session.ownerDeviceId === deviceId
         });
         if (deviceId && session.ownerDeviceId === deviceId) {
@@ -829,38 +914,62 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
       <View style={styles.sessionCard}>
         <Text style={styles.title}>{sessionData.name}</Text>
         
-        <View style={styles.sessionInfo}>
-          <Text style={styles.label}>📅 When:</Text>
-          <Text style={styles.value}>{formatDateTime(sessionData.scheduledAt)}</Text>
+        {/* Compact Session Info Header */}
+        <View style={styles.compactHeader}>
+          <View style={styles.headerRow}>
+            <View style={styles.headerItem}>
+              <Text style={styles.headerLabel}>📅 When</Text>
+              <Text style={styles.headerValue}>{formatDateTime(sessionData.scheduledAt)}</Text>
+            </View>
+            <View style={styles.headerItem}>
+              <Text style={styles.headerLabel}>📍 Where</Text>
+              <Text style={styles.headerValue}>{sessionData.location || 'Location TBD'}</Text>
+            </View>
+          </View>
           
-          <Text style={styles.label}>📍 Where:</Text>
-          <Text style={styles.value}>{sessionData.location || 'Location TBD'}</Text>
-          
-          <Text style={styles.label}>👤 Organized by:</Text>
-          <Text style={styles.value}>{sessionData.ownerName}</Text>
-          
-          <Text style={styles.label}>📋 Status:</Text>
-          <Text style={[styles.value, styles.statusValue, getSessionStatusStyle(sessionData.status)]}>
-            {getSessionStatusText(sessionData.status)}
-          </Text>
+          <View style={styles.headerRow}>
+            <View style={styles.headerItem}>
+              <Text style={styles.headerLabel}>👤 Host</Text>
+              <Text style={styles.headerValue}>{sessionData.ownerName}</Text>
+            </View>
+            <View style={styles.statusContainer}>
+              <View style={styles.statusRow}>
+                <Text style={[styles.statusBadgeText, getSessionStatusStyle(sessionData.status)]}>
+                  {getSessionStatusText(sessionData.status)}
+                </Text>
+                <Text style={styles.courtCountBadge}>🏸 Courts: {sessionData.courtCount || 1}</Text>
+              </View>
+            </View>
+          </View>
         </View>
 
-        <View style={styles.actionButtons}>
-          <TouchableOpacity 
-            style={styles.copyButton} 
-            onPress={() => sessionData && copySessionToClipboard(sessionData, shareCode)}
-          >
-            <Text style={styles.copyButtonText}>📋 Copy</Text>
+        {/* Compact Action Bar */}
+        <View style={styles.compactActionBar}>
+          <TouchableOpacity style={styles.primaryActionButton} onPress={startLiveGames}>
+            <Text style={styles.primaryActionText}>🏸 Start Games</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.shareButton} onPress={shareSession}>
-            <Text style={styles.shareButtonText}>📤 Share</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.liveGameButton} onPress={startLiveGames}>
-            <Text style={styles.liveGameButtonText}>🏸 Games</Text>
-          </TouchableOpacity>
-          
+          <View style={styles.secondaryActions}>
+            <TouchableOpacity style={styles.iconButton} onPress={shareSession}>
+              <Text style={styles.iconButtonText}>📤</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.iconButton}
+              onPress={() => sessionData && copySessionToClipboard(sessionData, shareCode)}
+            >
+              <Text style={styles.iconButtonText}>📋</Text>
+            </TouchableOpacity>
+            
+            {isOwner && (
+              <TouchableOpacity 
+                style={styles.iconButton} 
+                onPress={() => setShowCourtSettings(true)}
+              >
+                <Text style={styles.iconButtonText}>⚙️</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
         
         {isOwner && (
@@ -889,46 +998,75 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
 
 
       <View style={styles.playersCard}>
-        <Text style={styles.playersTitle}>Players ({sessionData.players?.length || 0})</Text>
+        <View style={styles.playersHeader}>
+          <Text style={styles.playersTitle}>
+            Players ({sessionData.players?.filter(player => player.status !== 'LEFT').length || 0}/{sessionData.maxPlayers})
+          </Text>
+          {isOwner && (
+            <TouchableOpacity 
+              style={styles.addPlayerInline} 
+              onPress={() => setShowAddPlayer(true)}
+            >
+              <Text style={styles.addPlayerInlineText}>+ Add</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         
         {!sessionData.players || sessionData.players.length === 0 ? (
-          <Text style={styles.noPlayersText}>No players yet. Share the session to invite others!</Text>
+          <View style={styles.emptyPlayerState}>
+            <Text style={styles.noPlayersText}>No players yet</Text>
+            <Text style={styles.noPlayersSubtext}>Share the session to invite others!</Text>
+            {isOwner && (
+              <TouchableOpacity 
+                style={styles.addFirstPlayerButton} 
+                onPress={() => setShowAddPlayer(true)}
+              >
+                <Text style={styles.addFirstPlayerText}>+ Add First Player</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         ) : (
-          sessionData.players.map((player, index) => (
-            <TouchableOpacity 
-              key={player.id} 
-              style={styles.playerItem}
-              onPress={() => navigateToPlayerProfile(player)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.playerInfo}>
-                <Text style={styles.playerName}>
-                  {index + 1}. {player.name}
-                  {player.name === sessionData?.ownerName && ' ⭐'}
-                </Text>
-                <Text style={styles.playerMeta}>
-                  Joined: {new Date(player.joinedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                </Text>
-              </View>
-              
-              <View style={styles.playerStats}>
-                <Text style={styles.statLabel}>Games: {player.gamesPlayed}</Text>
-                <Text style={styles.statLabel}>W: {player.wins}</Text>
-                <Text style={styles.statLabel}>L: {player.losses}</Text>
-                <View style={[styles.statusBadge, getStatusStyle(player.status)]}>
-                  <Text style={styles.statusText}>{player.status}</Text>
-                </View>
+          <View style={styles.playersList}>
+            {sessionData.players
+              .filter(player => player.status !== 'LEFT')
+              .map((player, index) => (
+              <View key={player.id} style={styles.enhancedPlayerItem}>
+                <TouchableOpacity 
+                  style={styles.playerMainContent}
+                  onPress={() => navigateToPlayerProfile(player)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.playerInfo}>
+                    <Text style={styles.playerName}>
+                      {index + 1}. {player.name}
+                      {player.name === sessionData?.ownerName && ' ⭐'}
+                    </Text>
+                    <View style={styles.playerMetaRow}>
+                      <Text style={styles.playerMeta}>
+                        {new Date(player.joinedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                      <View style={styles.playerStatsCompact}>
+                        <Text style={styles.statCompact}>🏸{player.gamesPlayed}</Text>
+                        <Text style={styles.statCompact}>🏆{player.wins}</Text>
+                        <View style={[styles.statusBadgeCompact, getStatusStyle(player.status)]}>
+                          <Text style={styles.statusTextCompact}>{player.status}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+                
                 {isOwner && player.name !== sessionData?.ownerName && (
                   <TouchableOpacity 
-                    style={styles.removeButton}
+                    style={styles.removeButtonCompact}
                     onPress={() => removePlayer(player.id, player.name)}
                   >
                     <Text style={styles.removeButtonText}>✕</Text>
                   </TouchableOpacity>
                 )}
               </View>
-            </TouchableOpacity>
-          ))
+            ))}
+          </View>
         )}
       </View>
 
@@ -2348,5 +2486,180 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 13,
     fontWeight: '600',
+  },
+
+  // New Compact UI Styles
+  compactActionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 16,
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#EEEEEE',
+    gap: 12,
+  },
+  primaryActionButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center',
+  },
+  primaryActionText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  secondaryActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  iconButton: {
+    backgroundColor: '#F5F5F5',
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconButtonText: {
+    fontSize: 18,
+  },
+
+  // Compact Header Styles
+  compactHeader: {
+    marginBottom: 16,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  headerItem: {
+    flex: 1,
+    marginRight: 16,
+  },
+  headerLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#757575',
+    textTransform: 'uppercase',
+  },
+  headerValue: {
+    fontSize: 14,
+    color: '#212121',
+    marginTop: 2,
+  },
+  statusContainer: {
+    alignItems: 'flex-end',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    textTransform: 'capitalize',
+  },
+  courtCountBadge: {
+    backgroundColor: '#E8F5E9',
+    color: '#4CAF50',
+    fontSize: 11,
+    fontWeight: '600',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+
+  // Enhanced Player List Styles
+  playersHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  addPlayerInline: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  addPlayerInlineText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  emptyPlayerState: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  noPlayersSubtext: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  addFirstPlayerButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  addFirstPlayerText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  playersList: {
+    gap: 0,
+  },
+  enhancedPlayerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F5F5',
+  },
+  playerMainContent: {
+    flex: 1,
+  },
+  playerMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  playerStatsCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statCompact: {
+    fontSize: 11,
+    color: '#666',
+    fontWeight: '500',
+  },
+  statusBadgeCompact: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  statusTextCompact: {
+    fontSize: 9,
+    color: 'white',
+    fontWeight: '600',
+  },
+  removeButtonCompact: {
+    backgroundColor: '#FF3B30',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
   },
 });

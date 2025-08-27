@@ -420,6 +420,23 @@ class SessionApiService {
       default: return 'Unknown';
     }
   }
+
+  // Claim ownership of a session (when ownerDeviceId is missing)
+  async claimSessionOwnership(shareCode: string): Promise<SessionResponse> {
+    try {
+      const deviceId = await this.getDeviceId();
+      const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}`, {
+        method: 'PUT',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ ownerDeviceId: deviceId }),
+      });
+
+      return this.handleResponse<SessionResponse>(response);
+    } catch (error) {
+      console.error('Error claiming session ownership:', error);
+      throw error;
+    }
+  }
 }
 
 // Create singleton instance

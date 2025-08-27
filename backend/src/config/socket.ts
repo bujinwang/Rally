@@ -6,19 +6,22 @@ export const setupSocket = (io: SocketServer): void => {
     console.log('🔌 User connected:', socket.id);
 
     // Join session room
-    socket.on('join-session', async (sessionId: string) => {
+    socket.on('join-session', async (data: string | { shareCode: string; deviceId: string }) => {
+      const sessionId = typeof data === 'string' ? data : data.shareCode;
       socket.join(`session-${sessionId}`);
       console.log(`👤 User ${socket.id} joined session ${sessionId}`);
 
       // Notify others in the session
       socket.to(`session-${sessionId}`).emit('user-joined', {
         socketId: socket.id,
+        sessionId: sessionId,
         timestamp: new Date().toISOString()
       });
     });
 
     // Leave session room
-    socket.on('leave-session', (sessionId: string) => {
+    socket.on('leave-session', (data: string | { shareCode: string }) => {
+      const sessionId = typeof data === 'string' ? data : data.shareCode;
       socket.leave(`session-${sessionId}`);
       console.log(`👤 User ${socket.id} left session ${sessionId}`);
     });
@@ -59,15 +62,48 @@ export const setupSocket = (io: SocketServer): void => {
       
       try {
         // Get updated session data
+        // Fix for line ~40 (mvp-player-status-updated)
         const session = await prisma.mvpSession.findUnique({
           where: { shareCode },
-          include: { players: true }
+          include: { 
+            players: {
+              select: {
+                id: true,
+                name: true,
+                deviceId: true,  // ✅ Add this
+                status: true,
+                gamesPlayed: true,
+                wins: true,
+                losses: true,
+                joinedAt: true
+              }
+            }
+          }
+        });
+        
+        // Fix for line ~65 (mvp-player-joined)
+        const updatedSession = await prisma.mvpSession.findUnique({
+          where: { shareCode },
+          include: { 
+            players: {
+              select: {
+                id: true,
+                name: true,
+                deviceId: true,  // ✅ Add this
+                status: true,
+                gamesPlayed: true,
+                wins: true,
+                losses: true,
+                joinedAt: true
+              }
+            }
+          }
         });
 
-        if (session) {
+        if (updatedSession) {
           // Broadcast to session room
           io.to(`session-${shareCode}`).emit('mvp-session-updated', {
-            session,
+            session: updatedSession,
             timestamp: new Date().toISOString()
           });
         }

@@ -13,6 +13,7 @@ import {
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import sessionApi from '../services/sessionApi';
 
 const API_BASE_URL = 'http://localhost:3001/api/v1';
 
@@ -72,7 +73,7 @@ export default function PlayerProfileScreen() {
 
   const initializeProfile = async () => {
     const params = route.params || {};
-    const currentDeviceId = await AsyncStorage.getItem('deviceId');
+    const currentDeviceId = await sessionApi.getDeviceId();
     
     // Determine if this is the user's own profile
     const ownProfile = params.isOwnProfile || 

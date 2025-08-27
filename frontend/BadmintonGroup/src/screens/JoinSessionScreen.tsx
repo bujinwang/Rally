@@ -21,6 +21,7 @@ interface SessionData {
   maxPlayers: number;
   status: string;
   ownerName: string;
+  ownerDeviceId: string;  // ✅ This field is now present
   playerCount: number;
   players: Array<{
     id: string;

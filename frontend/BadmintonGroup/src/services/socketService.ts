@@ -149,7 +149,7 @@ class SocketService {
   }
 
   // Join a session room for real-time updates (graceful fallback)
-  joinSession(shareCode: string, deviceId: string): void {
+  joinSession(shareCode: string, deviceId?: string): void {
     if (!this.socket?.connected) {
       console.warn('Socket not connected, skipping real-time session join');
       return;
@@ -157,7 +157,7 @@ class SocketService {
 
     try {
       console.log(`📍 Joining session room: ${shareCode}`);
-      this.socket.emit('join-session', { shareCode, deviceId });
+      this.socket.emit('join-session', shareCode);
     } catch (error) {
       console.warn('Failed to join session room:', error);
     }
@@ -172,7 +172,7 @@ class SocketService {
 
     try {
       console.log(`📤 Leaving session room: ${shareCode}`);
-      this.socket.emit('leave-session', { shareCode });
+      this.socket.emit('leave-session', shareCode);
     } catch (error) {
       console.warn('Failed to leave session room:', error);
     }

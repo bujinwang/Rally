@@ -12,6 +12,7 @@ import { connectDB } from './config/database';
 import { setupSocket } from './config/socket';
 import { setupRoutes } from './routes';
 import { errorHandler } from './middleware/errorHandler';
+import webSessionRoutes from './routes/webSession';
 
 // Load environment variables
 dotenv.config();
@@ -20,8 +21,18 @@ const app = express();
 const server = createServer(app);
 
 
-// Security middleware
-app.use(helmet());
+// Security middleware with CSP configuration for web session routes
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"], // Allow inline scripts for web session interface
+      scriptSrcAttr: ["'unsafe-inline'"], // Allow inline event handlers (onclick, etc.)
+      styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles
+      imgSrc: ["'self'", "data:"], // Allow data URIs for images
+    },
+  },
+}));
 
 // CORS configuration
 app.use(cors({
@@ -58,6 +69,11 @@ console.log('🔧 Setting up API routes...');
 const apiRouter = setupRoutes();
 app.use('/api/v1', apiRouter);
 console.log('✅ API routes configured at /api/v1');
+
+// Web session routes (for direct HTML access)
+console.log('🌐 Setting up web session routes...');
+app.use('/session', webSessionRoutes);
+console.log('✅ Web session routes configured at /session');
 
 // Health check for route verification
 app.get('/api/v1/health', (req, res) => {

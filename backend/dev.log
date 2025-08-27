@@ -1,0 +1,1764 @@
+
+> backend@1.0.0 dev
+> nodemon src/server.ts
+
+[33m[nodemon] 3.1.10[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: ts,json[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+src/config/socket.ts(63,15): error TS2451: Cannot redeclare block-scoped variable 'session'.
+src/config/socket.ts(82,15): error TS2451: Cannot redeclare block-scoped variable 'session'.
+
+    at createTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:863:19)
+    at getOutput (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1077:36)
+    at Object.compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1433:41)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+  diagnosticCodes: [ 2451, 2451 ]
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+src/config/socket.ts(63,15): error TS2451: Cannot redeclare block-scoped variable 'session'.
+src/config/socket.ts(82,15): error TS2451: Cannot redeclare block-scoped variable 'session'.
+
+    at createTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:863:19)
+    at getOutput (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1077:36)
+    at Object.compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1433:41)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+  diagnosticCodes: [ 2451, 2451 ]
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+src/config/socket.ts(63,15): error TS2451: Cannot redeclare block-scoped variable 'session'.
+src/config/socket.ts(82,15): error TS2451: Cannot redeclare block-scoped variable 'session'.
+
+    at createTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:863:19)
+    at getOutput (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1077:36)
+    at Object.compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1433:41)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+  diagnosticCodes: [ 2451, 2451 ]
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+src/config/socket.ts(63,15): error TS2451: Cannot redeclare block-scoped variable 'session'.
+src/config/socket.ts(82,15): error TS2451: Cannot redeclare block-scoped variable 'session'.
+
+    at createTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:863:19)
+    at getOutput (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1077:36)
+    at Object.compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1433:41)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+  diagnosticCodes: [ 2451, 2451 ]
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  suppress all logs with { quiet: true }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:90:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:90:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+src/routes/mvpSessions.ts(1180,79): error TS2304: Cannot find name 'name'.
+src/routes/mvpSessions.ts(1195,15): error TS2304: Cannot find name 'name'.
+
+    at createTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:863:19)
+    at getOutput (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1077:36)
+    at Object.compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1433:41)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+  diagnosticCodes: [ 2304, 2304 ]
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:90:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  suppress all logs with { quiet: true }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:90:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+(node:74030) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 exit listeners added to [Bus]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(Use `node --trace-warnings ...` to show where the warning was created)
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:90:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  enable debug logging with { debug: true }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:90:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: 📡 auto-backup env with Radar: https://dotenvx.com/radar
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:90:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:90:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:91:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+src/routes/webSession.ts(540,54): error TS2304: Cannot find name 'shareCode'.
+src/routes/webSession.ts(584,71): error TS2304: Cannot find name 'shareCode'.
+src/routes/webSession.ts(622,54): error TS2304: Cannot find name 'shareCode'.
+
+    at createTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:863:19)
+    at getOutput (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1077:36)
+    at Object.compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1433:41)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+  diagnosticCodes: [ 2304, 2304, 2304 ]
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+src/routes/mvpSessions.ts(3397,16): error TS2304: Cannot find name 'io'.
+src/routes/mvpSessions.ts(3398,7): error TS2304: Cannot find name 'io'.
+
+    at createTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:863:19)
+    at getOutput (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1077:36)
+    at Object.compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1433:41)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+  diagnosticCodes: [ 2304, 2304 ]
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+src/routes/mvpSessions.ts(3397,16): error TS2304: Cannot find name 'io'.
+src/routes/mvpSessions.ts(3398,7): error TS2304: Cannot find name 'io'.
+
+    at createTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:863:19)
+    at getOutput (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1077:36)
+    at Object.compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1433:41)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+  diagnosticCodes: [ 2304, 2304 ]
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+src/routes/mvpSessions.ts(3397,16): error TS2304: Cannot find name 'io'.
+src/routes/mvpSessions.ts(3398,7): error TS2304: Cannot find name 'io'.
+
+    at createTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:863:19)
+    at getOutput (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1077:36)
+    at Object.compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1433:41)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+  diagnosticCodes: [ 2304, 2304 ]
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+src/routes/mvpSessions.ts(3397,16): error TS2304: Cannot find name 'io'.
+src/routes/mvpSessions.ts(3398,7): error TS2304: Cannot find name 'io'.
+
+    at createTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:863:19)
+    at getOutput (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1077:36)
+    at Object.compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1433:41)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+  diagnosticCodes: [ 2304, 2304 ]
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+src/routes/webSession.ts(540,54): error TS2304: Cannot find name 'shareCode'.
+src/routes/webSession.ts(584,71): error TS2304: Cannot find name 'shareCode'.
+src/routes/webSession.ts(622,54): error TS2304: Cannot find name 'shareCode'.
+
+    at createTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:863:19)
+    at getOutput (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1077:36)
+    at Object.compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1433:41)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+  diagnosticCodes: [ 2304, 2304, 2304 ]
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+src/routes/webSession.ts(584,71): error TS2304: Cannot find name 'shareCode'.
+src/routes/webSession.ts(622,54): error TS2304: Cannot find name 'shareCode'.
+
+    at createTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:863:19)
+    at getOutput (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1077:36)
+    at Object.compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1433:41)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+  diagnosticCodes: [ 2304, 2304 ]
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+src/routes/webSession.ts(622,54): error TS2304: Cannot find name 'shareCode'.
+
+    at createTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:863:19)
+    at getOutput (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1077:36)
+    at Object.compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1433:41)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+  diagnosticCodes: [ 2304 ]
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:96:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+src/routes/webSession.ts(540,54): error TS2304: Cannot find name 'shareCode'.
+
+    at createTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:863:19)
+    at getOutput (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1077:36)
+    at Object.compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1433:41)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+  diagnosticCodes: [ 2304 ]
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+src/routes/webSession.ts(540,54): error TS2304: Cannot find name 'shareCode'.
+src/routes/webSession.ts(584,71): error TS2304: Cannot find name 'shareCode'.
+
+    at createTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:863:19)
+    at getOutput (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1077:36)
+    at Object.compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1433:41)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+  diagnosticCodes: [ 2304, 2304 ]
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+src/routes/webSession.ts(540,54): error TS2304: Cannot find name 'shareCode'.
+src/routes/webSession.ts(584,71): error TS2304: Cannot find name 'shareCode'.
+src/routes/webSession.ts(622,54): error TS2304: Cannot find name 'shareCode'.
+
+    at createTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:863:19)
+    at getOutput (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1077:36)
+    at Object.compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1433:41)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+  diagnosticCodes: [ 2304, 2304, 2304 ]
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+src/routes/webSession.ts(584,71): error TS2304: Cannot find name 'shareCode'.
+src/routes/webSession.ts(622,54): error TS2304: Cannot find name 'shareCode'.
+
+    at createTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:863:19)
+    at getOutput (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1077:36)
+    at Object.compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1433:41)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+  diagnosticCodes: [ 2304, 2304 ]
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+(node:74030) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 exit listeners added to [Bus]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+src/routes/webSession.ts(622,54): error TS2304: Cannot find name 'shareCode'.
+
+    at createTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:863:19)
+    at getOutput (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1077:36)
+    at Object.compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1433:41)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+  diagnosticCodes: [ 2304 ]
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:96:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  suppress all logs with { quiet: true }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:96:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: 📡 observe env with Radar: https://dotenvx.com/radar
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:96:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:96:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: 📡 observe env with Radar: https://dotenvx.com/radar
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:96:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:96:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:96:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:105:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:106:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:106:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:106:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:106:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+🚀 Server is running on port 3001
+📊 Health check available at http://localhost:3001/health
+📱 Environment: development
+✅ Database connected successfully
+prisma:query SELECT 1 as test
+✅ Database test query successful: [ { test: 1 } ]
+🔌 User connected: 1-ayqJ-Bpj_LN1GdAAAB
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:106:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:106:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: 📡 version env with Radar: https://dotenvx.com/radar
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:106:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:106:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: 📡 observe env with Radar: https://dotenvx.com/radar
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:106:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: 📡 version env with Radar: https://dotenvx.com/radar
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:106:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:106:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: 📡 auto-backup env with Radar: https://dotenvx.com/radar
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:106:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:106:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  suppress all logs with { quiet: true }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at Object.<anonymous> (/Users/bujin/Documents/Projects/BadmintonGroup/backend/src/server.ts:106:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Module.m._compile (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1895:10
+    at Object.require.extensions.<computed> [as .ts] (/Users/bujin/Documents/Projects/BadmintonGroup/backend/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+📍 Registering routes:
+  - /auth
+  - /sessions
+  - /users
+  - /mvp-sessions
+  - /session-history
+  - /search
+✅ All routes registered successfully
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+🔧 Setting up API routes...
+✅ API routes configured at /api/v1
+🌐 Setting up web session routes...
+✅ Web session routes configured at /session
+📡 Socket.io server initialized
+🔄 Attempting database connection...
+📊 Database URL: postgresql://***:***@localhost:5432/badminton_group?schema=public
+🚀 Server is running on port 3001
+📊 Health check available at http://localhost:3001/health
+📱 Environment: development
+✅ Database connected successfully
+prisma:query SELECT 1 as test
+✅ Database test query successful: [ { test: 1 } ]
+🔌 User connected: o7NlJRpByp6ArtIyAAAB
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m

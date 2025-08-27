@@ -14,6 +14,14 @@ import {
 import { useRoute, useNavigation, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DEVICE_ID_KEY } from '../config/api';
+import sessionApi from '../services/sessionApi';
+import { 
+  EnhancedQueueItem, 
+  UpNextBanner, 
+  useEnhancedQueue,
+  hapticService
+} from '../components';
 
 const API_BASE_URL = 'http://localhost:3001/api/v1';
 
@@ -84,8 +92,8 @@ export default function LiveGameScreen() {
   const [showGameSettings, setShowGameSettings] = useState(false);
   const [showCourtSettings, setShowCourtSettings] = useState(false);
   const [courtSettings, setCourtSettings] = useState({
-    courtCount: 2,
-    courtNames: ['Court 1', 'Court 2']
+    courtCount: 1, // Default to 1 court instead of 2
+    courtNames: ['Court 1']
   });
   const [showTimerSettings, setShowTimerSettings] = useState(false);
   const [timerSettings, setTimerSettings] = useState({
@@ -126,6 +134,49 @@ export default function LiveGameScreen() {
   const [lastRefresh, setLastRefresh] = useState<number>(0);
   const [isEditingCourtSettings, setIsEditingCourtSettings] = useState(false);
 
+  // Enhanced queue functionality
+  const enhancedQueue = useEnhancedQueue(selectedCourt);
+  
+  // Auto-populate empty queues when conditions are met
+  useEffect(() => {
+    if (!sessionData) return;
+    
+    // Auto-populate any empty queues when session data updates
+    sessionData.courts.forEach(court => {
+      if (!court.currentGame && court.queue.length === 0) {
+        // Check if there are enough active players
+        const activePlayersCount = sessionData.players.filter(p => p.status === 'ACTIVE').length;
+        if (activePlayersCount >= 4) {
+          console.log(`🎯 Auto-populating empty queue for ${court.name} with ${activePlayersCount} active players`);
+          // Small delay to allow UI to update, then populate
+          setTimeout(() => {
+            autoPopulateQueue(court.id, true); // Silent auto-population
+          }, 500);
+        } else {
+          console.log(`⏳ Waiting for more players on ${court.name}: ${activePlayersCount}/4 active`);
+        }
+      }
+    });
+  }, [sessionData?.players?.length, sessionData?.players?.map(p => p.status).join(',')]);
+  
+  // Also trigger when a game finishes and court becomes available
+  useEffect(() => {
+    if (!sessionData) return;
+    
+    sessionData.courts.forEach(court => {
+      // If court just became available (no game but had one before) and queue is empty
+      if (!court.currentGame && court.queue.length === 0) {
+        const activePlayersCount = sessionData.players.filter(p => p.status === 'ACTIVE').length;
+        if (activePlayersCount >= 4) {
+          console.log(`🎯 Court ${court.name} is now available, auto-populating queue`);
+          setTimeout(() => {
+            autoPopulateQueue(court.id, true);
+          }, 1500); // Slightly longer delay for game finish transitions
+        }
+      }
+    });
+  }, [sessionData?.courts?.map(c => c.currentGame?.id).join(','), sessionData?.courts?.map(c => c.queue.length).join(',')]);
+
   useEffect(() => {
     initializeScreen();
   }, [route.params]);
@@ -148,7 +199,7 @@ export default function LiveGameScreen() {
 
   const initializeScreen = async () => {
     try {
-      const storedDeviceId = await AsyncStorage.getItem('deviceId');
+      const storedDeviceId = await sessionApi.getDeviceId();
       setDeviceId(storedDeviceId || '');
       
       await fetchSessionData();
@@ -183,7 +234,9 @@ export default function LiveGameScreen() {
           losses: player.losses || 0
         })),
         courts: generateCourtsFromSession(session),
-        gameHistory: (session.games || []).map((game: any) => ({
+        gameHistory: (session.games || [])
+          .filter((game: any) => game.status === 'COMPLETED') // Only show completed games
+          .map((game: any) => ({
           id: game.id,
           team1: {
             player1: { id: '1', name: game.team1Player1, status: 'ACTIVE' as const, gamesPlayed: 0, wins: 0, losses: 0 },
@@ -208,8 +261,17 @@ export default function LiveGameScreen() {
       setSessionData(transformedData);
       
       // Initialize court settings from session data
-      const sessionCourtCount = session.courtCount || 2;
+      const sessionCourtCount = session.courtCount || 1; // Default to 1 court, not 2
       const sessionCourtNames = Array.from({ length: sessionCourtCount }, (_, i) => `Court ${i + 1}`);
+      
+      // Auto-populate empty courts with Fair Play queue
+      setTimeout(() => {
+        transformedData.courts.forEach(court => {
+          if (!court.currentGame && court.queue.length === 0) {
+            autoPopulateQueue(court.id, true); // Silent auto-population
+          }
+        });
+      }, 2000); // Wait 2 seconds after data loads
       
       console.log('📊 Updating court settings from session data:', {
         sessionCourtCount,
@@ -223,7 +285,7 @@ export default function LiveGameScreen() {
       });
       
       // Check if current user is the owner
-      const storedDeviceId = await AsyncStorage.getItem('deviceId');
+      const storedDeviceId = await sessionApi.getDeviceId();
       console.log('Owner check - stored deviceId:', storedDeviceId);
       console.log('Owner check - session ownerDeviceId:', session.ownerDeviceId);
       setIsOwner(session.ownerDeviceId === storedDeviceId);
@@ -259,9 +321,40 @@ export default function LiveGameScreen() {
         id: `court${i}`,
         name: courtNames[i-1] || `Court ${i}`,
         isActive: true,
-        currentGame: undefined, // Will be populated when games are active
+        currentGame: undefined, // Will be populated from IN_PROGRESS games
         queue: []
       });
+    }
+    
+    // Restore any IN_PROGRESS games to their respective courts
+    if (session.games) {
+      session.games
+        .filter((game: any) => game.status === 'IN_PROGRESS')
+        .forEach((game: any) => {
+          // Find the court by name
+          const court = courts.find(c => c.name === game.courtName);
+          if (court) {
+            court.currentGame = {
+              id: game.id,
+              team1: {
+                player1: { id: '1', name: game.team1Player1, status: 'ACTIVE' as const, gamesPlayed: 0, wins: 0, losses: 0 },
+                player2: { id: '2', name: game.team1Player2, status: 'ACTIVE' as const, gamesPlayed: 0, wins: 0, losses: 0 },
+                score: 0 // Always start with 0 for in-progress games - user will update scores manually
+              },
+              team2: {
+                player1: { id: '3', name: game.team2Player1, status: 'ACTIVE' as const, gamesPlayed: 0, wins: 0, losses: 0 },
+                player2: { id: '4', name: game.team2Player2, status: 'ACTIVE' as const, gamesPlayed: 0, wins: 0, losses: 0 },
+                score: 0 // Always start with 0 for in-progress games - user will update scores manually
+              },
+              status: 'IN_PROGRESS' as const,
+              currentSet: 1,
+              sets: [{ setNumber: 1, team1Score: 0, team2Score: 0, isCompleted: false }],
+              startTime: game.startTime,
+              endTime: game.endTime,
+              winnerTeam: game.winnerTeam
+            };
+          }
+        });
     }
     
     return courts;
@@ -496,7 +589,7 @@ export default function LiveGameScreen() {
   const handleRemovePlayer = async (playerId: string) => {
     try {
       // Get the actual owner device ID from session data
-      const actualOwnerDeviceId = sessionData?.ownerDeviceId || await AsyncStorage.getItem('deviceId');
+      const actualOwnerDeviceId = sessionData?.ownerDeviceId || await sessionApi.getDeviceId();
       
       console.log('Removing player with ownerDeviceId:', actualOwnerDeviceId);
       console.log('Current deviceId:', deviceId);
@@ -556,6 +649,67 @@ export default function LiveGameScreen() {
     );
   };
 
+  const handlePlayerRest = async (playerId: string, playerName: string, gamesCount: number, isOwner: boolean = false) => {
+    if (!sessionData) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/mvp-sessions/${route.params.shareCode}/players/${playerId}/rest`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          gamesCount,
+          deviceId: deviceId,
+          ownerDeviceId: isOwner ? sessionData?.ownerDeviceId : undefined
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const action = gamesCount > 0 ? `resting for ${gamesCount} game(s)` : 'back to active';
+        Alert.alert('Rest Updated', `${playerName} is now ${action}`);
+        await fetchSessionData(); // Refresh session data
+      } else {
+        const errorData = await response.json();
+        Alert.alert('Error', errorData.error?.message || 'Failed to update rest status');
+      }
+    } catch (error) {
+      console.error('Rest error:', error);
+      Alert.alert('Error', 'Failed to update rest status');
+    }
+  };
+
+  const showRestOptions = (playerId: string, playerName: string, isOwnPlayer: boolean = false) => {
+    const actionTitle = isOwnPlayer ? 'Take a Rest' : `Manage ${playerName}'s Rest`;
+    Alert.alert(
+      actionTitle,
+      'How many games would you like to rest?',
+      [
+        { 
+          text: 'Cancel', 
+          style: 'cancel' 
+        },
+        { 
+          text: 'Back to Active', 
+          onPress: () => handlePlayerRest(playerId, playerName, 0, !isOwnPlayer) 
+        },
+        { 
+          text: '1 Game', 
+          onPress: () => handlePlayerRest(playerId, playerName, 1, !isOwnPlayer) 
+        },
+        { 
+          text: '2 Games', 
+          onPress: () => handlePlayerRest(playerId, playerName, 2, !isOwnPlayer) 
+        },
+        { 
+          text: '3 Games', 
+          onPress: () => handlePlayerRest(playerId, playerName, 3, !isOwnPlayer) 
+        }
+      ]
+    );
+  };
+
   const finishGame = async (courtId: string) => {
     if (!sessionData) return;
 
@@ -565,8 +719,43 @@ export default function LiveGameScreen() {
     try {
       const game = court.currentGame;
       
-      // Save game to database
-      const response = await fetch(`${API_BASE_URL}/mvp-sessions/${route.params.shareCode}/games`, {
+      // Record game duration for wait time calculations
+      await enhancedQueue.recordGameCompletion(
+        game.startTime,
+        new Date().toISOString(),
+        4, // player count
+        2  // completed sets (typical)
+      );
+      
+      // Validate scores before saving
+      if (game.team1.score === game.team2.score) {
+        Alert.alert('Invalid Score', 'Game cannot end in a tie. Please update the scores.');
+        return;
+      }
+      
+      if (game.team1.score < 0 || game.team1.score > 2 || game.team2.score < 0 || game.team2.score > 2) {
+        Alert.alert('Invalid Score', 'Scores must be between 0 and 2.');
+        return;
+      }
+      
+      if (game.team1.score === 0 && game.team2.score === 0) {
+        Alert.alert('Invalid Score', 'At least one team must have a score greater than 0.');
+        return;
+      }
+      
+      console.log('🏸 Attempting to save game:', {
+        shareCode: route.params.shareCode,
+        gameData: {
+          courtName: court.name,
+          team1: `${game.team1.player1.name} & ${game.team1.player2.name}`,
+          team2: `${game.team2.player1.name} & ${game.team2.player2.name}`,
+          score: `${game.team1.score} - ${game.team2.score}`,
+          winnerTeam: game.winnerTeam
+        }
+      });
+      
+      // Step 1: Create the game as IN_PROGRESS
+      const createResponse = await fetch(`${API_BASE_URL}/mvp-sessions/${route.params.shareCode}/games`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -575,55 +764,206 @@ export default function LiveGameScreen() {
           courtName: court.name,
           team1Player1: game.team1.player1.name,
           team1Player2: game.team1.player2.name,
-          team1Score: game.team1.score,
           team2Player1: game.team2.player1.name,
-          team2Player2: game.team2.player2.name,
-          team2Score: game.team2.score,
-          winnerTeam: game.winnerTeam,
-          startTime: game.startTime,
-          endTime: new Date().toISOString(),
-          duration: game.duration,
-          sets: game.sets
+          team2Player2: game.team2.player2.name
         }),
       });
 
-      if (response.ok) {
-        // Update local state - clear the current game
-        const updatedCourt = {
-          ...court,
-          currentGame: undefined
-        };
+      console.log('🏸 Game creation response:', {
+        status: createResponse.status,
+        statusText: createResponse.statusText,
+        ok: createResponse.ok
+      });
 
-        const updatedSession = {
-          ...sessionData,
-          courts: sessionData.courts.map(c => 
-            c.id === updatedCourt.id ? updatedCourt : c
-          )
-        };
+      if (!createResponse.ok) {
+        throw new Error(`Failed to create game: ${createResponse.statusText}`);
+      }
 
-        setSessionData(updatedSession);
+      const createData = await createResponse.json();
+      const gameId = createData.data.game.id;
+      
+      console.log('✅ Game created successfully:', createData);
+      
+      // Step 2: Update the score to complete the game (this updates player statistics)
+      const scoreResponse = await fetch(`${API_BASE_URL}/mvp-sessions/${route.params.shareCode}/games/${gameId}/score`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          team1FinalScore: game.team1.score,
+          team2FinalScore: game.team2.score
+        }),
+      });
+
+      console.log('🏸 Game score update response:', {
+        status: scoreResponse.status,
+        statusText: scoreResponse.statusText,
+        ok: scoreResponse.ok
+      });
+
+      if (scoreResponse.ok) {
+        const scoreData = await scoreResponse.json();
+        console.log('✅ Game completed successfully:', scoreData);
+        // Don't update local state here - let fetchSessionData() handle the refresh
         
-        // Refresh session data to get updated game history from database
-        await fetchSessionData();
+        Alert.alert('Game Completed!', 'Game has been recorded. Next game will start automatically.');
         
-        Alert.alert('Game Completed!', 'Game has been recorded and players can start a new game.');
+        // Get player IDs who just played to exclude them from next game
+        const justPlayedIds = [
+          game.team1.player1.id,
+          game.team1.player2.id,
+          game.team2.player1.id,
+          game.team2.player2.id
+        ];
+        
+        // Refresh session data FIRST, then auto-populate next game
+        try {
+          await fetchSessionData(); // Wait for fresh data
+          
+          // Small delay to ensure UI updates, then populate with fresh data
+          setTimeout(() => {
+            autoPopulateQueue(court.id, true, justPlayedIds); // Silent mode with player exclusion
+          }, 1000);
+        } catch (error) {
+          console.error('Error refreshing session data:', error);
+          // Fallback: still try to populate but with longer delay
+          setTimeout(() => {
+            autoPopulateQueue(court.id, true, justPlayedIds);
+          }, 5000);
+        }
       } else {
-        const errorData = await response.json();
-        Alert.alert('Error', errorData.error?.message || 'Failed to save game');
+        const errorText = await response.text();
+        console.error('❌ Game save failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorResponse: errorText
+        });
+        
+        try {
+          const errorData = JSON.parse(errorText);
+          Alert.alert('Error', errorData.error?.message || 'Failed to save game');
+        } catch {
+          Alert.alert('Error', `Failed to save game. Status: ${response.status}`);
+        }
       }
     } catch (error) {
-      console.error('Finish game error:', error);
+      console.error('❌ Finish game network error:', error);
       Alert.alert('Error', 'Failed to save game. Please try again.');
     }
   };
 
-  const addToQueue = (courtId: string, player: Player) => {
+  // Auto Fair Play Queue Management with player cooldown
+  const autoPopulateQueue = (courtId: string, silent: boolean = false, excludePlayerIds: string[] = []) => {
+    if (!sessionData) return;
+    
+    console.log('🎯 Fair Play Debug:', {
+      excludePlayerIds,
+      allPlayers: sessionData.players.map(p => ({ name: p.name, id: p.id, gamesPlayed: p.gamesPlayed, status: p.status }))
+    });
+    
+    const activePlayers = sessionData.players.filter(p => 
+      p.status === 'ACTIVE' && !excludePlayerIds.includes(p.id)
+    );
+    
+    console.log('🎯 Available players:', activePlayers.map(p => ({ name: p.name, gamesPlayed: p.gamesPlayed })));
+    
+    // Need at least 4 players for a game
+    if (activePlayers.length < 4) {
+      console.log('❌ Not enough players:', activePlayers.length);
+      if (!silent) {
+        Alert.alert('Not Enough Players', `Need at least 4 more players for Fair Play queue. Currently have ${activePlayers.length} available.`);
+      }
+      return;
+    }
+    
+    // Enhanced Fair Play algorithm: prioritize players with fewer games
+    const suggestedPlayers = activePlayers
+      .sort((a, b) => {
+        // Primary: fewer games played
+        if (a.gamesPlayed !== b.gamesPlayed) {
+          return a.gamesPlayed - b.gamesPlayed;
+        }
+        // Secondary: joined earlier  
+        return new Date(a.joinedAt || 0).getTime() - new Date(b.joinedAt || 0).getTime();
+      })
+      .slice(0, 4); // Take top 4 for the queue
+    
+    console.log('✅ Selected players:', suggestedPlayers.map(p => ({ name: p.name, gamesPlayed: p.gamesPlayed })));
+    
+    const court = sessionData.courts.find(c => c.id === courtId);
+    if (!court) return;
+    
+    // Update court with suggested players and auto-start game
+    const updatedCourt = {
+      ...court,
+      queue: suggestedPlayers
+    };
+    
+    updateCourtInSession(updatedCourt);
+    
+    // Auto-start game if we have 4 players
+    setTimeout(() => {
+      autoStartGame(courtId);
+    }, 100);
+    
+    if (!silent) {
+      Alert.alert(
+        'New Game Started!', 
+        `🎯 Fair Play Selection:\n${suggestedPlayers.map((p, i) => `${i+1}. ${p.name} (${p.gamesPlayed} games)`).join('\n')}\n\nTap "Finish Game" when done to record scores.`,
+        [{ text: 'Got it!' }]
+      );
+    }
+  };
+
+  // Auto-start game from queue
+  const autoStartGame = (courtId: string) => {
+    const court = sessionData?.courts.find(c => c.id === courtId);
+    if (!court || court.queue.length < 4) return;
+
+    const [p1, p2, p3, p4] = court.queue.slice(0, 4);
+    
+    const newGame: Game = {
+      id: Date.now().toString(),
+      team1: {
+        player1: p1,
+        player2: p2,
+        score: 0
+      },
+      team2: {
+        player1: p3,
+        player2: p4,
+        score: 0
+      },
+      status: 'IN_PROGRESS',
+      currentSet: 1,
+      sets: [{
+        setNumber: 1,
+        team1Score: 0,
+        team2Score: 0,
+        isCompleted: false
+      }],
+      startTime: new Date().toISOString()
+    };
+
+    // Update court with new game and remove players from queue
+    const updatedCourt = {
+      ...court,
+      currentGame: newGame,
+      queue: court.queue.slice(4)
+    };
+
+    updateCourtInSession(updatedCourt);
+  };
+
+  const addToQueue = async (courtId: string, player: Player) => {
     if (!sessionData) return;
 
     const court = sessionData.courts.find(c => c.id === courtId);
     if (!court) return;
 
     if (court.queue.some(p => p.id === player.id)) {
+      await hapticService.validationError('mild');
       Alert.alert('Already in Queue', 'Player is already in the queue for this court');
       return;
     }
@@ -634,6 +974,7 @@ export default function LiveGameScreen() {
     };
 
     updateCourtInSession(updatedCourt);
+    await hapticService.queueUpdate('added');
   };
 
   const removeFromQueue = (courtId: string, playerId: string) => {
@@ -660,6 +1001,16 @@ export default function LiveGameScreen() {
           </Text>
         </View>
       </View>
+
+      {/* Up Next Banner - shows during active games */}
+      <UpNextBanner
+        nextPlayers={enhancedQueue.nextPlayers}
+        queueLength={court.queue.length}
+        showDuringGame={!!court.currentGame}
+        courtId={court.id}
+        estimatedWaitTimes={enhancedQueue.getWaitTimeEstimates(4)}
+        isVisible={enhancedQueue.showUpNextBanner}
+      />
 
       {court.currentGame ? (
         <View style={styles.gameContainer}>
@@ -741,23 +1092,40 @@ export default function LiveGameScreen() {
           <Text style={styles.queueTitle}>Queue ({court.queue.length})</Text>
           
           {court.queue.length === 0 ? (
-            <Text style={styles.emptyQueue}>No players in queue</Text>
+            <View style={styles.emptyQueueContainer}>
+              {sessionData.players.filter(p => p.status === 'ACTIVE').length >= 4 ? (
+                <>
+                  <ActivityIndicator size="small" color="#28a745" style={{ marginBottom: 8 }} />
+                  <Text style={styles.emptyQueue}>🎯 Auto-generating Fair Play queue...</Text>
+                  <Text style={styles.emptyQueueSubtext}>
+                    Players with fewer games get priority
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.emptyQueue}>🎯 Waiting for more players...</Text>
+                  <Text style={styles.emptyQueueSubtext}>
+                    Need {4 - sessionData.players.filter(p => p.status === 'ACTIVE').length} more active players for Fair Play
+                  </Text>
+                </>
+              )}
+            </View>
           ) : (
             <View style={styles.queueList}>
-              {court.queue.map((player, index) => (
-                <View key={player.id} style={styles.queueItem}>
-                  <Text style={styles.queuePlayerName}>
-                    {index + 1}. {player.name}
-                  </Text>
-                  {isOwner && (
-                    <TouchableOpacity 
-                      style={styles.removeQueueButton}
-                      onPress={() => removeFromQueue(court.id, player.id)}
-                    >
-                      <Ionicons name="close" size={16} color="#f44336" />
-                    </TouchableOpacity>
-                  )}
-                </View>
+              {enhancedQueue.queueWithEstimates.map(({ player, position, waitTime, isNextUp }) => (
+                <EnhancedQueueItem
+                  key={player.id}
+                  position={position}
+                  player={player}
+                  estimatedWaitTime={waitTime.minutes}
+                  isNextUp={isNextUp}
+                  gameCount={player.gamesPlayed}
+                  showRemoveButton={isOwner}
+                  onRemove={isOwner ? () => {
+                    removeFromQueue(court.id, player.id);
+                    enhancedQueue.handleQueueUpdate('removed', player.name);
+                  } : undefined}
+                />
               ))}
             </View>
           )}
@@ -775,18 +1143,30 @@ export default function LiveGameScreen() {
                   <Ionicons name="person-add" size={16} color="#007AFF" />
                   <Text style={styles.addPlayerButtonText}>Add to Queue</Text>
                 </TouchableOpacity>
-
+                
                 <TouchableOpacity 
-                  style={[
-                    styles.startGameButton,
-                    court.queue.length < 4 && styles.disabledButton
-                  ]}
-                  onPress={() => startNewGame(court)}
-                  disabled={court.queue.length < 4}
+                  style={styles.refreshQueueButton}
+                  onPress={() => {
+                    // Clear current queue and repopulate with Fair Play
+                    const updatedCourt = { ...court, queue: [] };
+                    updateCourtInSession(updatedCourt);
+                    setTimeout(() => {
+                      autoPopulateQueue(court.id, false, []); // Show alert for manual refresh
+                    }, 500);
+                  }}
                 >
-                  <Ionicons name="play" size={16} color="#fff" />
-                  <Text style={styles.startGameButtonText}>Start Game</Text>
+                  <Ionicons name="refresh" size={16} color="#28a745" />
+                  <Text style={styles.refreshQueueText}>🎯 Refresh Fair Play</Text>
                 </TouchableOpacity>
+
+                <View style={styles.autoStartNotice}>
+                  <Text style={styles.autoStartText}>
+                    {court.queue.length < 4 
+                      ? `🎯 Need ${4 - court.queue.length} more players` 
+                      : '🎯 Game will start automatically!'
+                    }
+                  </Text>
+                </View>
               </>
             )}
           </View>
@@ -1472,28 +1852,58 @@ export default function LiveGameScreen() {
                     {isInActiveGame && (
                       <Text style={styles.activeGameWarning}>Currently playing</Text>
                     )}
+                    {player.restGamesRemaining > 0 && (
+                      <Text style={styles.restingWarning}>
+                        Resting for {player.restGamesRemaining} more game(s)
+                      </Text>
+                    )}
                   </View>
                   
-                  <TouchableOpacity
-                    style={[
-                      styles.removePlayerButton,
-                      (isInActiveGame || player.status === 'LEFT') && styles.removePlayerButtonDisabled
-                    ]}
-                    onPress={() => confirmPlayerRemoval(player)}
-                    disabled={isInActiveGame || player.status === 'LEFT'}
-                  >
-                    <Ionicons 
-                      name="trash-outline" 
-                      size={16} 
-                      color={isInActiveGame || player.status === 'LEFT' ? '#ccc' : '#f44336'} 
-                    />
-                    <Text style={[
-                      styles.removePlayerButtonText,
-                      (isInActiveGame || player.status === 'LEFT') && styles.removePlayerButtonTextDisabled
-                    ]}>
-                      Remove
-                    </Text>
-                  </TouchableOpacity>
+                  <View style={styles.playerManagementActions}>
+                    {/* Rest Button - Available for all active/resting players not currently playing */}
+                    <TouchableOpacity
+                      style={[
+                        styles.restPlayerButton,
+                        (isInActiveGame || player.status === 'LEFT') && styles.restPlayerButtonDisabled
+                      ]}
+                      onPress={() => showRestOptions(player.id, player.name, player.deviceId === deviceId)}
+                      disabled={isInActiveGame || player.status === 'LEFT'}
+                    >
+                      <Ionicons 
+                        name="moon-outline" 
+                        size={16} 
+                        color={isInActiveGame || player.status === 'LEFT' ? '#ccc' : '#FF9800'} 
+                      />
+                      <Text style={[
+                        styles.restPlayerButtonText,
+                        (isInActiveGame || player.status === 'LEFT') && styles.restPlayerButtonTextDisabled
+                      ]}>
+                        {player.status === 'RESTING' ? 'Manage Rest' : 'Rest'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Remove Button - Only for session owner */}
+                    <TouchableOpacity
+                      style={[
+                        styles.removePlayerButton,
+                        (isInActiveGame || player.status === 'LEFT') && styles.removePlayerButtonDisabled
+                      ]}
+                      onPress={() => confirmPlayerRemoval(player)}
+                      disabled={isInActiveGame || player.status === 'LEFT'}
+                    >
+                      <Ionicons 
+                        name="trash-outline" 
+                        size={16} 
+                        color={isInActiveGame || player.status === 'LEFT' ? '#ccc' : '#f44336'} 
+                      />
+                      <Text style={[
+                        styles.removePlayerButtonText,
+                        (isInActiveGame || player.status === 'LEFT') && styles.removePlayerButtonTextDisabled
+                      ]}>
+                        Remove
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               );
             })}
@@ -1580,39 +1990,40 @@ export default function LiveGameScreen() {
       <View style={styles.sessionHeader}>
         <Text style={styles.sessionTitle}>{sessionData.name}</Text>
         <Text style={styles.sessionSubtitle}>
-          {sessionData.players.length} Players • {sessionData.courts.length} Courts
+          {sessionData.players.length} Players • Courts: {courtSettings.courtCount}
         </Text>
       </View>
 
-      {/* Action Buttons */}
-      <View style={styles.actionButtonsContainer}>
-        {isOwner && (
+      {/* Compact Action Bar */}
+      <View style={styles.compactGameActionBar}>
+        {isOwner ? (
           <>
             <TouchableOpacity 
-              style={styles.settingsButton}
-              onPress={() => setShowGameSettings(true)}
+              style={styles.primaryGameAction}
+              onPress={() => setShowPlayerManagement(true)}
             >
-              <Ionicons name="settings-outline" size={20} color="#007AFF" />
-              <Text style={styles.settingsButtonText}>Game Settings</Text>
+              <Ionicons name="people-outline" size={16} color="white" />
+              <Text style={styles.primaryGameActionText}>Manage Players</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={styles.managePlayersButton}
-              onPress={() => setShowPlayerManagement(true)}
+              style={styles.iconGameButton}
+              onPress={() => setShowGameSettings(true)}
             >
-              <Ionicons name="people-outline" size={20} color="#f44336" />
-              <Text style={styles.managePlayersButtonText}>Manage Players</Text>
+              <Ionicons name="settings-outline" size={20} color="#007AFF" />
             </TouchableOpacity>
           </>
+        ) : (
+          <View style={styles.playerOnlySection}>
+            <Text style={styles.playerModeText}>Playing Mode</Text>
+          </View>
         )}
         
-        {/* Self dropout button for all players */}
         <TouchableOpacity 
-          style={styles.leaveSessionButton}
+          style={styles.iconGameButton}
           onPress={confirmSelfDropout}
         >
           <Ionicons name="exit-outline" size={20} color="#f44336" />
-          <Text style={styles.leaveSessionButtonText}>Leave Session</Text>
         </TouchableOpacity>
       </View>
 
@@ -1688,20 +2099,56 @@ export default function LiveGameScreen() {
       <View style={styles.playersSection}>
         <Text style={styles.sectionTitle}>Player Status</Text>
         <View style={styles.playersGrid}>
-          {sessionData.players.map(player => (
-            <View key={player.id} style={styles.playerStatusCard}>
-              <Text style={styles.playerStatusName}>{player.name}</Text>
-              <View style={[
-                styles.playerStatusBadge, 
-                { backgroundColor: player.status === 'ACTIVE' ? '#4CAF50' : '#FF9800' }
+          {sessionData.players.map(player => {
+            const isCurrentPlayer = player.deviceId === deviceId;
+            const isInActiveGame = sessionData.courts.some(court => 
+              court.currentGame && (
+                court.currentGame.team1.player1.id === player.id ||
+                court.currentGame.team1.player2.id === player.id ||
+                court.currentGame.team2.player1.id === player.id ||
+                court.currentGame.team2.player2.id === player.id
+              )
+            );
+            
+            return (
+              <View key={player.id} style={[
+                styles.playerStatusCard,
+                isCurrentPlayer && styles.currentPlayerCard
               ]}>
-                <Text style={styles.playerStatusText}>{player.status}</Text>
+                <View style={styles.playerStatusHeader}>
+                  <Text style={styles.playerStatusName}>
+                    {player.name}
+                    {isCurrentPlayer && ' (You)'}
+                  </Text>
+                  {isCurrentPlayer && !isInActiveGame && (
+                    <TouchableOpacity
+                      style={styles.selfRestButton}
+                      onPress={() => showRestOptions(player.id, player.name, true)}
+                    >
+                      <Ionicons name="moon-outline" size={14} color="#FF9800" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <View style={[
+                  styles.playerStatusBadge, 
+                  { backgroundColor: player.status === 'ACTIVE' ? '#4CAF50' : 
+                                   player.status === 'RESTING' ? '#FF9800' : '#f44336' }
+                ]}>
+                  <Text style={styles.playerStatusText}>
+                    {player.status === 'RESTING' && player.restGamesRemaining > 0 
+                      ? `RESTING (${player.restGamesRemaining})` 
+                      : player.status}
+                  </Text>
+                </View>
+                <Text style={styles.playerStatusStats}>
+                  {player.wins}W - {player.losses}L - {player.gamesPlayed} games
+                </Text>
+                {isInActiveGame && (
+                  <Text style={styles.playingIndicator}>🏸 Playing</Text>
+                )}
               </View>
-              <Text style={styles.playerStatusStats}>
-                {player.wins}W - {player.losses}L
-              </Text>
-            </View>
-          ))}
+            );
+          })}
         </View>
       </View>
 
@@ -2050,11 +2497,35 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
+  currentPlayerCard: {
+    borderWidth: 2,
+    borderColor: '#007AFF',
+    backgroundColor: '#F0F8FF',
+  },
+  playerStatusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 8,
+  },
   playerStatusName: {
     fontSize: 14,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 4,
+    flex: 1,
+  },
+  selfRestButton: {
+    padding: 4,
+    borderRadius: 4,
+    backgroundColor: '#FFF3E0',
+    marginLeft: 8,
+  },
+  playingIndicator: {
+    fontSize: 11,
+    color: '#4CAF50',
+    fontWeight: '600',
+    marginTop: 4,
   },
   playerStatusBadge: {
     paddingHorizontal: 8,
@@ -2396,6 +2867,39 @@ const styles = StyleSheet.create({
   removePlayerButtonTextDisabled: {
     color: '#ccc',
   },
+  playerManagementActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  restPlayerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF3E0',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#FF9800',
+  },
+  restPlayerButtonDisabled: {
+    backgroundColor: '#f5f5f5',
+    borderColor: '#ccc',
+  },
+  restPlayerButtonText: {
+    color: '#FF9800',
+    fontSize: 12,
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  restPlayerButtonTextDisabled: {
+    color: '#ccc',
+  },
+  restingWarning: {
+    fontSize: 11,
+    color: '#FF9800',
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
   // Game History Styles
   gameHistorySection: {
     padding: 20,
@@ -2485,5 +2989,132 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+
+  // Compact Action Bar Styles  
+  compactGameActionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  primaryGameAction: {
+    backgroundColor: '#f44336',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    flex: 1,
+    justifyContent: 'center',
+    gap: 6,
+  },
+  primaryGameActionText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  iconGameButton: {
+    backgroundColor: '#F5F5F5',
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playerOnlySection: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  playerModeText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+
+  // Fair Play Queue Enhancement Styles
+  emptyQueueContainer: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  fairPlaySuggestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e8f5e9',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  fairPlaySuggestText: {
+    color: '#28a745',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  enhancedQueueItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  queuePlayerInfo: {
+    flex: 1,
+  },
+  queuePlayerStats: {
+    fontSize: 11,
+    color: '#666',
+    marginTop: 2,
+  },
+  refreshQueueButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e8f5e9',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  refreshQueueText: {
+    color: '#28a745',
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+
+  // Streamlined Auto-Start Styles
+  emptyQueueSubtext: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  autoStartNotice: {
+    backgroundColor: '#e8f5e9',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginLeft: 8,
+    flex: 1,
+  },
+  autoStartText: {
+    color: '#28a745',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
