@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 General Discussion
+    url: https://github.com/yourusername/BadmintonGroup/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: 📚 Documentation
+    url: https://github.com/yourusername/BadmintonGroup/blob/main/README.md
+    about: Read the project documentation
+  - name: 🚀 Project Roadmap
+    url: https://github.com/yourusername/BadmintonGroup/projects
+    about: View planned features and development progress
+  - name: ⚡ Quick Help
+    url: https://github.com/yourusername/BadmintonGroup/discussions/categories/q-a
+    about: Get quick help from the community

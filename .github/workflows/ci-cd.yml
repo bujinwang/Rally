@@ -1,0 +1,225 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  # Backend Testing and Linting
+  backend-test:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: badminton_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+
+    - name: Install backend dependencies
+      working-directory: ./backend
+      run: npm ci
+
+    - name: Generate Prisma client
+      working-directory: ./backend
+      run: npx prisma generate
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/badminton_test
+
+    - name: Run database migrations
+      working-directory: ./backend
+      run: npx prisma db push
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/badminton_test
+
+    - name: Run backend tests
+      working-directory: ./backend
+      run: npm test
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/badminton_test
+        JWT_SECRET: test-secret
+        JWT_REFRESH_SECRET: test-refresh-secret
+        REDIS_URL: redis://localhost:6379
+
+    - name: Run backend linting
+      working-directory: ./backend
+      run: npm run lint --if-present
+
+    - name: TypeScript check
+      working-directory: ./backend
+      run: npx tsc --noEmit
+
+  # Frontend Testing and Linting
+  frontend-test:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/BadmintonGroup/package-lock.json
+
+    - name: Install frontend dependencies
+      working-directory: ./frontend/BadmintonGroup
+      run: npm ci
+
+    - name: Run frontend tests
+      working-directory: ./frontend/BadmintonGroup
+      run: npm test -- --watchAll=false
+
+    - name: Run frontend linting
+      working-directory: ./frontend/BadmintonGroup
+      run: npm run lint --if-present
+
+    - name: TypeScript check
+      working-directory: ./frontend/BadmintonGroup
+      run: npx tsc --noEmit
+
+  # Security Audit
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Audit backend dependencies
+      working-directory: ./backend
+      run: npm audit --audit-level moderate
+
+    - name: Audit frontend dependencies
+      working-directory: ./frontend/BadmintonGroup
+      run: npm audit --audit-level moderate
+
+  # Code Quality
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Install backend dependencies
+      working-directory: ./backend
+      run: npm ci
+
+    - name: Install frontend dependencies
+      working-directory: ./frontend/BadmintonGroup
+      run: npm ci
+
+    - name: Run Prettier check (Backend)
+      working-directory: ./backend
+      run: npx prettier --check "src/**/*.{ts,js,json}" --if-present
+
+    - name: Run Prettier check (Frontend)
+      working-directory: ./frontend/BadmintonGroup
+      run: npx prettier --check "src/**/*.{ts,tsx,js,jsx,json}" --if-present
+
+  # Docker Build Test
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build backend Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        file: ./backend/Dockerfile
+        push: false
+        tags: badminton-backend:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # Deploy to staging (only on develop branch)
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-test, security-audit, code-quality]
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Deploy to staging
+      run: |
+        echo "Deploying to staging environment..."
+        # Add your staging deployment commands here
+        # This could include:
+        # - Building and pushing Docker images
+        # - Deploying to cloud providers
+        # - Running database migrations
+        # - Updating staging URLs
+
+  # Deploy to production (only on main branch with tags)
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-test, security-audit, code-quality]
+    if: github.ref == 'refs/heads/main' && startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Deploy to production
+      run: |
+        echo "Deploying to production environment..."
+        # Add your production deployment commands here

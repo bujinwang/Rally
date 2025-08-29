@@ -53,7 +53,7 @@ export const createShareableLinks = (
   const universalUrl = `https://badmintongroup.app/join/${shareCode}`;
   
   // Fallback web URL for development/testing
-  const webFallbackUrl = `http://localhost:3000/join.html?code=${shareCode}`;
+  const webFallbackUrl = `http://localhost:3001/session/${shareCode}`;
   
   // Format date and time
   const sessionDate = new Date(scheduledAt);

@@ -290,7 +290,7 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
             losses: player.losses,
             joinedAt: player.joinedAt
           })) || [],
-          shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/join.html?code=${session.shareCode}`,
+          shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/session/${session.shareCode}`,
           createdAt: session.createdAt
         }
       },
@@ -643,7 +643,7 @@ router.get('/my-sessions/:deviceId', async (req, res) => {
         joinedAt: player.joinedAt
       })),
       createdAt: session.createdAt,
-      shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/join.html?code=${session.shareCode}`
+      shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/session/${session.shareCode}`
     }));
 
     res.json({

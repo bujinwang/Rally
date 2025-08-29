@@ -602,20 +602,20 @@ function generateSessionHTML(session: any, existingPlayer: any, deviceId: string
         }
         
         async function leaveSession() {
-          if (!deviceFingerprint) {
-            showError('Device identification failed. Please refresh the page.');
-            return;
-          }
-          
-          if (!confirm('Are you sure you want to leave this session?')) {
-            return;
-          }
-          
-          showLoading(true);
-          hideMessages();
-          
-          try {
-            const response = await fetch('./leave', {
+           if (!deviceFingerprint) {
+             showError('Device identification failed. Please refresh the page.');
+             return;
+           }
+
+           if (!confirm('Are you sure you want to leave this session?')) {
+             return;
+           }
+
+           showLoading(true);
+           hideMessages();
+
+           try {
+             const response = await fetch('./leave', {
               method: 'DELETE',
               headers: {
                 'Content-Type': 'application/json'

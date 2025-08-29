@@ -1,6 +1,63 @@
-# 🏸 Badminton Group Management App
+# 🏸 BadmintonGroup
 
-A comprehensive badminton pairing management application built with React Native, Node.js, Express, and PostgreSQL.
+<div align="center">
+  <img src="https://img.shields.io/badge/React%20Native-0.76-blue?logo=react" alt="React Native" />
+  <img src="https://img.shields.io/badge/Node.js-18+-green?logo=node.js" alt="Node.js" />
+  <img src="https://img.shields.io/badge/TypeScript-5.0+-blue?logo=typescript" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/PostgreSQL-15+-blue?logo=postgresql" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" />
+</div>
+
+<div align="center">
+  <h3>🚀 A modern, real-time badminton session management platform</h3>
+  <p>Create, join, and manage badminton sessions with intelligent pairing algorithms and live updates</p>
+</div>
+
+## ✨ Features
+
+- 🏸 **Smart Pairing**: Intelligent algorithms for balanced game pairing
+- ⚡ **Real-time Updates**: Live session status and player updates via Socket.io
+- 📱 **Cross-platform**: iOS, Android, and Web support
+- 🔐 **Secure Authentication**: JWT-based auth with refresh tokens
+- 📊 **Session Analytics**: Track game statistics and player performance
+- 🎯 **Rotation Management**: Automated player rotation systems
+- 💾 **Offline Support**: Continue using the app without internet
+- 🔗 **Easy Sharing**: Quick join links for session sharing
+
+A comprehensive badminton session management application built with React Native, Node.js, Express, and PostgreSQL.
+
+---
+
+## 🚀 Quick Demo
+
+> **Try it now!** Check out our [live demo](https://badmintongroup-demo.vercel.app) or follow the quick start guide below.
+
+### 🎥 Screenshots
+
+<!-- Add screenshots here when available -->
+*Screenshots coming soon! Feel free to contribute some.*
+
+## 📱 Mobile App Features
+
+- **Session Creation**: Create and customize badminton sessions
+- **Smart Joining**: Join sessions via QR codes or share links
+- **Live Dashboard**: Real-time session status and player tracking
+- **Intelligent Pairing**: Automatic player pairing with skill balancing
+- **Game Management**: Score tracking and match history
+- **Player Profiles**: Individual statistics and preferences
+- **Offline Mode**: Continue using core features without internet
+
+---
+
+## 📊 Project Stats
+
+<div align="center">
+  <img src="https://img.shields.io/github/stars/yourusername/BadmintonGroup?style=social" alt="GitHub stars" />
+  <img src="https://img.shields.io/github/forks/yourusername/BadmintonGroup?style=social" alt="GitHub forks" />
+  <img src="https://img.shields.io/github/issues/yourusername/BadmintonGroup" alt="GitHub issues" />
+  <img src="https://img.shields.io/github/issues-pr/yourusername/BadmintonGroup" alt="GitHub pull requests" />
+  <img src="https://img.shields.io/github/last-commit/yourusername/BadmintonGroup" alt="Last commit" />
+</div>
 
 ## 📋 Table of Contents
 
@@ -73,8 +130,8 @@ This application follows a modern full-stack architecture:
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
-   cd badminton-group
+   git clone https://github.com/yourusername/BadmintonGroup.git
+   cd BadmintonGroup
    ```
 
 2. **Start the backend services**
@@ -206,13 +263,6 @@ npm test
 ```
 # Start the expo:
 npx expo start --clear --localhost
-```
-
-### Running Join Router
-
-To run the join router script:
-```bash
-python3 /Users/bujin/Documents/Projects/BadmintonGroup/join-router.py
 ```
 
 ### Database Management
@@ -358,23 +408,54 @@ npm test
 npm run test:integration
 ```
 
-## 📝 Contributing
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Quick Start for Contributors
 
 1. Fork the repository
-2. Create a feature branch
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
 3. Make your changes
 4. Add tests if applicable
-5. Submit a pull request
+5. Commit your changes: `git commit -m 'Add amazing feature'`
+6. Push to the branch: `git push origin feature/amazing-feature`
+7. Submit a pull request
+
+### Development Setup
+
+See our [Environment Setup Guide](docs/ENVIRONMENT_SETUP.md) for detailed configuration instructions.
+
+## 🔗 Useful Links
+
+- 📘 [API Documentation](docs/API.md)
+- 🏢 [Architecture Guide](docs/ARCHITECTURE.md)
+- 🛠️ [Environment Setup](docs/ENVIRONMENT_SETUP.md)
+- 🐛 [Issue Templates](/.github/ISSUE_TEMPLATE/)
+- 📋 [Project Roadmap](../../projects)
+- 📊 [Changelog](CHANGELOG.md)
 
 ## 📄 License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🆘 Support
 
-For support and questions:
-- Create an issue in the repository
-- Contact the development team
+We're here to help! If you have questions or need assistance:
+
+- 📝 [Create an issue](../../issues) for bug reports or feature requests
+- 💬 [Join discussions](../../discussions) for general questions
+- 📖 Check our [documentation](docs/) for detailed guides
+- 🔍 Search [existing issues](../../issues?q=is%3Aissue) to see if your question has been answered
+
+## 🌟 Show Your Support
+
+If you find this project helpful, please consider:
+- ⭐ Starring the repository
+- 🐛 Reporting bugs
+- 💡 Suggesting new features
+- 🤝 Contributing code
+- 📢 Sharing with the badminton community
 
 ## 📊 Architecture Documentation
 
