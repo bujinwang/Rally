@@ -39,7 +39,7 @@
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
-    "@babel/core": "^7.25.2",
+    "@babel/core": "^7.28.4",
     "@expo/cli": "^0.24.20",
     "@types/jest": "^29.5.13",
     "@types/react": "~18.3.12",
