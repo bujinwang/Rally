@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { Card } from 'react-native-elements';
+import { View, Text, TouchableOpacity, Alert } from 'react-native';
 import { PlayerCardProps } from './PlayerCard.types';
 import { playerCardStyles as styles } from './PlayerCard.styles';
 
@@ -11,74 +10,144 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   showActionButton = true,
   disabled = false,
 }) => {
-  // Determine card styling based on variant
-  const cardVariantStyle = {
-    active: styles.cardActive,
-    waiting: styles.cardWaiting,
-    confirmed: styles.cardConfirmed,
-  }[variant];
-  
-  // Determine button styling and text based on variant
-  const buttonVariantStyle = {
-    active: styles.actionButtonActive,
-    waiting: styles.actionButtonWaiting,  
-    confirmed: styles.actionButtonConfirmed,
-  }[variant];
-  
-  const buttonText = {
-    active: '下场',      // "Leave court"
-    waiting: '上场',     // "Join court"
-    confirmed: '更新',   // "Update"
-  }[variant];
-  
-  const statusText = {
-    active: '建议下场',    // "Suggested to leave"
-    waiting: '可以上场',   // "Can join court"
-    confirmed: '已确认',   // "Confirmed"
-  }[variant];
-  
+  // Determine status-based styling and behavior
+  const getStatusInfo = () => {
+    switch (player.status) {
+      case 'ACTIVE':
+        return {
+          cardStyle: styles.cardActive,
+          buttonStyle: styles.actionButtonRest,
+          buttonText: '歇一下', // "Take rest"
+          statusText: '活跃中', // "Active"
+          statusEmoji: '🎾',
+          canRequestStatus: true
+        };
+      case 'RESTING':
+        return {
+          cardStyle: styles.cardResting,
+          buttonStyle: styles.actionButtonDisabled,
+          buttonText: '休息中', // "Resting"
+          statusText: player.restExpiresAt
+            ? `休息至 ${new Date(player.restExpiresAt).toLocaleTimeString()}`
+            : '休息中', // "Resting until..."
+          statusEmoji: '😴',
+          canRequestStatus: false
+        };
+      case 'LEFT':
+        return {
+          cardStyle: styles.cardLeft,
+          buttonStyle: styles.actionButtonDisabled,
+          buttonText: '已离开', // "Left"
+          statusText: '已离开会话', // "Left session"
+          statusEmoji: '👋',
+          canRequestStatus: false
+        };
+      default:
+        // Fallback for old status types
+        return {
+          cardStyle: styles.cardConfirmed,
+          buttonStyle: styles.actionButtonConfirmed,
+          buttonText: '更新',
+          statusText: '状态未知',
+          statusEmoji: '❓',
+          canRequestStatus: false
+        };
+    }
+  };
+
+  const statusInfo = getStatusInfo();
+
+  const handleStatusRequest = (action: 'rest' | 'leave') => {
+    Alert.alert(
+      `${action === 'rest' ? '请求休息' : '请求离开'}`,
+      `确定要${action === 'rest' ? '请求15分钟休息' : '请求离开会话'}吗？需要管理员批准。`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '确认',
+          onPress: () => {
+            if (onActionPress) {
+              onActionPress({ ...player, requestedAction: action });
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleActionPress = () => {
     if (!disabled && onActionPress) {
-      onActionPress(player);
+      if (player.status === 'ACTIVE' && showActionButton) {
+        // Show status request options for active players
+        Alert.alert(
+          '选择操作',
+          '您想要做什么？',
+          [
+            { text: '取消', style: 'cancel' },
+            {
+              text: '歇一下 (15分钟)',
+              onPress: () => handleStatusRequest('rest')
+            },
+            {
+              text: '离开会话',
+              onPress: () => handleStatusRequest('leave')
+            }
+          ]
+        );
+      } else {
+        onActionPress(player);
+      }
     }
   };
   
   return (
-    <Card 
-      containerStyle={[
+    <View
+      style={[
         styles.card,
-        cardVariantStyle,
+        statusInfo.cardStyle,
         disabled && styles.cardDisabled,
       ]}
     >
       <View style={styles.content}>
         <View style={styles.leftContent}>
           {/* Player name */}
-          <Text style={styles.playerName}>{player.name}</Text>
-          
+          <Text style={styles.playerName}>
+            {statusInfo.statusEmoji} {player.name}
+          </Text>
+
           {/* Status information */}
           <View style={styles.statusContainer}>
             <Text style={styles.roleText}>
-              {player.isOrganizer ? '🏆 Organizer' : '👤 Player'}
+              {player.role === 'ORGANIZER' ? '🏆 Organizer' : '👤 Player'}
             </Text>
             <Text style={styles.gamesText}>
               已打局数: {player.gamesPlayed}
             </Text>
             <Text style={[
               styles.statusBadge,
-              variant === 'active' ? styles.statusBadgeActive : styles.statusBadgeWaiting
+              player.status === 'ACTIVE' ? styles.statusBadgeActive :
+              player.status === 'RESTING' ? styles.statusBadgeResting :
+              player.status === 'LEFT' ? styles.statusBadgeLeft :
+              styles.statusBadgeWaiting
             ]}>
-              {statusText}
+              {statusInfo.statusText}
             </Text>
           </View>
+
+          {/* Show pending request indicator */}
+          {player.statusRequestedAt && (
+            <Text style={styles.pendingRequestText}>
+              ⏳ 等待管理员批准
+            </Text>
+          )}
         </View>
-        
+
         {/* Action button */}
-        {showActionButton && (
+        {showActionButton && statusInfo.canRequestStatus && (
           <TouchableOpacity
             style={[
               styles.actionButton,
-              buttonVariantStyle,
+              statusInfo.buttonStyle,
               disabled && styles.actionButtonDisabled,
             ]}
             onPress={handleActionPress}
@@ -86,12 +155,12 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
             activeOpacity={0.7}
           >
             <Text style={styles.actionButtonText}>
-              {buttonText}
+              {statusInfo.buttonText}
             </Text>
           </TouchableOpacity>
         )}
       </View>
-    </Card>
+    </View>
   );
 };
 

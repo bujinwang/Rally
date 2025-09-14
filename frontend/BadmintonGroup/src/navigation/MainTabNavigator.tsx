@@ -15,6 +15,7 @@ import PlayerProfileScreen from '../screens/PlayerProfileScreen';
 import LiveGameScreen from '../screens/LiveGameScreen';
 import SessionHistoryScreen from '../screens/SessionHistoryScreen';
 import RotationScreen from '../screens/rotation/RotationScreen';
+import SessionDiscoveryScreen from '../screens/SessionDiscoveryScreen';
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
@@ -65,6 +66,11 @@ function HomeStackNavigator() {
         name="RotationQueue"
         component={RotationScreen}
         options={{ title: 'Fair Play Queue' }}
+      />
+      <HomeStack.Screen
+        name="SessionDiscovery"
+        component={SessionDiscoveryScreen}
+        options={{ title: 'Discover Sessions' }}
       />
     </HomeStack.Navigator>
   );

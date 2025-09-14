@@ -1,5 +1,10 @@
 {
   "dependencies": {
     "react-native-url-polyfill": "^2.0.0"
+  },
+  "scripts": {
+    "bmad:refresh": "bmad-method install -f -i codex",
+    "bmad:list": "bmad-method list:agents",
+    "bmad:validate": "bmad-method validate"
   }
 }

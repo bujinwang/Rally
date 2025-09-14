@@ -13102,3 +13102,6 @@ backend/dist/utils/deviceFingerprint.d.ts
 backend/dist/utils/deviceFingerprint.d.ts.map
 backend/dist/utils/deviceFingerprint.js
 backend/dist/utils/deviceFingerprint.js.map
+# BMAD (local only)
+.bmad-core/
+.bmad-*/

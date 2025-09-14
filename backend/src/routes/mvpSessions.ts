@@ -4,6 +4,7 @@ import { body, param, validationResult } from 'express-validator';
 import { generateOptimalRotation, getRotationExplanation } from '../utils/rotationAlgorithm';
 import { updatePlayerGameStatistics, updatePlayerMatchStatistics, getPlayerStatistics, getSessionStatistics, getSessionLeaderboard } from '../utils/statisticsService';
 import { io } from '../server';
+import { requireOrganizer, requireOrganizerOrSelf } from '../middleware/permissions';
 
 const router = Router();
 
@@ -156,7 +157,29 @@ router.get('/:shareCode', async (req, res) => {
       ownerDeviceId: session.ownerDeviceId,
       status: session.status,
       playerCount: session.players?.length || 0,
-      players: session.players || [],
+      players: session.players.map(player => ({
+        id: player.id,
+        name: player.name,
+        deviceId: player.deviceId,
+        status: player.status,
+        joinedAt: player.joinedAt,
+        gamesPlayed: player.gamesPlayed,
+        wins: player.wins,
+        losses: player.losses,
+        matchesPlayed: player.matchesPlayed,
+        matchWins: player.matchWins,
+        matchLosses: player.matchLosses,
+        totalSetsWon: player.totalSetsWon,
+        totalSetsLost: player.totalSetsLost,
+        totalPlayTime: player.totalPlayTime,
+        winRate: player.winRate,
+        matchWinRate: player.matchWinRate,
+        averageGameDuration: player.averageGameDuration,
+        restGamesRemaining: player.restGamesRemaining,
+        restRequestedAt: player.restRequestedAt,
+        restRequestedBy: player.restRequestedBy,
+        partnershipStats: player.partnershipStats
+      })) || [],
       games: session.games || [],
       matches: session.matches || [],
       createdAt: session.createdAt,
@@ -188,11 +211,10 @@ router.get('/:shareCode', async (req, res) => {
 // Validation middleware
 const createSessionValidation = [
   body('name').optional().isLength({ min: 1, max: 200 }).withMessage('Session name must be valid if provided'),
-  body('scheduledAt').isISO8601().withMessage('Valid date/time required'),
+  body('dateTime').isISO8601().withMessage('Valid date/time required'),
   body('location').optional().isLength({ max: 255 }),
-  body('maxPlayers').optional().isInt({ min: 2, max: 50 }).withMessage('Max players must be between 2 and 50'),
-  body('ownerName').isLength({ min: 1, max: 100 }).withMessage('Owner name is required'),
-  body('ownerDeviceId').optional().isLength({ max: 255 })
+  body('maxPlayers').optional().isInt({ min: 2, max: 20 }).withMessage('Max players must be between 2 and 20'),
+  body('organizerName').isLength({ min: 2, max: 30 }).withMessage('Organizer name is required')
 ];
 
 const joinSessionValidation = [
@@ -238,11 +260,10 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
     const session = await prisma.mvpSession.create({
       data: {
         name: sessionData.name,
-        scheduledAt: new Date(sessionData.scheduledAt),
+        scheduledAt: new Date(sessionData.dateTime),
         location: sessionData.location,
         maxPlayers: sessionData.maxPlayers || 20, // Use the value from frontend, default to 20
-        ownerName: sessionData.ownerName,
-        ownerDeviceId: sessionData.ownerDeviceId,
+        ownerName: sessionData.organizerName,
         shareCode,
         status: 'ACTIVE'
       }
@@ -268,6 +289,42 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
       }
     });
 
+    // Emit real-time discovery update for session creation
+    try {
+      const { io } = await import('../server');
+      if (io && (session as any).latitude && (session as any).longitude && (session as any).visibility === 'PUBLIC') {
+        // Broadcast to all discovery rooms (simplified for MVP)
+        io.emit('discovery:session-created', {
+          session: {
+            id: session.id,
+            name: session.name,
+            shareCode: session.shareCode,
+            scheduledAt: session.scheduledAt,
+            location: session.location,
+            maxPlayers: session.maxPlayers,
+            skillLevel: session.skillLevel,
+            cost: session.cost,
+            description: session.description,
+            ownerName: session.ownerName,
+            status: session.status,
+            playerCount: sessionWithPlayers?.players.length || 1,
+            players: sessionWithPlayers?.players.map(player => ({
+              id: player.id,
+              name: player.name,
+              status: player.status,
+              joinedAt: player.joinedAt
+            })) || [],
+            createdAt: session.createdAt
+          },
+          timestamp: new Date().toISOString()
+        });
+        console.log(`📡 Discovery: Session ${session.shareCode} created and broadcasted`);
+      }
+    } catch (socketError) {
+      console.error('Failed to emit discovery session creation:', socketError);
+      // Don't fail the request if socket emission fails
+    }
+
     res.status(201).json({
       success: true,
       data: {
@@ -279,7 +336,7 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
           location: session.location,
           maxPlayers: session.maxPlayers,
           status: session.status,
-          ownerName: session.ownerName,
+          organizerName: session.ownerName,
           playerCount: sessionWithPlayers?.players.length || 1,
           players: sessionWithPlayers?.players.map(player => ({
             id: player.id,
@@ -290,9 +347,9 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
             losses: player.losses,
             joinedAt: player.joinedAt
           })) || [],
-          shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/session/${session.shareCode}`,
           createdAt: session.createdAt
-        }
+        },
+        shareLink: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/join/${session.shareCode}`
       },
       message: 'Session created successfully',
       timestamp: new Date().toISOString()
@@ -555,7 +612,7 @@ router.post('/join/:shareCode', joinSessionValidation, async (req: Request, res:
 });
 
 // Update player status
-router.put('/players/:playerId/status', async (req, res) => {
+router.put('/players/:playerId/status', requireOrganizerOrSelf('update_player_status'), async (req, res) => {
   try {
     const { playerId } = req.params;
     const { status } = req.body;
@@ -667,7 +724,7 @@ router.get('/my-sessions/:deviceId', async (req, res) => {
 });
 
 // Update session settings (owner only)
-router.put('/:shareCode', async (req, res) => {
+router.put('/:shareCode', requireOrganizer('edit_session'), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { ownerDeviceId, courtCount, maxPlayers, location, description, skillLevel, cost } = req.body;
@@ -887,7 +944,7 @@ router.put('/:shareCode', async (req, res) => {
 });
 
 // Terminate session (owner only)
-router.put('/terminate/:shareCode', async (req, res) => {
+router.put('/terminate/:shareCode', requireOrganizer('delete_session'), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { ownerDeviceId } = req.body;
@@ -924,6 +981,37 @@ router.put('/terminate/:shareCode', async (req, res) => {
       data: { status: 'CANCELLED' }
     });
 
+    // Emit real-time discovery update for session termination
+    try {
+      const { io } = await import('../server');
+      if (io && (session as any).visibility === 'PUBLIC') {
+        // Broadcast session termination to all discovery rooms
+        io.emit('discovery:session-terminated', {
+          session: {
+            id: updatedSession.id,
+            shareCode: updatedSession.shareCode,
+            status: updatedSession.status
+          },
+          timestamp: new Date().toISOString()
+        });
+        console.log(`📡 Discovery: Session ${shareCode} terminated and broadcasted`);
+      }
+
+      // Also emit to session room for connected players
+      io.to(`session-${shareCode}`).emit('mvp-session-terminated', {
+        session: {
+          id: updatedSession.id,
+          shareCode: updatedSession.shareCode,
+          status: updatedSession.status
+        },
+        timestamp: new Date().toISOString()
+      });
+      console.log(`📡 Session: Session ${shareCode} terminated and notified players`);
+    } catch (socketError) {
+      console.error('Failed to emit session termination:', socketError);
+      // Don't fail the request if socket emission fails
+    }
+
     res.json({
       success: true,
       data: {
@@ -950,7 +1038,7 @@ router.put('/terminate/:shareCode', async (req, res) => {
 });
 
 // Reactivate session (owner only) - only if not past due and currently terminated
-router.put('/reactivate/:shareCode', async (req, res) => {
+router.put('/reactivate/:shareCode', requireOrganizer('edit_session'), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { ownerDeviceId } = req.body;
@@ -1012,6 +1100,37 @@ router.put('/reactivate/:shareCode', async (req, res) => {
       where: { shareCode },
       data: { status: 'ACTIVE' }
     });
+
+    // Emit real-time discovery update for session reactivation
+    try {
+      const { io } = await import('../server');
+      if (io && (session as any).visibility === 'PUBLIC') {
+        // Broadcast session reactivation to all discovery rooms
+        io.emit('discovery:session-reactivated', {
+          session: {
+            id: updatedSession.id,
+            name: updatedSession.name,
+            shareCode: updatedSession.shareCode,
+            scheduledAt: updatedSession.scheduledAt,
+            location: updatedSession.location,
+            maxPlayers: updatedSession.maxPlayers,
+            skillLevel: updatedSession.skillLevel,
+            cost: updatedSession.cost,
+            description: updatedSession.description,
+            ownerName: updatedSession.ownerName,
+            status: updatedSession.status,
+            playerCount: 0, // Will be updated when players join
+            players: [],
+            createdAt: updatedSession.createdAt
+          },
+          timestamp: new Date().toISOString()
+        });
+        console.log(`📡 Discovery: Session ${shareCode} reactivated and broadcasted`);
+      }
+    } catch (socketError) {
+      console.error('Failed to emit session reactivation:', socketError);
+      // Don't fail the request if socket emission fails
+    }
 
     res.json({
       success: true,
@@ -1129,7 +1248,7 @@ router.delete('/:shareCode/players/:playerId', async (req, res) => {
 });
 
 // Add player to session (owner only)
-router.post('/:shareCode/add-player', async (req, res) => {
+router.post('/:shareCode/add-player', requireOrganizer('add_players'), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { playerName, deviceId: ownerDeviceId } = req.body;
@@ -2402,7 +2521,7 @@ router.put('/:shareCode/players/:playerId/status', async (req, res) => {
 });
 
 // Remove player from session (organizer only)
-router.delete('/:shareCode/players/:playerId', async (req, res) => {
+router.delete('/:shareCode/players/:playerId', requireOrganizer('remove_players'), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
     const { organizerDeviceId, reason } = req.body;
@@ -2617,7 +2736,7 @@ router.get('/:shareCode/players/me/:deviceId', async (req, res) => {
 });
 
 // Update player status (self-dropout or organizer management)
-router.put('/:shareCode/players/:playerId/status', async (req, res) => {
+router.put('/:shareCode/players/:playerId/status', requireOrganizerOrSelf('update_player_status'), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
     const { status, deviceId, ownerDeviceId } = req.body;
@@ -2991,7 +3110,7 @@ router.post('/:shareCode/games', async (req, res) => {
 });
 
 // Update session court settings
-router.put('/:shareCode/courts', async (req, res) => {
+router.put('/:shareCode/courts', requireOrganizer('edit_session'), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { courtCount, ownerDeviceId } = req.body;
@@ -3078,6 +3197,35 @@ router.put('/:shareCode/courts', async (req, res) => {
           },
           timestamp: new Date().toISOString()
         });
+
+        // Also emit discovery update if session is public
+        if ((updatedSession as any).visibility === 'PUBLIC') {
+          io.emit('discovery:session-updated', {
+            session: {
+              id: updatedSession.id,
+              name: updatedSession.name,
+              shareCode: updatedSession.shareCode,
+              scheduledAt: updatedSession.scheduledAt,
+              location: updatedSession.location,
+              maxPlayers: updatedSession.maxPlayers,
+              skillLevel: updatedSession.skillLevel,
+              cost: updatedSession.cost,
+              description: updatedSession.description,
+              ownerName: updatedSession.ownerName,
+              status: updatedSession.status,
+              playerCount: updatedSession.players.length,
+              players: updatedSession.players.map(player => ({
+                id: player.id,
+                name: player.name,
+                status: player.status,
+                joinedAt: player.joinedAt
+              })),
+              createdAt: updatedSession.createdAt
+            },
+            timestamp: new Date().toISOString()
+          });
+        }
+
         console.log(`📡 Socket.IO: Court count updated to ${updatedSession.courtCount} for session ${shareCode}`);
       }
     } catch (socketError) {
@@ -3116,7 +3264,7 @@ router.put('/:shareCode/courts', async (req, res) => {
 // Rest Management Routes
 
 // Set player rest status (self or owner-managed)
-router.put('/:shareCode/players/:playerId/rest', async (req, res) => {
+router.put('/:shareCode/players/:playerId/rest', requireOrganizerOrSelf('update_player_status'), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
     const { gamesCount = 1, requestedBy, deviceId, ownerDeviceId } = req.body;

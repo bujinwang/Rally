@@ -24,6 +24,7 @@ export interface MvpSession {
 export interface MvpPlayer {
   id: string;
   name: string;
+  role: 'ORGANIZER' | 'PLAYER';
   status: 'ACTIVE' | 'RESTING' | 'LEFT';
   gamesPlayed: number;
   wins: number;

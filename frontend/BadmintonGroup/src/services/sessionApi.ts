@@ -3,14 +3,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface CreateSessionRequest {
   name?: string;
-  scheduledAt: string; // ISO string
+  dateTime: string; // ISO string
   location?: string;
   maxPlayers?: number;
-  skillLevel?: string;
-  cost?: number;
-  description?: string;
-  ownerName: string;
-  ownerDeviceId: string;
+  organizerName: string;
 }
 
 export interface SessionData {
@@ -69,7 +65,7 @@ export interface ApiResponse<T> {
   timestamp: string;
 }
 
-export interface SessionResponse extends ApiResponse<{ session: SessionData }> {}
+export interface SessionResponse extends ApiResponse<{ session: SessionData; shareLink: string }> {}
 export interface SessionsListResponse extends ApiResponse<{ sessions: SessionData[] }> {}
 export interface JoinSessionResponse extends ApiResponse<{ player: SessionPlayer; session: SessionData }> {}
 
@@ -112,13 +108,10 @@ class SessionApiService {
   }
 
   // Create a new session
-  async createSession(sessionRequest: Omit<CreateSessionRequest, 'ownerDeviceId'>): Promise<SessionResponse> {
+  async createSession(sessionRequest: CreateSessionRequest): Promise<SessionResponse> {
     try {
-      const deviceId = await this.getDeviceId();
-      
-      const requestData: CreateSessionRequest = {
+      const requestData = {
         ...sessionRequest,
-        ownerDeviceId: deviceId,
         maxPlayers: sessionRequest.maxPlayers || 20,
       };
 
@@ -305,38 +298,34 @@ class SessionApiService {
   validateSessionData(data: Partial<CreateSessionRequest>): string[] {
     const errors: string[] = [];
 
-    if (!data.ownerName?.trim()) {
+    if (!data.organizerName?.trim()) {
       errors.push('Your name is required');
     }
 
-    if (!data.scheduledAt) {
+    if (!data.dateTime) {
       errors.push('Session date and time is required');
     } else {
-      const scheduledDate = new Date(data.scheduledAt);
+      const scheduledDate = new Date(data.dateTime);
       const now = new Date();
       if (scheduledDate <= now) {
         errors.push('Session must be scheduled for a future date and time');
       }
     }
 
-    if (data.maxPlayers && (data.maxPlayers < 2 || data.maxPlayers > 50)) {
-      errors.push('Maximum players must be between 2 and 50');
+    if (data.maxPlayers && (data.maxPlayers < 2 || data.maxPlayers > 20)) {
+      errors.push('Maximum players must be between 2 and 20');
     }
 
-    if (data.cost && data.cost < 0) {
-      errors.push('Cost cannot be negative');
-    }
-
-    if (data.ownerName && data.ownerName.length > 100) {
-      errors.push('Name cannot exceed 100 characters');
+    if (data.organizerName && data.organizerName.length > 30) {
+      errors.push('Name cannot exceed 30 characters');
     }
 
     if (data.location && data.location.length > 200) {
       errors.push('Location cannot exceed 200 characters');
     }
 
-    if (data.description && data.description.length > 500) {
-      errors.push('Description cannot exceed 500 characters');
+    if (data.name && data.name.length > 200) {
+      errors.push('Session name cannot exceed 200 characters');
     }
 
     return errors;

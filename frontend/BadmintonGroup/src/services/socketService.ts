@@ -7,13 +7,70 @@ export interface SocketEvents {
   'session:player-joined': (player: any) => void;
   'session:player-left': (player: any) => void;
   'session:status-changed': (status: string) => void;
-  
+
+  // Discovery events
+  'discovery:sessions': (data: { sessions: any[]; location: any; radius: number; timestamp: string }) => void;
+  'discovery:session-created': (data: { session: any; timestamp: string }) => void;
+  'discovery:session-updated': (data: { session: any; timestamp: string }) => void;
+  'discovery:session-deleted': (data: { sessionId: string; shareCode: string; timestamp: string }) => void;
+
+  // Status management events
+  'status_request': (data: {
+    requestId: string;
+    playerId: string;
+    playerName: string;
+    action: 'rest' | 'leave';
+    reason?: string;
+    requestedAt: string;
+    requestedBy: 'self' | 'organizer';
+  }) => void;
+
+  'status_approved': (data: {
+    playerId: string;
+    playerName: string;
+    newStatus: 'ACTIVE' | 'RESTING' | 'LEFT';
+    action: 'rest' | 'leave';
+    approvedAt: string;
+    expiresAt?: string;
+    reason?: string;
+  }) => void;
+
+  'status_denied': (data: {
+    playerId: string;
+    playerName: string;
+    action: 'rest' | 'leave';
+    deniedAt: string;
+    reason?: string;
+  }) => void;
+
+  'status_expired': (data: {
+    playerId: string;
+    playerName: string;
+    newStatus: 'ACTIVE';
+    expiredAt: string;
+  }) => void;
+
+  // Pairing events
+  'pairings_updated': (data: {
+    sessionId: string;
+    pairings: any[];
+    fairnessScore: number;
+    generatedAt: string;
+  }) => void;
+
+  'pairing_adjusted': (data: {
+    sessionId: string;
+    pairingId: string;
+    changes: any[];
+    adjustedAt: string;
+  }) => void;
+
   // Game events
   'game:started': (gameData: any) => void;
   'game:updated': (gameData: any) => void;
   'game:completed': (gameData: any) => void;
   'game:score-updated': (scoreData: any) => void;
-  
+
   // Connection events
   'connect': () => void;
   'disconnect': () => void;
@@ -132,6 +189,59 @@ class SocketService {
       console.log('👋 Player left:', data);
       this.emitToListeners('session:player-left', data);
     });
+
+    // Status management event handlers
+    this.socket.on('status_request', (data) => {
+      console.log('📝 Status change request:', data);
+      this.emitToListeners('status_request', data);
+    });
+
+    this.socket.on('status_approved', (data) => {
+      console.log('✅ Status change approved:', data);
+      this.emitToListeners('status_approved', data);
+    });
+
+    this.socket.on('status_denied', (data) => {
+      console.log('❌ Status change denied:', data);
+      this.emitToListeners('status_denied', data);
+    });
+
+    this.socket.on('status_expired', (data) => {
+      console.log('⏰ Rest period expired:', data);
+      this.emitToListeners('status_expired', data);
+    });
+
+    // Pairing event handlers
+    this.socket.on('pairings_updated', (data) => {
+      console.log('🎯 Pairings updated:', data);
+      this.emitToListeners('pairings_updated', data);
+    });
+
+    this.socket.on('pairing_adjusted', (data) => {
+      console.log('🔧 Pairing adjusted:', data);
+      this.emitToListeners('pairing_adjusted', data);
+    });
+
+    // Discovery event handlers
+    this.socket.on('discovery:sessions', (data) => {
+      console.log('📍 Discovery sessions received:', data);
+      this.emitToListeners('discovery:sessions', data);
+    });
+
+    this.socket.on('discovery:session-created', (data) => {
+      console.log('🆕 Session created:', data);
+      this.emitToListeners('discovery:session-created', data);
+    });
+
+    this.socket.on('discovery:session-updated', (data) => {
+      console.log('🔄 Session updated:', data);
+      this.emitToListeners('discovery:session-updated', data);
+    });
+
+    this.socket.on('discovery:session-deleted', (data) => {
+      console.log('🗑️ Session deleted:', data);
+      this.emitToListeners('discovery:session-deleted', data);
+    });
   }
 
   // Emit event to registered listeners
@@ -211,8 +321,51 @@ class SocketService {
     if (!this.isEnabled) return 'disabled';
     if (!this.socket) return 'disconnected';
     if (this.socket.connected) return 'connected';
-    if (this.socket.connecting) return 'connecting';
+    // Socket.IO doesn't have a direct 'connecting' state, so we infer it
     return 'disconnected';
+  }
+
+  // Join discovery location room for real-time updates
+  joinDiscovery(latitude: number, longitude: number, radius: number = 10): void {
+    if (!this.socket?.connected) {
+      console.warn('Socket not connected, skipping discovery join');
+      return;
+    }
+
+    try {
+      console.log(`📍 Joining discovery room: ${latitude}, ${longitude}, ${radius}km`);
+      this.socket.emit('join-discovery', { latitude, longitude, radius });
+    } catch (error) {
+      console.warn('Failed to join discovery room:', error);
+    }
+  }
+
+  // Leave discovery room
+  leaveDiscovery(latitude: number, longitude: number, radius: number = 10): void {
+    if (!this.socket?.connected) {
+      console.warn('Socket not connected, skipping discovery leave');
+      return;
+    }
+
+    try {
+      console.log(`📤 Leaving discovery room: ${latitude}, ${longitude}, ${radius}km`);
+      this.socket.emit('leave-discovery', { latitude, longitude, radius });
+    } catch (error) {
+      console.warn('Failed to leave discovery room:', error);
+    }
+  }
+
+  // Emit session events for real-time discovery updates
+  emitSessionCreated(sessionId: string, shareCode: string): void {
+    this.emit('session:created', { sessionId, shareCode });
+  }
+
+  emitSessionUpdated(sessionId: string, shareCode: string): void {
+    this.emit('session:updated', { sessionId, shareCode });
+  }
+
+  emitSessionDeleted(sessionId: string, shareCode: string): void {
+    this.emit('session:deleted', { sessionId, shareCode });
   }
 
   // Emit event to server

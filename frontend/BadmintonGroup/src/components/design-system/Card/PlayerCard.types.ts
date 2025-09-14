@@ -2,9 +2,14 @@ export interface Player {
   id: string;
   name: string;
   gamesPlayed: number;
-  status: 'confirmed' | 'pending' | 'active' | 'waiting';
+  status: 'ACTIVE' | 'RESTING' | 'LEFT' | 'confirmed' | 'pending' | 'active' | 'waiting';
+  role?: 'ORGANIZER' | 'PLAYER';
   isOrganizer?: boolean;
   joinedAt?: Date;
+  restExpiresAt?: string;
+  statusRequestedAt?: string;
+  deviceId?: string;
+  requestedAction?: 'rest' | 'leave';
 }
 
 export interface PlayerCardProps {

@@ -72,8 +72,8 @@ console.log('✅ API routes configured at /api/v1');
 
 // Web session routes (for direct HTML access)
 console.log('🌐 Setting up web session routes...');
-app.use('/session', webSessionRoutes);
-console.log('✅ Web session routes configured at /session');
+app.use('/join', webSessionRoutes);
+console.log('✅ Web session routes configured at /join');
 
 // Health check for route verification
 app.get('/api/v1/health', (req, res) => {

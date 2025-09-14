@@ -3,6 +3,16 @@ import { prisma } from '../config/database';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { createSessionSchema, updateSessionSchema, validate } from '../utils/validation';
 
+// Generate short share code
+function generateShareCode(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
 interface AuthRequest extends Request {
   user?: {
     id: string;
@@ -108,24 +118,44 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
-// Create new session
-router.post('/', authenticateToken, requireRole(['OWNER']), validate(createSessionSchema), async (req: AuthRequest, res) => {
+// Create new session (no authentication required)
+router.post('/', validate(createSessionSchema), async (req: Request, res) => {
   try {
-    const userId = req.user?.id;
     const sessionData = req.body;
+    let shareCode = generateShareCode();
+
+    // Ensure unique share code
+    while (await prisma.session.findUnique({ where: { shareCode } })) {
+      shareCode = generateShareCode();
+    }
 
     const session = await prisma.session.create({
       data: {
-        ...sessionData,
-        ownerId: userId
-      },
+        name: sessionData.name,
+        scheduledAt: new Date(sessionData.dateTime),
+        location: sessionData.location,
+        maxPlayers: sessionData.maxPlayers || 20,
+        organizerName: sessionData.organizerName,
+        shareCode,
+        status: 'ACTIVE'
+      }
+    });
+
+    // Auto-join the organizer as first player
+    await prisma.sessionPlayer.create({
+      data: {
+        sessionId: session.id,
+        name: sessionData.organizerName,
+        status: 'ACTIVE'
+      }
+    });
+
+    // Fetch the session with players to return complete data
+    const sessionWithPlayers = await prisma.session.findUnique({
+      where: { id: session.id },
       include: {
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
+        sessionPlayers: {
+          orderBy: { joinedAt: 'asc' }
         }
       }
     });
@@ -139,13 +169,18 @@ router.post('/', authenticateToken, requireRole(['OWNER']), validate(createSessi
           scheduledAt: session.scheduledAt,
           location: session.location,
           maxPlayers: session.maxPlayers,
-          skillLevel: session.skillLevel,
-          cost: session.cost,
-          description: session.description,
+          organizerName: session.organizerName,
           status: session.status,
-          owner: session.owner,
+          playerCount: sessionWithPlayers?.sessionPlayers.length || 1,
+          players: sessionWithPlayers?.sessionPlayers.map(player => ({
+            id: player.id,
+            name: player.name,
+            status: player.status,
+            joinedAt: player.joinedAt
+          })) || [],
           createdAt: session.createdAt
-        }
+        },
+        shareLink: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/join/${shareCode}`
       },
       message: 'Session created successfully',
       timestamp: new Date().toISOString()

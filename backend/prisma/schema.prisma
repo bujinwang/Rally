@@ -24,6 +24,15 @@ model MvpSession {
   description String?
   courtCount  Int      @default(1) // Number of available courts
 
+  // Discovery Fields
+  latitude      Float?    // GPS latitude for location-based discovery
+  longitude     Float?    // GPS longitude for location-based discovery
+  courtType     String?   // indoor, outdoor, mixed
+  visibility    String    @default("public") // public, private
+  maxDuration   Int?      // Maximum session duration in minutes
+  isRecurring   Boolean   @default(false) // Whether session repeats
+  recurrencePattern String? // Recurrence pattern (daily, weekly, etc.)
+
   // Owner info stored directly (no user account required)
   ownerName   String
   ownerDeviceId String? // For session management
@@ -42,8 +51,87 @@ model MvpSession {
   players MvpPlayer[]
   games   MvpGame[]
   matches MvpMatch[]
+  configuration MvpSessionConfiguration?
+
+  // Performance indexes for discovery and filtering
+  @@index([scheduledAt])
+  @@index([latitude, longitude])
+  @@index([status])
+  @@index([visibility])
+  @@index([skillLevel])
+  @@index([courtType])
+  @@index([scheduledAt, latitude, longitude]) // Composite index for location-time queries
+  @@index([status, visibility, scheduledAt]) // Composite index for active public sessions
 
   @@map("mvp_sessions")
+}
+
+// Advanced Session Configuration
+model MvpSessionConfiguration {
+  id        String @id @default(cuid())
+  sessionId String @unique
+  session   MvpSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Court Configuration
+  courtSurface    String?   // wood, synthetic, carpet, grass
+  courtLighting   String?   // natural, artificial, mixed
+  courtFacilities Json?     // showers, parking, equipment rental
+
+  // Scoring and Game Rules
+  scoringSystem   String    @default("21_POINT") // 21_POINT, 15_POINT, 11_POINT
+  bestOfGames     Int       @default(3)          // Best of 3, 5, etc.
+  gameTimeLimit   Int?      // Time limit per game in minutes
+  setTimeLimit    Int?      // Time limit per set in minutes
+  restPeriod      Int       @default(1)          // Rest between games in minutes
+
+  // Equipment Requirements
+  racketRequired  Boolean   @default(false)
+  shuttlecockType String?   // feather, plastic, mixed
+  equipmentRental Boolean   @default(false)
+
+  // Player Restrictions
+  minAge          Int?
+  maxAge          Int?
+  skillLevelMin   String?   // beginner, intermediate, advanced
+  skillLevelMax   String?   // beginner, intermediate, advanced
+  genderPreference String?  // male, female, mixed
+  maxSkillGap     Int?      // Maximum skill level difference allowed
+
+  // Advanced Scheduling
+  setupTime       Int       @default(15)         // Setup time before session in minutes
+  bufferTime      Int       @default(15)         // Buffer time after session in minutes
+  recurrenceEndDate DateTime?
+
+  // Cost Structure
+  baseCost        Float?
+  costPerPlayer   Float?
+  costPerCourt    Float?
+  paymentMethods  Json?     // accepted payment methods
+  discounts       Json?     // discount rules and conditions
+
+  // Notification Settings
+  reminderTiming  Json?     // when to send reminders (hours before)
+  updateFrequency String    @default("REAL_TIME") // real_time, hourly, daily
+  notifyOnJoin    Boolean   @default(true)
+  notifyOnLeave   Boolean   @default(true)
+  notifyOnStatus  Boolean   @default(true)
+
+  // Privacy and Access Control
+  requireApproval Boolean   @default(false)      // Manual approval for join requests
+  inviteOnly      Boolean   @default(false)      // Invitation required to join
+  maxWaitlist     Int?      // Maximum waitlist size
+  accessCode      String?   // Code required to join private sessions
+
+  // Custom Rules
+  customRules     Json?     // Custom game rules and modifications
+  substitutions   String    @default("ALLOWED")  // ALLOWED, LIMITED, NOT_ALLOWED
+  coachingAllowed Boolean   @default(true)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("mvp_session_configurations")
 }
 
 model MvpPlayer {
@@ -54,6 +142,7 @@ model MvpPlayer {
   // Player info
   name       String
   deviceId   String? // For player identification
+  role       MvpPlayerRole @default(PLAYER) // Role in the session
 
   // Player stats
   joinedAt     DateTime @default(now())
@@ -61,32 +150,49 @@ model MvpPlayer {
   gamesPlayed  Int      @default(0)
   wins         Int      @default(0)
   losses       Int      @default(0)
-  
+
   // Match Statistics
   matchesPlayed Int @default(0)
-  matchWins     Int @default(0) 
+  matchWins     Int @default(0)
   matchLosses   Int @default(0)
-  
+
   // Detailed Statistics
   totalSetsWon    Int @default(0)
   totalSetsLost   Int @default(0)
   totalPlayTime   Int @default(0)  // Total play time in minutes
-  
+
   // Partnership Statistics (JSON field for flexible tracking)
   partnershipStats Json?  // Track performance with different partners
-  
+
   // Performance Metrics
   winRate       Float @default(0.0)    // Overall win percentage
   matchWinRate  Float @default(0.0)    // Match win percentage
   averageGameDuration Float @default(0.0)  // Average game duration in minutes
-  
+
   // Rest Management
   restGamesRemaining Int @default(0)     // Games remaining in rest period
   restRequestedAt    DateTime?           // When rest was requested
   restRequestedBy    String?             // Who requested rest ("self" or owner name)
+  restExpiresAt      DateTime?           // When rest period automatically expires
+
+  // Status Change Tracking
+  statusRequestedAt  DateTime?           // When status change was requested
+  statusRequestedBy  String?             // Who requested the status change
+  statusApprovedAt   DateTime?           // When status change was approved
+  statusApprovedBy   String?             // Who approved the status change
+  statusChangeReason String?             // Reason for status change request
+
+  // Status History (JSON for flexible tracking)
+  statusHistory      Json?               // Track status changes over time
 
   @@unique([sessionId, name]) // Prevent duplicate names in same session
   @@unique([sessionId, deviceId]) // Prevent same device joining same session twice
+
+  // Performance indexes
+  @@index([sessionId])
+  @@index([status])
+  @@index([sessionId, status]) // Composite index for active players in session
+
   @@map("mvp_players")
 }
 
@@ -129,6 +235,11 @@ model MvpMatch {
   
   // Relations
   games MvpGame[]
+
+  // Performance indexes
+  @@index([sessionId])
+  @@index([status])
+  @@index([sessionId, status]) // Composite index for active matches in session
 
   @@map("mvp_matches")
 }
@@ -174,6 +285,12 @@ model MvpGame {
   // Relations
   sets MvpGameSet[]
 
+  // Performance indexes
+  @@index([sessionId])
+  @@index([status])
+  @@index([matchId])
+  @@index([sessionId, status]) // Composite index for active games in session
+
   @@map("mvp_games")
 }
 
@@ -208,6 +325,11 @@ enum MvpPlayerStatus {
   ACTIVE
   RESTING
   LEFT
+}
+
+enum MvpPlayerRole {
+  ORGANIZER
+  PLAYER
 }
 
 enum MvpGameStatus {
@@ -311,4 +433,348 @@ enum PlayerStatus {
   ACTIVE
   RESTING
   LEFT
+}
+
+// Tournament Models
+model Tournament {
+  id          String @id @default(cuid())
+  name        String // Tournament name
+  description String?
+
+  // Tournament Details
+  tournamentType TournamentType @default(SINGLE_ELIMINATION) // single_elimination, round_robin, swiss
+  sportType     String          @default("BADMINTON")       // badminton, tennis, etc.
+  maxPlayers    Int             @default(32)                // Maximum participants
+  minPlayers    Int             @default(4)                 // Minimum participants to start
+
+  // Scheduling
+  startDate     DateTime
+  endDate       DateTime?
+  registrationDeadline DateTime
+
+  // Location (can be different from individual matches)
+  venueName     String?
+  venueAddress  String?
+  latitude      Float?
+  longitude     Float?
+
+  // Tournament Rules
+  matchFormat   String          @default("SINGLES")         // singles, doubles, mixed
+  scoringSystem String          @default("21_POINT")        // 21_POINT, 15_POINT, 11_POINT
+  bestOfGames   Int             @default(3)                 // Best of 3, 5, etc.
+  gameTimeLimit Int?                                          // Time limit per game in minutes
+
+  // Entry and Cost
+  entryFee      Float           @default(0.0)
+  prizePool     Float           @default(0.0)
+  currency      String          @default("USD")
+
+  // Tournament Status
+  status        TournamentStatus @default(REGISTRATION_OPEN)
+
+  // Organizer
+  organizerName   String
+  organizerEmail  String?
+  organizerPhone  String?
+
+  // Discovery and Visibility
+  visibility      String          @default("PUBLIC")         // PUBLIC, PRIVATE, INVITATION_ONLY
+  accessCode      String?                                   // For private tournaments
+  skillLevelMin   String?                                   // beginner, intermediate, advanced
+  skillLevelMax   String?                                   // beginner, intermediate, advanced
+  ageRestriction  Json?                                     // min/max age restrictions
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  players     TournamentPlayer[]
+  rounds      TournamentRound[]
+  matches     TournamentMatch[]
+  results     TournamentResult?
+
+  // Performance indexes
+  @@index([startDate])
+  @@index([status])
+  @@index([tournamentType])
+  @@index([visibility])
+  @@index([latitude, longitude])
+  @@index([startDate, status]) // Composite for active tournaments
+
+  @@map("tournaments")
+}
+
+model TournamentPlayer {
+  id           String @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  // Player Information
+  playerName   String
+  email        String?
+  phone        String?
+  deviceId     String? // For MVP integration
+
+  // Registration Details
+  registeredAt DateTime @default(now())
+  seed         Int?     // Tournament seeding (1, 2, 3, etc.)
+  status       TournamentPlayerStatus @default(REGISTERED)
+
+  // Player Stats (for seeding and bracket generation)
+  skillLevel   String?
+  winRate      Float   @default(0.0)
+  totalMatches Int     @default(0)
+
+  // Tournament Progress
+  currentRound Int     @default(0)
+  isEliminated Boolean @default(false)
+  finalRank    Int?
+
+  // Relations
+  matches      TournamentMatch[] @relation("PlayerMatches")
+
+  @@unique([tournamentId, playerName])
+  @@unique([tournamentId, deviceId])
+
+  // Performance indexes
+  @@index([tournamentId])
+  @@index([status])
+  @@index([tournamentId, status])
+
+  @@map("tournament_players")
+}
+
+model TournamentRound {
+  id           String @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  // Round Information
+  roundNumber  Int
+  roundName    String // "Round of 32", "Quarter Finals", "Semi Finals", "Finals"
+  roundType    TournamentRoundType @default(ELIMINATION) // elimination, round_robin, swiss
+
+  // Round Configuration
+  matchesRequired Int // Number of matches needed to complete this round
+  playersAdvancing Int? // Number of players advancing to next round
+
+  // Timing
+  startDate    DateTime?
+  endDate      DateTime?
+
+  // Status
+  status       TournamentRoundStatus @default(PENDING)
+
+  // Relations
+  matches      TournamentMatch[]
+
+  @@unique([tournamentId, roundNumber])
+
+  // Performance indexes
+  @@index([tournamentId])
+  @@index([status])
+  @@index([tournamentId, roundNumber])
+
+  @@map("tournament_rounds")
+}
+
+model TournamentMatch {
+  id           String @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  roundId      String?
+  round        TournamentRound? @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  // Match Participants
+  player1Id    String
+  player1      TournamentPlayer @relation("PlayerMatches", fields: [player1Id], references: [id])
+  player2Id    String
+  player2      TournamentPlayer @relation("PlayerMatches", fields: [player2Id], references: [id])
+
+  // Match Details
+  matchNumber  Int     // Sequential match number in tournament
+  courtName    String? // Court assignment
+  scheduledAt  DateTime?
+
+  // Match Format (inherited from tournament but can be overridden)
+  bestOfGames  Int     @default(3)
+  scoringSystem String @default("21_POINT")
+
+  // Match Results
+  player1GamesWon Int @default(0)
+  player2GamesWon Int @default(0)
+  winnerId       String?
+
+  // Detailed Scores (JSON for flexibility)
+  gameScores     Json? // [{player1Score: 21, player2Score: 19}, ...]
+
+  // Timing
+  startTime     DateTime?
+  endTime       DateTime?
+  duration      Int? // Duration in minutes
+
+  // Status
+  status        TournamentMatchStatus @default(SCHEDULED)
+
+  // Relations
+  games         TournamentGame[]
+
+  // Performance indexes
+  @@index([tournamentId])
+  @@index([roundId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([tournamentId, status])
+
+  @@map("tournament_matches")
+}
+
+model TournamentGame {
+  id           String @id @default(cuid())
+  matchId      String
+  match        TournamentMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  // Game Details
+  gameNumber   Int // Game number within match (1, 2, 3, etc.)
+  courtName    String?
+
+  // Game Results
+  player1Score Int @default(0)
+  player2Score Int @default(0)
+  winnerId     String?
+
+  // Timing
+  startTime    DateTime?
+  endTime      DateTime?
+  duration     Int?
+
+  // Status
+  status       TournamentGameStatus @default(NOT_STARTED)
+
+  // Relations
+  sets         TournamentGameSet[]
+
+  @@unique([matchId, gameNumber])
+
+  // Performance indexes
+  @@index([matchId])
+  @@index([status])
+
+  @@map("tournament_games")
+}
+
+model TournamentGameSet {
+  id        String @id @default(cuid())
+  gameId    String
+  game      TournamentGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  // Set Details
+  setNumber    Int
+  player1Score Int @default(0)
+  player2Score Int @default(0)
+  winnerId     String?
+
+  // Status
+  isCompleted  Boolean @default(false)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([gameId, setNumber])
+
+  @@map("tournament_game_sets")
+}
+
+model TournamentResult {
+  id           String @id @default(cuid())
+  tournamentId String @unique
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  // Final Results
+  winnerId     String?
+  winnerName   String?
+  runnerUpId   String?
+  runnerUpName String?
+
+  // Tournament Statistics
+  totalMatches     Int @default(0)
+  totalGames       Int @default(0)
+  totalSets        Int @default(0)
+  averageMatchTime Float @default(0.0) // Average match duration in minutes
+
+  // Player Statistics
+  playerStats      Json? // Detailed statistics for all players
+
+  // Completion Details
+  completedAt      DateTime?
+  totalDuration    Int? // Total tournament duration in minutes
+
+  // Prize Distribution
+  prizeDistribution Json? // How prizes were distributed
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tournament_results")
+}
+
+// Tournament Enums
+enum TournamentType {
+  SINGLE_ELIMINATION
+  DOUBLE_ELIMINATION
+  ROUND_ROBIN
+  SWISS
+  MIXED // Combination of formats
+}
+
+enum TournamentStatus {
+  DRAFT              // Tournament being planned
+  REGISTRATION_OPEN  // Accepting registrations
+  REGISTRATION_CLOSED // Registration closed, preparing brackets
+  IN_PROGRESS        // Tournament underway
+  COMPLETED          // Tournament finished
+  CANCELLED          // Tournament cancelled
+}
+
+enum TournamentPlayerStatus {
+  REGISTERED     // Successfully registered
+  CONFIRMED      // Registration confirmed
+  WITHDRAWN      // Withdrew from tournament
+  DISQUALIFIED   // Disqualified
+  ADVANCED       // Advanced to next round
+  ELIMINATED     // Eliminated from tournament
+}
+
+enum TournamentRoundType {
+  ELIMINATION    // Single/double elimination
+  ROUND_ROBIN    // All play all
+  SWISS          // Swiss system
+  QUALIFICATION  // Qualification round
+}
+
+enum TournamentRoundStatus {
+  PENDING        // Round not started
+  IN_PROGRESS    // Round underway
+  COMPLETED      // Round finished
+  CANCELLED      // Round cancelled
+}
+
+enum TournamentMatchStatus {
+  SCHEDULED      // Match scheduled but not started
+  IN_PROGRESS    // Match currently playing
+  COMPLETED      // Match finished
+  CANCELLED      // Match cancelled
+  WALKOVER       // One player didn't show up
+}
+
+enum TournamentGameStatus {
+  NOT_STARTED    // Game not started
+  IN_PROGRESS    // Game currently playing
+  COMPLETED      // Game finished
+  PAUSED         // Game paused
+  CANCELLED      // Game cancelled
 }

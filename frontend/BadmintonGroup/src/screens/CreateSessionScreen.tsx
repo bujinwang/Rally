@@ -23,10 +23,7 @@ interface SessionFormData {
   scheduledAt: Date;
   location: string;
   maxPlayers: number;
-  skillLevel: string;
-  cost: string; // Keep as string for input, convert to number
-  description: string;
-  ownerName: string;
+  organizerName: string;
 }
 
 export default function CreateSessionScreen() {
@@ -46,10 +43,7 @@ export default function CreateSessionScreen() {
     scheduledAt: defaultDate,
     location: '',
     maxPlayers: 20,
-    skillLevel: 'Mixed',
-    cost: '',
-    description: '',
-    ownerName: ''
+    organizerName: ''
   });
 
   useEffect(() => {
@@ -64,7 +58,7 @@ export default function CreateSessionScreen() {
       // Try to get the last used name from storage (we'll add this feature)
       const lastUsedName = ''; // Placeholder for now
       if (lastUsedName) {
-        setFormData(prev => ({ ...prev, ownerName: lastUsedName }));
+        setFormData(prev => ({ ...prev, organizerName: lastUsedName }));
       }
     } catch (error) {
       console.error('Error loading stored data:', error);
@@ -85,23 +79,29 @@ export default function CreateSessionScreen() {
 
   const validateForm = (): string[] => {
     const validationErrors: string[] = [];
-    
-    if (!formData.ownerName.trim()) {
+
+    if (!formData.organizerName.trim()) {
       validationErrors.push('Your name is required');
+    } else if (formData.organizerName.trim().length < 2 || formData.organizerName.trim().length > 30) {
+      validationErrors.push('Your name must be between 2 and 30 characters');
     }
-    
+
+    if (!formData.location.trim()) {
+      validationErrors.push('Location is required');
+    }
+
+    if (formData.name.trim() && (formData.name.trim().length < 3 || formData.name.trim().length > 50)) {
+      validationErrors.push('Session name must be between 3 and 50 characters');
+    }
+
     if (formData.scheduledAt <= new Date()) {
       validationErrors.push('Session must be scheduled for a future time');
     }
-    
-    if (formData.maxPlayers < 2 || formData.maxPlayers > 50) {
-      validationErrors.push('Maximum players must be between 2 and 50');
+
+    if (formData.maxPlayers < 2 || formData.maxPlayers > 20) {
+      validationErrors.push('Maximum players must be between 2 and 20');
     }
-    
-    if (formData.cost && parseFloat(formData.cost) < 0) {
-      validationErrors.push('Cost cannot be negative');
-    }
-    
+
     return validationErrors;
   };
 
@@ -130,22 +130,26 @@ export default function CreateSessionScreen() {
         sessionName = `${location} - ${date} ${time}`;
       }
 
-      const requestData: Omit<CreateSessionRequest, 'ownerDeviceId'> = {
+      const requestData: CreateSessionRequest = {
         name: sessionName,
-        scheduledAt: formData.scheduledAt.toISOString(),
-        location: formData.location.trim() || undefined,
+        dateTime: formData.scheduledAt.toISOString(),
+        location: formData.location.trim(),
         maxPlayers: formData.maxPlayers,
-        skillLevel: formData.skillLevel || undefined,
-        cost: formData.cost ? parseFloat(formData.cost) : undefined,
-        description: formData.description.trim() || undefined,
-        ownerName: formData.ownerName.trim()
+        organizerName: formData.organizerName.trim()
       };
 
       const result = await sessionApi.createSession(requestData);
 
       if (result.success) {
         console.log('Session created:', result.data.session);
-        setCreatedSession(result.data.session);
+        // Extract shareCode from shareLink if available, otherwise use session.shareCode
+        const shareCode = result.data.shareLink
+          ? result.data.shareLink.split('/').pop() || result.data.session.shareCode
+          : result.data.session.shareCode;
+        setCreatedSession({
+          ...result.data.session,
+          shareCode
+        });
         setShowShareModal(true);
       } else {
         Alert.alert('Error', 'Failed to create session');
@@ -207,10 +211,10 @@ export default function CreateSessionScreen() {
           <Text style={styles.label}>Your Name *</Text>
           <TextInput
             style={styles.input}
-            value={formData.ownerName}
-            onChangeText={(value) => handleInputChange('ownerName', value)}
-            placeholder="Enter your name"
-            maxLength={100}
+            value={formData.organizerName}
+            onChangeText={(value) => handleInputChange('organizerName', value)}
+            placeholder="Enter your name (2-30 characters)"
+            maxLength={30}
           />
 
           <Text style={styles.label}>Date & Time *</Text>
@@ -232,13 +236,13 @@ export default function CreateSessionScreen() {
             />
           )}
 
-          <Text style={styles.label}>Location</Text>
+          <Text style={styles.label}>Location *</Text>
           <TextInput
             style={styles.input}
             value={formData.location}
             onChangeText={(value) => handleInputChange('location', value)}
             placeholder="e.g., Olympic Park Badminton Court"
-            maxLength={200}
+            maxLength={255}
           />
 
           <Text style={styles.label}>Session Name (optional)</Text>
@@ -246,66 +250,20 @@ export default function CreateSessionScreen() {
             style={styles.input}
             value={formData.name}
             onChangeText={(value) => handleInputChange('name', value)}
-            placeholder="Auto-generated if left empty"
-            maxLength={100}
+            placeholder="Auto-generated if left empty (3-50 characters if provided)"
+            maxLength={50}
           />
 
-          <View style={styles.row}>
-            <View style={styles.halfWidth}>
-              <Text style={styles.label}>Max Players</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.maxPlayers.toString()}
-                onChangeText={(value) => handleInputChange('maxPlayers', parseInt(value) || 20)}
-                placeholder="20"
-                keyboardType="number-pad"
-                maxLength={2}
-              />
-            </View>
-
-            <View style={styles.halfWidth}>
-              <Text style={styles.label}>Cost (optional)</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.cost}
-                onChangeText={(value) => handleInputChange('cost', value)}
-                placeholder="0.00"
-                keyboardType="decimal-pad"
-              />
-            </View>
-          </View>
-
-          <Text style={styles.label}>Skill Level</Text>
-          <View style={styles.skillLevelContainer}>
-            {['Beginner', 'Intermediate', 'Advanced', 'Mixed'].map((level) => (
-              <TouchableOpacity
-                key={level}
-                style={[
-                  styles.skillLevelButton,
-                  formData.skillLevel === level && styles.skillLevelButtonActive
-                ]}
-                onPress={() => handleInputChange('skillLevel', level)}
-              >
-                <Text style={[
-                  styles.skillLevelText,
-                  formData.skillLevel === level && styles.skillLevelTextActive
-                ]}>
-                  {level}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={styles.label}>Description (optional)</Text>
+          <Text style={styles.label}>Max Players *</Text>
           <TextInput
-            style={[styles.input, styles.textArea]}
-            value={formData.description}
-            onChangeText={(value) => handleInputChange('description', value)}
-            placeholder="Add any additional details..."
-            multiline
-            numberOfLines={3}
-            maxLength={500}
+            style={styles.input}
+            value={formData.maxPlayers.toString()}
+            onChangeText={(value) => handleInputChange('maxPlayers', parseInt(value) || 20)}
+            placeholder="2-20"
+            keyboardType="number-pad"
+            maxLength={2}
           />
+
 
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
@@ -411,37 +369,6 @@ const styles = StyleSheet.create({
   },
   halfWidth: {
     width: '48%',
-  },
-  skillLevelContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 16,
-  },
-  skillLevelButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
-    marginBottom: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    backgroundColor: '#fff',
-  },
-  skillLevelButtonActive: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
-  },
-  skillLevelText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  skillLevelTextActive: {
-    color: 'white',
-    fontWeight: '600',
-  },
-  textArea: {
-    height: 80,
-    textAlignVertical: 'top',
   },
   button: {
     flexDirection: 'row',

@@ -19,13 +19,11 @@ export const refreshTokenSchema = Joi.object({
 });
 
 export const createSessionSchema = Joi.object({
-  name: Joi.string().min(3).max(200).required(),
-  scheduledAt: Joi.date().iso().required(),
+  name: Joi.string().min(3).max(200).optional(),
+  dateTime: Joi.date().iso().required(),
   location: Joi.string().optional(),
-  maxPlayers: Joi.number().integer().min(1).max(50).default(20),
-  skillLevel: Joi.string().optional(),
-  cost: Joi.number().min(0).optional(),
-  description: Joi.string().optional()
+  maxPlayers: Joi.number().integer().min(2).max(20).default(20),
+  organizerName: Joi.string().min(2).max(30).required()
 });
 
 export const updateSessionSchema = Joi.object({
@@ -35,6 +33,19 @@ export const updateSessionSchema = Joi.object({
   skillLevel: Joi.string().optional(),
   cost: Joi.number().min(0).optional(),
   description: Joi.string().optional()
+});
+
+export const validatePairingRequest = Joi.object({
+  algorithm: Joi.string().valid('fair', 'random', 'skill_based').default('fair')
+});
+
+export const validateManualPairing = Joi.object({
+  players: Joi.array().items(
+    Joi.object({
+      id: Joi.string().required(),
+      name: Joi.string().required()
+    })
+  ).min(1).max(2).required()
 });
 
 export const validate = (schema: Joi.Schema) => {

@@ -20,18 +20,23 @@ import { useSelector } from 'react-redux';
 import { selectRealTimeStatus } from '../store/slices/realTimeSlice';
 import { DEVICE_ID_KEY } from '../config/api';
 import { sessionApi } from '../services/sessionApi';
+import { StatusManager } from '../components/StatusManager';
 
 const API_BASE_URL = 'http://localhost:3001/api/v1';
 
 interface Player {
   id: string;
   name: string;
-  deviceId: string; // Add this field
-  status: string;
+  deviceId: string;
+  status: 'ACTIVE' | 'RESTING' | 'LEFT' | 'confirmed' | 'pending' | 'active' | 'waiting';
   gamesPlayed: number;
   wins: number;
   losses: number;
-  joinedAt: string;
+  joinedAt?: Date;
+  role?: 'ORGANIZER' | 'PLAYER';
+  restExpiresAt?: string;
+  statusRequestedAt?: string;
+  requestedAction?: 'rest' | 'leave';
 }
 
 interface Game {
@@ -1043,7 +1048,7 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
                     </Text>
                     <View style={styles.playerMetaRow}>
                       <Text style={styles.playerMeta}>
-                        {new Date(player.joinedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                        {player.joinedAt ? new Date(player.joinedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'Unknown'}
                       </Text>
                       <View style={styles.playerStatsCompact}>
                         <Text style={styles.statCompact}>🏸{player.gamesPlayed}</Text>
@@ -1069,6 +1074,21 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
           </View>
         )}
       </View>
+
+      {/* Status Manager for organizers */}
+      <StatusManager
+        shareCode={shareCode}
+        currentUserId={deviceId}
+        currentUserRole={isOwner ? 'ORGANIZER' : 'PLAYER'}
+        players={sessionData.players || []}
+        onPlayerStatusChanged={(playerId, newStatus, additionalData) => {
+          console.log('Player status changed:', { playerId, newStatus, additionalData });
+          // Refresh session data to get updated player statuses
+          if (shareCode) {
+            fetchSessionData(shareCode, deviceId);
+          }
+        }}
+      />
 
       <View style={styles.infoCard}>
         <Text style={styles.infoTitle}>💡 How to play</Text>

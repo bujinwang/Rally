@@ -18,19 +18,32 @@ export const playerCardStyles = StyleSheet.create({
     elevation: 1,
   },
   
-  // Variant-specific card styles (matching visual design)
+  // Status-specific card styles
   cardActive: {
     backgroundColor: colors.activeBackground, // #DCFCE7 light green
     borderLeftWidth: 4,
     borderLeftColor: colors.success,
   },
-  
+
+  cardResting: {
+    backgroundColor: '#FEF3C7', // Light yellow/orange for resting
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B', // Orange
+  },
+
+  cardLeft: {
+    backgroundColor: '#FEE2E2', // Light red for left
+    borderLeftWidth: 4,
+    borderLeftColor: '#EF4444', // Red
+  },
+
+  // Legacy variant styles (for backward compatibility)
   cardWaiting: {
     backgroundColor: colors.waitingBackground, // #FEF3C7 light orange
     borderLeftWidth: 4,
     borderLeftColor: colors.warning,
   },
-  
+
   cardConfirmed: {
     backgroundColor: colors.surface, // #F8FAFC neutral light
     borderLeftWidth: 4,
@@ -90,10 +103,27 @@ export const playerCardStyles = StyleSheet.create({
     backgroundColor: colors.success,
     color: '#FFFFFF',
   },
-  
+
+  statusBadgeResting: {
+    backgroundColor: '#F59E0B', // Orange
+    color: '#FFFFFF',
+  },
+
+  statusBadgeLeft: {
+    backgroundColor: '#EF4444', // Red
+    color: '#FFFFFF',
+  },
+
   statusBadgeWaiting: {
     backgroundColor: colors.warning,
-    color: '#FFFFFF', 
+    color: '#FFFFFF',
+  },
+
+  pendingRequestText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#F59E0B', // Orange
+    marginTop: 4,
   },
   
   // Action button styles
@@ -108,11 +138,15 @@ export const playerCardStyles = StyleSheet.create({
   actionButtonActive: {
     backgroundColor: colors.warning, // Orange for "下场" (leave)
   },
-  
+
+  actionButtonRest: {
+    backgroundColor: '#F59E0B', // Orange for rest requests
+  },
+
   actionButtonWaiting: {
     backgroundColor: colors.success, // Green for "上场" (join)
   },
-  
+
   actionButtonConfirmed: {
     backgroundColor: colors.primary, // Blue for general actions
   },
