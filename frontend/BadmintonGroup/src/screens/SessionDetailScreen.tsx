@@ -953,22 +953,34 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
           <TouchableOpacity style={styles.primaryActionButton} onPress={startLiveGames}>
             <Text style={styles.primaryActionText}>🏸 Start Games</Text>
           </TouchableOpacity>
-          
+
+          <TouchableOpacity
+            style={[styles.primaryActionButton, { backgroundColor: '#FF6B35' }]}
+            onPress={() => {
+              (navigation as any).navigate('MatchRecording', {
+                sessionId: sessionData.id,
+                shareCode: shareCode
+              });
+            }}
+          >
+            <Text style={styles.primaryActionText}>📊 Record Match</Text>
+          </TouchableOpacity>
+
           <View style={styles.secondaryActions}>
             <TouchableOpacity style={styles.iconButton} onPress={shareSession}>
               <Text style={styles.iconButtonText}>📤</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.iconButton}
               onPress={() => sessionData && copySessionToClipboard(sessionData, shareCode)}
             >
               <Text style={styles.iconButtonText}>📋</Text>
             </TouchableOpacity>
-            
+
             {isOwner && (
-              <TouchableOpacity 
-                style={styles.iconButton} 
+              <TouchableOpacity
+                style={styles.iconButton}
                 onPress={() => setShowCourtSettings(true)}
               >
                 <Text style={styles.iconButtonText}>⚙️</Text>

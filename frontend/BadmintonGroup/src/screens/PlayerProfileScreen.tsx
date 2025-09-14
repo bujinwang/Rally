@@ -192,6 +192,18 @@ export default function PlayerProfileScreen() {
     (navigation as any).navigate('SessionHistory');
   };
 
+  const navigateToStatistics = () => {
+    (navigation as any).navigate('StatisticsDashboard');
+  };
+
+  const navigateToRankings = () => {
+    (navigation as any).navigate('RankingScreen');
+  };
+
+  const navigateToAchievements = () => {
+    (navigation as any).navigate('Achievements');
+  };
+
   const getSkillLevelColor = (level: string) => {
     switch (level) {
       case 'Beginner': return '#4CAF50';
@@ -343,12 +355,36 @@ export default function PlayerProfileScreen() {
           </View>
         ))}
         
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.viewAllButton}
           onPress={navigateToSessionHistory}
         >
           <Text style={styles.viewAllText}>View Session History</Text>
           <Ionicons name="chevron-forward" size={16} color="#007AFF" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.viewAllButton}
+          onPress={navigateToStatistics}
+        >
+          <Text style={styles.viewAllText}>View Statistics</Text>
+          <Ionicons name="stats-chart" size={16} color="#007AFF" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.viewAllButton}
+          onPress={navigateToRankings}
+        >
+          <Text style={styles.viewAllText}>View Rankings</Text>
+          <Ionicons name="trophy" size={16} color="#007AFF" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.viewAllButton}
+          onPress={navigateToAchievements}
+        >
+          <Text style={styles.viewAllText}>View Achievements</Text>
+          <Ionicons name="medal" size={16} color="#007AFF" />
         </TouchableOpacity>
       </View>
 

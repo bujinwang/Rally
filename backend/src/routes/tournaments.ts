@@ -1,972 +1,456 @@
-/**
- * Tournament API Routes
- *
- * Comprehensive tournament management endpoints including:
- * - Tournament CRUD operations
- * - Player registration and management
- * - Bracket generation and management
- * - Live scoring and match updates
- * - Tournament discovery and statistics
- */
-
 import { Router, Request, Response } from 'express';
 import { body, param, query, validationResult } from 'express-validator';
-import { prisma } from '../config/database';
-import { cacheService } from '../services/cacheService';
-import { performanceService } from '../services/performanceService';
-
-// Temporary enum definitions until Prisma client is regenerated
-enum TournamentType {
-  SINGLE_ELIMINATION = 'SINGLE_ELIMINATION',
-  DOUBLE_ELIMINATION = 'DOUBLE_ELIMINATION',
-  ROUND_ROBIN = 'ROUND_ROBIN',
-  SWISS = 'SWISS',
-  MIXED = 'MIXED'
-}
-
-enum TournamentStatus {
-  DRAFT = 'DRAFT',
-  REGISTRATION_OPEN = 'REGISTRATION_OPEN',
-  REGISTRATION_CLOSED = 'REGISTRATION_CLOSED',
-  IN_PROGRESS = 'IN_PROGRESS',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED'
-}
-
-enum TournamentPlayerStatus {
-  REGISTERED = 'REGISTERED',
-  CONFIRMED = 'CONFIRMED',
-  WITHDRAWN = 'WITHDRAWN',
-  DISQUALIFIED = 'DISQUALIFIED',
-  ADVANCED = 'ADVANCED',
-  ELIMINATED = 'ELIMINATED'
-}
-
-enum TournamentMatchStatus {
-  SCHEDULED = 'SCHEDULED',
-  IN_PROGRESS = 'IN_PROGRESS',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
-  WALKOVER = 'WALKOVER'
-}
+import tournamentService from '../services/tournamentService';
 
 const router = Router();
 
-// Middleware to handle validation errors
-const handleValidationErrors = (req: Request, res: Response, next: any) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      success: false,
-      error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Invalid input data',
-        details: errors.array()
-      },
-      timestamp: new Date().toISOString()
-    });
-  }
-  next();
-};
-
-// Cache keys for tournaments
-const getTournamentCacheKey = (id: string) => `tournament:${id}`;
-const getTournamentsCacheKey = (filters: any) => `tournaments:${JSON.stringify(filters)}`;
-
-// ============================
-// TOURNAMENT CRUD OPERATIONS
-// ============================
-
 /**
- * GET /api/v1/tournaments
- * Get tournaments with filtering and pagination
+ * @route POST /api/tournaments
+ * @desc Create a new tournament
+ * @access Public
  */
-router.get('/', [
-  query('status').optional().isIn(['DRAFT', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
-  query('tournamentType').optional().isIn(['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION', 'ROUND_ROBIN', 'SWISS', 'MIXED']),
-  query('visibility').optional().isIn(['PUBLIC', 'PRIVATE', 'INVITATION_ONLY']),
-  query('latitude').optional().isFloat({ min: -90, max: 90 }),
-  query('longitude').optional().isFloat({ min: -180, max: 180 }),
-  query('radius').optional().isFloat({ min: 0.1, max: 100 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
-  query('offset').optional().isInt({ min: 0 }),
-  handleValidationErrors
-], async (req, res) => {
-  try {
-    const startTime = Date.now();
-    const {
-      status,
-      tournamentType,
-      visibility,
-      latitude,
-      longitude,
-      radius = 50, // Default 50km radius
-      limit = 20,
-      offset = 0
-    } = req.query;
-
-    // Check cache first
-    const cacheKey = getTournamentsCacheKey(req.query);
-    const cachedResult = await cacheService.get(cacheKey);
-
-    if (cachedResult) {
-      console.log('✅ Tournament list cache hit');
-      performanceService.recordCacheHit();
-      return res.json({
-        success: true,
-        data: cachedResult,
-        cached: true,
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Build where clause
-    const where: any = {};
-
-    if (status) where.status = status;
-    if (tournamentType) where.tournamentType = tournamentType;
-    if (visibility) where.visibility = visibility;
-
-    // Location-based filtering
-    if (latitude && longitude) {
-      // This would require a more complex query with PostGIS or manual distance calculation
-      // For now, we'll skip location filtering in the database query
-      // and filter in application code if needed
-    }
-
-    const tournaments = await (prisma as any).tournament.findMany({
-      where,
-      include: {
-        _count: {
-          select: {
-            players: true,
-            matches: true
-          }
-        }
-      },
-      orderBy: { startDate: 'asc' },
-      take: Number(limit),
-      skip: Number(offset)
-    });
-
-    // Calculate distance for location-based results
-    let filteredTournaments = tournaments;
-    if (latitude && longitude) {
-      filteredTournaments = tournaments.filter(tournament => {
-        if (!tournament.latitude || !tournament.longitude) return false;
-
-        // Haversine distance calculation
-        const R = 6371; // Earth's radius in km
-        const dLat = (tournament.latitude - Number(latitude)) * Math.PI / 180;
-        const dLon = (tournament.longitude - Number(longitude)) * Math.PI / 180;
-        const a =
-          Math.sin(dLat/2) * Math.sin(dLat/2) +
-          Math.cos(Number(latitude) * Math.PI / 180) * Math.cos(tournament.latitude * Math.PI / 180) *
-          Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        const distance = R * c;
-
-        return distance <= Number(radius);
-      });
-    }
-
-    const result = {
-      tournaments: filteredTournaments,
-      totalCount: filteredTournaments.length,
-      limit: Number(limit),
-      offset: Number(offset),
-      hasMore: filteredTournaments.length === Number(limit)
-    };
-
-    // Cache the result
-    await cacheService.set(cacheKey, result, 300); // 5 minutes
-
-    const duration = Date.now() - startTime;
-    performanceService.recordQueryTime(duration);
-
-    res.json({
-      success: true,
-      data: result,
-      cached: false,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('Error fetching tournaments:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to fetch tournaments'
-      },
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-/**
- * GET /api/v1/tournaments/:id
- * Get detailed tournament information
- */
-router.get('/:id', [
-  param('id').isString().notEmpty(),
-  handleValidationErrors
-], async (req, res) => {
-  try {
-    const { id } = req.params;
-    const cacheKey = getTournamentCacheKey(id);
-
-    // Check cache first
-    const cachedResult = await cacheService.get(cacheKey);
-    if (cachedResult) {
-      console.log('✅ Tournament detail cache hit');
-      performanceService.recordCacheHit();
-      return res.json({
-        success: true,
-        data: cachedResult,
-        cached: true,
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    const tournament = await (prisma as any).tournament.findUnique({
-      where: { id },
-      include: {
-        players: {
-          select: {
-            id: true,
-            playerName: true,
-            status: true,
-            seed: true,
-            currentRound: true,
-            isEliminated: true
-          }
-        },
-        rounds: {
-          orderBy: { roundNumber: 'asc' },
-          include: {
-            matches: {
-              include: {
-                player1: { select: { playerName: true } },
-                player2: { select: { playerName: true } }
-              }
-            }
-          }
-        },
-        matches: {
-          where: { status: { not: TournamentMatchStatus.CANCELLED } },
-          include: {
-            player1: { select: { playerName: true } },
-            player2: { select: { playerName: true } },
-            round: { select: { roundName: true } }
-          },
-          orderBy: { scheduledAt: 'asc' }
-        },
-        results: true,
-        _count: {
-          select: {
-            players: true,
-            matches: true,
-            rounds: true
-          }
-        }
-      }
-    });
-
-    if (!tournament) {
-      return res.status(404).json({
-        success: false,
-        error: {
-          code: 'TOURNAMENT_NOT_FOUND',
-          message: 'Tournament not found'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Cache the result
-    await cacheService.set(cacheKey, tournament, 600); // 10 minutes
-
-    res.json({
-      success: true,
-      data: { tournament },
-      cached: false,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('Error fetching tournament:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to fetch tournament'
-      },
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-/**
- * POST /api/v1/tournaments
- * Create a new tournament
- */
-router.post('/', [
-  body('name').isString().isLength({ min: 3, max: 100 }),
-  body('description').optional().isString().isLength({ max: 1000 }),
-  body('tournamentType').optional().isIn(['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION', 'ROUND_ROBIN', 'SWISS', 'MIXED']),
-  body('maxPlayers').optional().isInt({ min: 2, max: 128 }),
-  body('startDate').isISO8601(),
-  body('registrationDeadline').isISO8601(),
-  body('venueName').optional().isString().isLength({ max: 200 }),
-  body('latitude').optional().isFloat({ min: -90, max: 90 }),
-  body('longitude').optional().isFloat({ min: -180, max: 180 }),
-  body('entryFee').optional().isFloat({ min: 0 }),
-  body('organizerName').isString().isLength({ min: 2, max: 100 }),
-  body('organizerEmail').optional().isEmail(),
-  body('visibility').optional().isIn(['PUBLIC', 'PRIVATE', 'INVITATION_ONLY']),
-  handleValidationErrors
-], async (req, res) => {
-  try {
-    const tournamentData = {
-      ...req.body,
-      status: TournamentStatus.DRAFT,
-      tournamentType: req.body.tournamentType || TournamentType.SINGLE_ELIMINATION,
-      maxPlayers: req.body.maxPlayers || 32,
-      visibility: req.body.visibility || 'PUBLIC',
-      entryFee: req.body.entryFee || 0
-    };
-
-    const tournament = await (prisma as any).tournament.create({
-      data: tournamentData,
-      include: {
-        _count: {
-          select: { players: true }
-        }
-      }
-    });
-
-    // Invalidate tournaments cache
-    await cacheService.clear();
-
-    res.status(201).json({
-      success: true,
-      data: { tournament },
-      message: 'Tournament created successfully',
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('Error creating tournament:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to create tournament'
-      },
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-/**
- * PUT /api/v1/tournaments/:id
- * Update tournament details
- */
-router.put('/:id', [
-  param('id').isString().notEmpty(),
-  body('name').optional().isString().isLength({ min: 3, max: 100 }),
-  body('description').optional().isString().isLength({ max: 1000 }),
-  body('status').optional().isIn(['DRAFT', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
-  body('venueName').optional().isString().isLength({ max: 200 }),
-  body('latitude').optional().isFloat({ min: -90, max: 90 }),
-  body('longitude').optional().isFloat({ min: -180, max: 180 }),
-  handleValidationErrors
-], async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const tournament = await (prisma as any).tournament.update({
-      where: { id },
-      data: req.body,
-      include: {
-        _count: {
-          select: { players: true }
-        }
-      }
-    });
-
-    // Invalidate caches
-    await cacheService.delete(getTournamentCacheKey(id));
-    await cacheService.clear(); // Clear tournaments list cache
-
-    res.json({
-      success: true,
-      data: { tournament },
-      message: 'Tournament updated successfully',
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('Error updating tournament:', error);
-
-    if (error.code === 'P2025') {
-      return res.status(404).json({
-        success: false,
-        error: {
-          code: 'TOURNAMENT_NOT_FOUND',
-          message: 'Tournament not found'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to update tournament'
-      },
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-/**
- * DELETE /api/v1/tournaments/:id
- * Delete a tournament (only if no players registered)
- */
-router.delete('/:id', [
-  param('id').isString().notEmpty(),
-  handleValidationErrors
-], async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Check if tournament has registered players
-    const playerCount = await (prisma as any).tournamentPlayer.count({
-      where: { tournamentId: id }
-    });
-
-    if (playerCount > 0) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'TOURNAMENT_HAS_PLAYERS',
-          message: 'Cannot delete tournament with registered players'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    await (prisma as any).tournament.delete({
-      where: { id }
-    });
-
-    // Clear caches
-    await cacheService.delete(getTournamentCacheKey(id));
-    await cacheService.clear();
-
-    res.json({
-      success: true,
-      message: 'Tournament deleted successfully',
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('Error deleting tournament:', error);
-
-    if (error.code === 'P2025') {
-      return res.status(404).json({
-        success: false,
-        error: {
-          code: 'TOURNAMENT_NOT_FOUND',
-          message: 'Tournament not found'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to delete tournament'
-      },
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// ============================
-// PLAYER REGISTRATION
-// ============================
-
-/**
- * POST /api/v1/tournaments/:id/register
- * Register a player for a tournament
- */
-router.post('/:id/register', [
-  param('id').isString().notEmpty(),
-  body('playerName').isString().isLength({ min: 2, max: 100 }),
-  body('email').optional().isEmail(),
-  body('phone').optional().isString().isLength({ max: 20 }),
-  body('deviceId').optional().isString(),
-  body('skillLevel').optional().isIn(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']),
-  handleValidationErrors
-], async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { playerName, email, phone, deviceId, skillLevel } = req.body;
-
-    // Check if tournament exists and is accepting registrations
-    const tournament = await (prisma as any).tournament.findUnique({
-      where: { id },
-      include: { _count: { select: { players: true } } }
-    });
-
-    if (!tournament) {
-      return res.status(404).json({
-        success: false,
-        error: {
-          code: 'TOURNAMENT_NOT_FOUND',
-          message: 'Tournament not found'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    if (tournament.status !== TournamentStatus.REGISTRATION_OPEN) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'REGISTRATION_CLOSED',
-          message: 'Tournament registration is not open'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    if (tournament._count.players >= tournament.maxPlayers) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'TOURNAMENT_FULL',
-          message: 'Tournament is full'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Check for duplicate registration
-    if (deviceId) {
-      const existingPlayer = await (prisma as any).tournamentPlayer.findUnique({
-        where: {
-          tournamentId_deviceId: {
-            tournamentId: id,
-            deviceId
-          }
-        }
-      });
-
-      if (existingPlayer) {
-        return res.status(409).json({
+router.post(
+  '/',
+  [
+    body('name').isString().isLength({ min: 1, max: 100 }),
+    body('description').optional().isString().isLength({ max: 500 }),
+    body('tournamentType').isIn(['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION', 'ROUND_ROBIN', 'SWISS', 'MIXED']),
+    body('maxPlayers').isInt({ min: 2, max: 128 }),
+    body('minPlayers').isInt({ min: 2 }),
+    body('startDate').isISO8601(),
+    body('endDate').optional().isISO8601(),
+    body('registrationDeadline').isISO8601(),
+    body('matchFormat').isIn(['SINGLES', 'DOUBLES', 'MIXED']),
+    body('scoringSystem').isIn(['21_POINT', '15_POINT', '11_POINT']),
+    body('bestOfGames').isInt({ min: 1, max: 5 }),
+    body('entryFee').isFloat({ min: 0 }),
+    body('prizePool').isFloat({ min: 0 }),
+    body('currency').isString().isLength({ min: 3, max: 3 }),
+    body('organizerName').isString().isLength({ min: 1, max: 100 }),
+    body('organizerEmail').optional().isEmail(),
+    body('organizerPhone').optional().isString(),
+    body('visibility').isIn(['PUBLIC', 'PRIVATE', 'INVITATION_ONLY']),
+    body('accessCode').optional().isString(),
+    body('skillLevelMin').optional().isString(),
+    body('skillLevelMax').optional().isString(),
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
           success: false,
-          error: {
-            code: 'ALREADY_REGISTERED',
-            message: 'Device already registered for this tournament'
-          },
-          timestamp: new Date().toISOString()
+          error: 'Validation failed',
+          details: errors.array(),
         });
       }
-    }
 
-    // Check for duplicate player name
-    const existingName = await (prisma as any).tournamentPlayer.findUnique({
-      where: {
-        tournamentId_playerName: {
-          tournamentId: id,
-          playerName
-        }
-      }
-    });
+      const tournament = await tournamentService.createTournament(req.body);
 
-    if (existingName) {
-      return res.status(409).json({
+      res.status(201).json({
+        success: true,
+        data: tournament,
+        message: 'Tournament created successfully',
+      });
+    } catch (error: any) {
+      console.error('Error creating tournament:', error);
+      res.status(500).json({
         success: false,
-        error: {
-          code: 'NAME_EXISTS',
-          message: 'Player name already exists in this tournament'
-        },
-        timestamp: new Date().toISOString()
+        error: error.message || 'Failed to create tournament',
       });
     }
-
-    // Register the player
-    const player = await (prisma as any).tournamentPlayer.create({
-      data: {
-        tournamentId: id,
-        playerName,
-        email,
-        phone,
-        deviceId,
-        skillLevel,
-        status: TournamentPlayerStatus.REGISTERED
-      }
-    });
-
-    // Invalidate tournament cache
-    await cacheService.delete(getTournamentCacheKey(id));
-
-    res.status(201).json({
-      success: true,
-      data: { player },
-      message: 'Player registered successfully',
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('Error registering player:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to register player'
-      },
-      timestamp: new Date().toISOString()
-    });
   }
-});
+);
 
 /**
- * GET /api/v1/tournaments/:id/players
- * Get tournament players
+ * @route GET /api/tournaments
+ * @desc Get tournaments with filtering
+ * @access Public
  */
-router.get('/:id/players', [
-  param('id').isString().notEmpty(),
-  handleValidationErrors
-], async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const players = await (prisma as any).tournamentPlayer.findMany({
-      where: { tournamentId: id },
-      orderBy: [
-        { seed: 'asc' },
-        { registeredAt: 'asc' }
-      ]
-    });
-
-    res.json({
-      success: true,
-      data: { players },
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('Error fetching tournament players:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to fetch tournament players'
-      },
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// ============================
-// BRACKET MANAGEMENT
-// ============================
-
-/**
- * POST /api/v1/tournaments/:id/bracket
- * Generate tournament bracket
- */
-router.post('/:id/bracket', [
-  param('id').isString().notEmpty(),
-  handleValidationErrors
-], async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Check tournament status
-    const tournament = await (prisma as any).tournament.findUnique({
-      where: { id },
-      include: {
-        players: {
-          where: { status: TournamentPlayerStatus.CONFIRMED },
-          orderBy: { seed: 'asc' }
-        }
+router.get(
+  '/',
+  [
+    query('status').optional().isIn(['DRAFT', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+    query('visibility').optional().isIn(['PUBLIC', 'PRIVATE', 'INVITATION_ONLY']),
+    query('tournamentType').optional().isIn(['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION', 'ROUND_ROBIN', 'SWISS', 'MIXED']),
+    query('skillLevel').optional().isString(),
+    query('latitude').optional().isFloat(),
+    query('longitude').optional().isFloat(),
+    query('radius').optional().isFloat({ min: 1, max: 500 }),
+    query('limit').optional().isInt({ min: 1, max: 100 }),
+    query('offset').optional().isInt({ min: 0 }),
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: errors.array(),
+        });
       }
-    });
 
-    if (!tournament) {
-      return res.status(404).json({
+      const filters = {
+        status: req.query.status as string,
+        visibility: req.query.visibility as string,
+        tournamentType: req.query.tournamentType as string,
+        skillLevel: req.query.skillLevel as string,
+        latitude: req.query.latitude ? parseFloat(req.query.latitude as string) : undefined,
+        longitude: req.query.longitude ? parseFloat(req.query.longitude as string) : undefined,
+        radius: req.query.radius ? parseFloat(req.query.radius as string) : undefined,
+        limit: req.query.limit ? parseInt(req.query.limit as string) : 20,
+        offset: req.query.offset ? parseInt(req.query.offset as string) : 0,
+      };
+
+      const result = await tournamentService.getTournaments(filters);
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      console.error('Error fetching tournaments:', error);
+      res.status(500).json({
         success: false,
-        error: {
-          code: 'TOURNAMENT_NOT_FOUND',
-          message: 'Tournament not found'
-        },
-        timestamp: new Date().toISOString()
+        error: error.message || 'Failed to fetch tournaments',
       });
     }
-
-    if (tournament.status !== TournamentStatus.REGISTRATION_CLOSED) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'INVALID_STATUS',
-          message: 'Tournament must be in REGISTRATION_CLOSED status to generate bracket'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    const playerCount = tournament.players.length;
-    if (playerCount < tournament.minPlayers) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'INSUFFICIENT_PLAYERS',
-          message: `Need at least ${tournament.minPlayers} players, currently have ${playerCount}`
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Bracket generation logic would go here
-    // For now, return a placeholder response
-    res.json({
-      success: true,
-      data: {
-        bracketGenerated: true,
-        rounds: [],
-        matches: []
-      },
-      message: 'Bracket generation initiated',
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('Error generating bracket:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to generate bracket'
-      },
-      timestamp: new Date().toISOString()
-    });
   }
-});
+);
 
 /**
- * GET /api/v1/tournaments/:id/bracket
- * Get tournament bracket
+ * @route GET /api/tournaments/:id
+ * @desc Get tournament by ID
+ * @access Public
  */
-router.get('/:id/bracket', [
-  param('id').isString().notEmpty(),
-  handleValidationErrors
-], async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const rounds = await (prisma as any).tournamentRound.findMany({
-      where: { tournamentId: id },
-      include: {
-        matches: {
-          include: {
-            player1: { select: { playerName: true, seed: true } },
-            player2: { select: { playerName: true, seed: true } }
-          },
-          orderBy: { matchNumber: 'asc' }
-        }
-      },
-      orderBy: { roundNumber: 'asc' }
-    });
-
-    res.json({
-      success: true,
-      data: { rounds },
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('Error fetching bracket:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to fetch bracket'
-      },
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// ============================
-// LIVE SCORING
-// ============================
-
-/**
- * PUT /api/v1/tournaments/matches/:matchId/score
- * Update match score
- */
-router.put('/matches/:matchId/score', [
-  param('matchId').isString().notEmpty(),
-  body('player1GamesWon').isInt({ min: 0 }),
-  body('player2GamesWon').isInt({ min: 0 }),
-  body('gameScores').optional().isArray(),
-  handleValidationErrors
-], async (req, res) => {
-  try {
-    const { matchId } = req.params;
-    const { player1GamesWon, player2GamesWon, gameScores } = req.body;
-
-    const match = await (prisma as any).tournamentMatch.update({
-      where: { id: matchId },
-      data: {
-        player1GamesWon,
-        player2GamesWon,
-        gameScores: gameScores ? JSON.stringify(gameScores) : undefined,
-        status: (player1GamesWon >= 2 || player2GamesWon >= 2) ?
-          TournamentMatchStatus.COMPLETED : TournamentMatchStatus.IN_PROGRESS
-      },
-      include: {
-        player1: { select: { playerName: true } },
-        player2: { select: { playerName: true } }
+router.get(
+  '/:id',
+  [param('id').isString().isLength({ min: 1 })],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: errors.array(),
+        });
       }
-    });
 
-    // Determine winner if match is complete
-    let winnerId = null;
-    if (match.status === TournamentMatchStatus.COMPLETED) {
-      winnerId = player1GamesWon > player2GamesWon ? match.player1Id : match.player2Id;
-      await (prisma as any).tournamentMatch.update({
-        where: { id: matchId },
-        data: { winnerId }
+      const tournament = await tournamentService.getTournamentById(req.params.id);
+
+      res.json({
+        success: true,
+        data: tournament,
       });
-    }
+    } catch (error: any) {
+      console.error('Error fetching tournament:', error);
 
-    // Invalidate tournament cache
-    const tournament = await (prisma as any).tournamentMatch.findUnique({
-      where: { id: matchId },
-      select: { tournamentId: true }
-    });
+      if (error.message === 'Tournament not found') {
+        return res.status(404).json({
+          success: false,
+          error: 'Tournament not found',
+        });
+      }
 
-    if (tournament) {
-      await cacheService.delete(getTournamentCacheKey(tournament.tournamentId));
-    }
-
-    res.json({
-      success: true,
-      data: { match: { ...match, winnerId } },
-      message: 'Match score updated successfully',
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('Error updating match score:', error);
-
-    if (error.code === 'P2025') {
-      return res.status(404).json({
+      res.status(500).json({
         success: false,
-        error: {
-          code: 'MATCH_NOT_FOUND',
-          message: 'Match not found'
-        },
-        timestamp: new Date().toISOString()
+        error: error.message || 'Failed to fetch tournament',
       });
     }
-
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to update match score'
-      },
-      timestamp: new Date().toISOString()
-    });
   }
-});
+);
 
 /**
- * GET /api/v1/tournaments/:id/live
- * Get live tournament status
+ * @route PUT /api/tournaments/:id
+ * @desc Update tournament
+ * @access Public (should be restricted to organizers)
  */
-router.get('/:id/live', [
-  param('id').isString().notEmpty(),
-  handleValidationErrors
-], async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const tournament = await (prisma as any).tournament.findUnique({
-      where: { id },
-      include: {
-        matches: {
-          where: {
-            status: {
-              in: [TournamentMatchStatus.IN_PROGRESS, TournamentMatchStatus.SCHEDULED]
-            }
-          },
-          include: {
-            player1: { select: { playerName: true } },
-            player2: { select: { playerName: true } },
-            round: { select: { roundName: true } }
-          },
-          orderBy: { scheduledAt: 'asc' }
-        },
-        _count: {
-          select: {
-            players: true
-          }
-        }
+router.put(
+  '/:id',
+  [
+    param('id').isString().isLength({ min: 1 }),
+    body('name').optional().isString().isLength({ min: 1, max: 100 }),
+    body('description').optional().isString().isLength({ max: 500 }),
+    body('startDate').optional().isISO8601(),
+    body('endDate').optional().isISO8601(),
+    body('registrationDeadline').optional().isISO8601(),
+    body('venueName').optional().isString(),
+    body('venueAddress').optional().isString(),
+    body('latitude').optional().isFloat({ min: -90, max: 90 }),
+    body('longitude').optional().isFloat({ min: -180, max: 180 }),
+    body('entryFee').optional().isFloat({ min: 0 }),
+    body('prizePool').optional().isFloat({ min: 0 }),
+    body('visibility').optional().isIn(['PUBLIC', 'PRIVATE', 'INVITATION_ONLY']),
+    body('accessCode').optional().isString(),
+    body('status').optional().isIn(['DRAFT', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: errors.array(),
+        });
       }
-    });
 
-    if (!tournament) {
-      return res.status(404).json({
+      const tournament = await tournamentService.updateTournament(req.params.id, req.body);
+
+      res.json({
+        success: true,
+        data: tournament,
+        message: 'Tournament updated successfully',
+      });
+    } catch (error: any) {
+      console.error('Error updating tournament:', error);
+
+      if (error.message === 'Tournament not found') {
+        return res.status(404).json({
+          success: false,
+          error: 'Tournament not found',
+        });
+      }
+
+      res.status(500).json({
         success: false,
-        error: {
-          code: 'TOURNAMENT_NOT_FOUND',
-          message: 'Tournament not found'
-        },
-        timestamp: new Date().toISOString()
+        error: error.message || 'Failed to update tournament',
       });
     }
-
-    const liveData = {
-      tournament: {
-        id: tournament.id,
-        name: tournament.name,
-        status: tournament.status,
-        currentRound: tournament.rounds?.length || 0
-      },
-      activeMatches: tournament.matches.filter(m => m.status === TournamentMatchStatus.IN_PROGRESS),
-      upcomingMatches: tournament.matches.filter(m => m.status === TournamentMatchStatus.SCHEDULED),
-      playerCount: tournament._count.players
-    };
-
-    res.json({
-      success: true,
-      data: liveData,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('Error fetching live tournament data:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to fetch live tournament data'
-      },
-      timestamp: new Date().toISOString()
-    });
   }
-});
+);
+
+/**
+ * @route DELETE /api/tournaments/:id
+ * @desc Delete tournament
+ * @access Public (should be restricted to organizers)
+ */
+router.delete(
+  '/:id',
+  [param('id').isString().isLength({ min: 1 })],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: errors.array(),
+        });
+      }
+
+      await tournamentService.deleteTournament(req.params.id);
+
+      res.json({
+        success: true,
+        message: 'Tournament deleted successfully',
+      });
+    } catch (error: any) {
+      console.error('Error deleting tournament:', error);
+
+      if (error.message === 'Tournament not found') {
+        return res.status(404).json({
+          success: false,
+          error: 'Tournament not found',
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to delete tournament',
+      });
+    }
+  }
+);
+
+/**
+ * @route POST /api/tournaments/:id/register
+ * @desc Register player for tournament
+ * @access Public
+ */
+router.post(
+  '/:id/register',
+  [
+    param('id').isString().isLength({ min: 1 }),
+    body('playerName').isString().isLength({ min: 1, max: 100 }),
+    body('email').optional().isEmail(),
+    body('phone').optional().isString(),
+    body('deviceId').optional().isString(),
+    body('skillLevel').optional().isString(),
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: errors.array(),
+        });
+      }
+
+      const registrationData = {
+        tournamentId: req.params.id,
+        ...req.body,
+      };
+
+      const player = await tournamentService.registerPlayer(registrationData);
+
+      res.status(201).json({
+        success: true,
+        data: player,
+        message: 'Player registered successfully',
+      });
+    } catch (error: any) {
+      console.error('Error registering player:', error);
+
+      if (error.message.includes('not found') || error.message.includes('not accepting') || error.message.includes('full') || error.message.includes('already registered')) {
+        return res.status(400).json({
+          success: false,
+          error: error.message,
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to register player',
+      });
+    }
+  }
+);
+
+/**
+ * @route DELETE /api/tournaments/:tournamentId/players/:playerId
+ * @desc Unregister player from tournament
+ * @access Public (should be restricted)
+ */
+router.delete(
+  '/:tournamentId/players/:playerId',
+  [
+    param('tournamentId').isString().isLength({ min: 1 }),
+    param('playerId').isString().isLength({ min: 1 }),
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: errors.array(),
+        });
+      }
+
+      await tournamentService.unregisterPlayer(req.params.tournamentId, req.params.playerId);
+
+      res.json({
+        success: true,
+        message: 'Player unregistered successfully',
+      });
+    } catch (error: any) {
+      console.error('Error unregistering player:', error);
+
+      if (error.message.includes('not found') || error.message.includes('cannot unregister')) {
+        return res.status(400).json({
+          success: false,
+          error: error.message,
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to unregister player',
+      });
+    }
+  }
+);
+
+/**
+ * @route POST /api/tournaments/:id/start
+ * @desc Start tournament and generate bracket
+ * @access Public (should be restricted to organizers)
+ */
+router.post(
+  '/:id/start',
+  [param('id').isString().isLength({ min: 1 })],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: errors.array(),
+        });
+      }
+
+      await tournamentService.startTournament(req.params.id);
+
+      res.json({
+        success: true,
+        message: 'Tournament started successfully',
+      });
+    } catch (error: any) {
+      console.error('Error starting tournament:', error);
+
+      if (error.message.includes('not found') || error.message.includes('must be') || error.message.includes('needs at least')) {
+        return res.status(400).json({
+          success: false,
+          error: error.message,
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to start tournament',
+      });
+    }
+  }
+);
+
+/**
+ * @route GET /api/tournaments/:id/stats
+ * @desc Get tournament statistics
+ * @access Public
+ */
+router.get(
+  '/:id/stats',
+  [param('id').isString().isLength({ min: 1 })],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: errors.array(),
+        });
+      }
+
+      const stats = await tournamentService.getTournamentStats(req.params.id);
+
+      res.json({
+        success: true,
+        data: stats,
+      });
+    } catch (error: any) {
+      console.error('Error fetching tournament stats:', error);
+
+      if (error.message === 'Tournament not found') {
+        return res.status(404).json({
+          success: false,
+          error: 'Tournament not found',
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch tournament statistics',
+      });
+    }
+  }
+);
 
 export default router;

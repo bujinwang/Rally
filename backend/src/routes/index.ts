@@ -12,6 +12,15 @@ import pairingRoutes from './pairings';
 import discoveryRoutes from './discovery';
 import sessionConfigRoutes from './sessionConfig';
 import tournamentRoutes from './tournaments';
+import matchesRoutes from './matches';
+import statisticsRoutes from './statistics';
+import rankingsRoutes from './rankings';
+import achievementsRoutes from './achievements';
+import analyticsRoutes from './analytics';
+import notificationsRoutes from './notifications';
+import friendsRoutes from './friends';
+import messagingRoutes from './messaging';
+import challengesRoutes from './challenges';
 
 const router = Router();
 
@@ -49,6 +58,24 @@ console.log('  - /session-history');
 router.use('/session-history', sessionHistoryRoutes);
 console.log('  - /search');
 router.use('/search', searchRoutes);
+console.log('  - /matches');
+router.use('/matches', matchesRoutes);
+console.log('  - /statistics');
+router.use('/statistics', statisticsRoutes);
+console.log('  - /rankings');
+router.use('/rankings', rankingsRoutes);
+console.log('  - /achievements');
+router.use('/achievements', achievementsRoutes);
+console.log('  - /analytics');
+router.use('/analytics', analyticsRoutes);
+console.log('  - /notifications');
+router.use('/notifications', notificationsRoutes);
+console.log('  - /friends');
+router.use('/friends', friendsRoutes);
+console.log('  - /messaging');
+router.use('/messaging', messagingRoutes);
+console.log('  - /challenges');
+router.use('/challenges', challengesRoutes);
 console.log('✅ All routes registered successfully');
 
 export const setupRoutes = (): Router => {

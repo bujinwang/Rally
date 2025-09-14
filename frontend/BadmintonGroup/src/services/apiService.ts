@@ -209,6 +209,29 @@ export class ApiService {
     }, enableOffline);
   }
 
+  // Generic HTTP methods
+  async get<T>(endpoint: string, enableOffline: boolean = false): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { method: 'GET' }, enableOffline);
+  }
+
+  async post<T>(endpoint: string, data?: any, enableOffline: boolean = false): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    }, enableOffline);
+  }
+
+  async put<T>(endpoint: string, data?: any, enableOffline: boolean = false): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    }, enableOffline);
+  }
+
+  async delete<T>(endpoint: string, enableOffline: boolean = false): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { method: 'DELETE' }, enableOffline);
+  }
+
   // Utility methods
   setAuthToken(token: string) {
     // Store token for future requests

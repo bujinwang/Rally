@@ -16,6 +16,10 @@ import LiveGameScreen from '../screens/LiveGameScreen';
 import SessionHistoryScreen from '../screens/SessionHistoryScreen';
 import RotationScreen from '../screens/rotation/RotationScreen';
 import SessionDiscoveryScreen from '../screens/SessionDiscoveryScreen';
+import MatchRecordingScreen from '../screens/MatchRecordingScreen';
+import StatisticsDashboardScreen from '../screens/StatisticsDashboardScreen';
+import RankingScreen from '../screens/RankingScreen';
+import AchievementScreen from '../screens/AchievementScreen';
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
@@ -121,6 +125,11 @@ function SessionsStackNavigator() {
         component={RotationScreen}
         options={{ title: 'Fair Play Queue' }}
       />
+      <SessionsStack.Screen
+        name="MatchRecording"
+        component={MatchRecordingScreen}
+        options={{ title: 'Record Match' }}
+      />
     </SessionsStack.Navigator>
   );
 }
@@ -146,6 +155,21 @@ function ProfileStackNavigator() {
         component={SessionHistoryScreen}
         options={{ title: 'Session History' }}
       />
+      <ProfileStack.Screen
+        name="StatisticsDashboard"
+        component={StatisticsDashboardScreen}
+        options={{ title: 'Statistics' }}
+      />
+      <ProfileStack.Screen
+        name="RankingScreen"
+        component={RankingScreen}
+        options={{ title: 'Rankings' }}
+      />
+      <ProfileStack.Screen
+        name="Achievements"
+        component={AchievementScreen}
+        options={{ title: 'Achievements' }}
+      />
     </ProfileStack.Navigator>
   );
 }
@@ -156,7 +180,7 @@ const MainTabNavigator = () => {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
+          let iconName: any;
 
           if (route.name === 'Home') {
             iconName = focused ? 'add-circle' : 'add-circle-outline';

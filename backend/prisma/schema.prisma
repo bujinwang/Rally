@@ -51,7 +51,14 @@ model MvpSession {
   players MvpPlayer[]
   games   MvpGame[]
   matches MvpMatch[]
+  scoringMatches Match[]
   configuration MvpSessionConfiguration?
+
+  // Analytics Relations
+  analytics SessionAnalytics?
+
+  // Challenge Relations
+  challenges Challenge[]
 
   // Performance indexes for discovery and filtering
   @@index([scheduledAt])
@@ -168,6 +175,39 @@ model MvpPlayer {
   winRate       Float @default(0.0)    // Overall win percentage
   matchWinRate  Float @default(0.0)    // Match win percentage
   averageGameDuration Float @default(0.0)  // Average game duration in minutes
+
+  // Scoring and Statistics System Fields
+  totalMatches    Int       @default(0)  // Total matches played
+  ranking         Int?                   // Current ranking position
+  rankingPoints   Int       @default(0)  // Points for ranking calculation
+  lastMatchDate   DateTime?              // Date of last match played
+
+  // Relations for Scoring and Statistics System
+  player1Matches  Match[]   @relation("Player1Matches")
+  player2Matches  Match[]   @relation("Player2Matches")
+  winnerMatches   Match[]   @relation("WinnerMatches")
+  recorderMatches Match[]   @relation("RecorderMatches")
+  approverMatches Match[]   @relation("ApproverMatches")
+
+  // Ranking History Relations
+  rankingHistory  PlayerRankingHistory[]
+
+  // Social Features Relations
+  sentFriendRequests     FriendRequest[] @relation("FriendRequestSender")
+  receivedFriendRequests FriendRequest[] @relation("FriendRequestReceiver")
+  friendsAsPlayer        Friend[]        @relation("FriendPlayer")
+  friendsAsFriend        Friend[]        @relation("FriendFriend")
+  sentChallenges         Challenge[]     @relation("ChallengeChallenger")
+  receivedChallenges     Challenge[]     @relation("ChallengeChallenged")
+  sentMessages           Message[]       @relation("MessageSender")
+
+  // Push Notification Relations
+  notifications          Notification[]
+  notificationPreferences NotificationPreference?
+  pushTokens             PushToken[]
+
+  // Analytics Relations
+  analytics              PlayerAnalytics?
 
   // Rest Management
   restGamesRemaining Int @default(0)     // Games remaining in rest period
@@ -312,6 +352,67 @@ model MvpGameSet {
 
   @@unique([gameId, setNumber])
   @@map("mvp_game_sets")
+}
+
+// Scoring and Statistics System Models
+model Match {
+  id          String   @id @default(cuid())
+  sessionId   String
+  session     MvpSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Match participants
+  player1Id   String
+  player2Id   String
+  player1     MvpPlayer @relation("Player1Matches", fields: [player1Id], references: [id])
+  player2     MvpPlayer @relation("Player2Matches", fields: [player2Id], references: [id])
+
+  // Match results
+  winnerId    String
+  winner      MvpPlayer @relation("WinnerMatches", fields: [winnerId], references: [id])
+  scoreType   String   // "2-0" or "2-1"
+
+  // Recording and approval
+  recordedBy  String
+  recorder    MvpPlayer @relation("RecorderMatches", fields: [recordedBy], references: [id])
+  recordedAt  DateTime @default(now())
+  approvedBy  String?
+  approver    MvpPlayer? @relation("ApproverMatches", fields: [approvedBy], references: [id])
+  approvedAt  DateTime?
+
+  // Performance indexes
+  @@index([sessionId])
+  @@index([recordedAt])
+  @@index([sessionId, recordedAt]) // Composite for chronological match history
+
+  @@map("matches")
+}
+
+// Player Ranking History for tracking ranking changes over time
+model PlayerRankingHistory {
+  id        String @id @default(cuid())
+  playerId  String
+  player    MvpPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  // Ranking data at this point in time
+  ranking         Int       // Ranking position at this time
+  rankingPoints   Int       // Points at this time
+  performanceRating Float   // Performance rating at this time
+
+  // Context of the change
+  changeReason    String    // "match_win", "match_loss", "decay", "initial"
+  matchId         String?   // Associated match if applicable
+  previousRanking Int?      // Previous ranking position
+  pointsChange    Int       // Points gained/lost in this change
+
+  // Timestamps
+  recordedAt      DateTime  @default(now())
+
+  // Performance indexes
+  @@index([playerId])
+  @@index([recordedAt])
+  @@index([playerId, recordedAt]) // For ranking history queries
+
+  @@map("player_ranking_history")
 }
 
 // MVP Enums
@@ -494,6 +595,9 @@ model Tournament {
   matches     TournamentMatch[]
   results     TournamentResult?
 
+  // Analytics Relations
+  analytics   TournamentAnalytics?
+
   // Performance indexes
   @@index([startDate])
   @@index([status])
@@ -532,7 +636,8 @@ model TournamentPlayer {
   finalRank    Int?
 
   // Relations
-  matches      TournamentMatch[] @relation("PlayerMatches")
+  player1Matches TournamentMatch[] @relation("Player1Matches")
+  player2Matches TournamentMatch[] @relation("Player2Matches")
 
   @@unique([tournamentId, playerName])
   @@unique([tournamentId, deviceId])
@@ -589,9 +694,9 @@ model TournamentMatch {
 
   // Match Participants
   player1Id    String
-  player1      TournamentPlayer @relation("PlayerMatches", fields: [player1Id], references: [id])
+  player1      TournamentPlayer @relation("Player1Matches", fields: [player1Id], references: [id])
   player2Id    String
-  player2      TournamentPlayer @relation("PlayerMatches", fields: [player2Id], references: [id])
+  player2      TournamentPlayer @relation("Player2Matches", fields: [player2Id], references: [id])
 
   // Match Details
   matchNumber  Int     // Sequential match number in tournament
@@ -777,4 +882,646 @@ enum TournamentGameStatus {
   COMPLETED      // Game finished
   PAUSED         // Game paused
   CANCELLED      // Game cancelled
+}
+
+// Achievement System Models
+model Achievement {
+  id          String @id @default(cuid())
+  name        String // Achievement name
+  description String // Achievement description
+  icon        String? // Icon identifier or URL
+  category    AchievementCategory // Type of achievement
+
+  // Achievement Criteria
+  triggerType AchievementTriggerType // What triggers this achievement
+  triggerValue Json // Configuration for trigger (e.g., {"count": 10, "type": "match_win"})
+
+  // Reward Information
+  points      Int @default(0) // Points awarded
+  badgeId     String? // Associated badge
+  badge       Badge? @relation(fields: [badgeId], references: [id])
+
+  // Achievement Properties
+  isActive    Boolean @default(true) // Whether achievement is currently available
+  rarity      AchievementRarity @default(COMMON)
+  maxProgress Int @default(1) // Maximum progress value (for progress-based achievements)
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  playerAchievements PlayerAchievement[]
+
+  // Performance indexes
+  @@index([category])
+  @@index([triggerType])
+  @@index([isActive])
+
+  @@map("achievements")
+}
+
+model Badge {
+  id          String @id @default(cuid())
+  name        String // Badge name
+  description String // Badge description
+  icon        String // Icon identifier or URL
+  color       String? // Badge color theme
+
+  // Badge Properties
+  rarity      BadgeRarity @default(COMMON)
+  isActive    Boolean @default(true)
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  achievements Achievement[]
+  playerBadges  PlayerBadge[]
+
+  @@map("badges")
+}
+
+model PlayerAchievement {
+  id            String @id @default(cuid())
+  playerId      String // Reference to MvpPlayer or User
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  // Progress Tracking
+  progress      Int @default(0) // Current progress toward achievement
+  isCompleted   Boolean @default(false) // Whether achievement is fully earned
+  completedAt   DateTime? // When achievement was completed
+
+  // Metadata
+  earnedAt      DateTime @default(now()) // When progress was last updated
+  source        String? // What triggered this achievement (e.g., "match_win", "tournament_complete")
+
+  // Relations
+  rewards       PlayerReward[]
+
+  @@unique([playerId, achievementId])
+  @@index([playerId])
+  @@index([achievementId])
+  @@index([isCompleted])
+  @@index([playerId, isCompleted])
+
+  @@map("player_achievements")
+}
+
+model PlayerBadge {
+  id        String @id @default(cuid())
+  playerId  String // Reference to MvpPlayer or User
+  badgeId   String
+  badge     Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  // Badge Status
+  earnedAt  DateTime @default(now())
+  isActive  Boolean @default(true) // Whether badge is currently displayed
+
+  @@unique([playerId, badgeId])
+  @@index([playerId])
+  @@index([badgeId])
+
+  @@map("player_badges")
+}
+
+model PlayerReward {
+  id                String @id @default(cuid())
+  playerId          String // Reference to MvpPlayer or User
+  playerAchievementId String?
+  playerAchievement PlayerAchievement? @relation(fields: [playerAchievementId], references: [id], onDelete: Cascade)
+
+  // Reward Details
+  rewardType        RewardType
+  rewardValue       Json // Flexible reward data (points, items, etc.)
+  description       String
+
+  // Status
+  claimedAt         DateTime?
+  isClaimed         Boolean @default(false)
+
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([playerId])
+  @@index([isClaimed])
+  @@index([playerId, isClaimed])
+
+  @@map("player_rewards")
+}
+
+// Achievement Enums
+enum AchievementCategory {
+  MATCH_PLAYING    // Match-related achievements
+  TOURNAMENT       // Tournament-related achievements
+  SOCIAL           // Social interaction achievements
+  PROGRESSION      // Player progression achievements
+  SPECIAL          // Special event achievements
+}
+
+enum AchievementTriggerType {
+  MATCH_WIN        // Win X matches
+  MATCH_PLAY       // Play X matches
+  TOURNAMENT_WIN   // Win X tournaments
+  TOURNAMENT_PARTICIPATE // Participate in X tournaments
+  STREAK           // Win X matches in a row
+  PERFECT_GAME     // Win a game without losing a point
+  SOCIAL_FRIEND    // Add X friends
+  SESSION_HOST     // Host X sessions
+  SKILL_LEVEL      // Reach skill level X
+  TIME_PLAYED      // Play for X hours
+  CUSTOM           // Custom trigger logic
+}
+
+enum AchievementRarity {
+  COMMON      // Easy to obtain
+  UNCOMMON    // Moderate difficulty
+  RARE        // Challenging
+  EPIC        // Very difficult
+  LEGENDARY   // Extremely rare
+}
+
+enum BadgeRarity {
+  COMMON
+  UNCOMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+enum RewardType {
+  POINTS          // Experience points
+  BADGE           // Unlock badge
+  TITLE           // Special title
+  AVATAR          // Avatar customization
+  BOOSTER         // Temporary boost
+  UNLOCK          // Unlock feature
+}
+
+// Social Features Models
+model Friend {
+  id          String @id @default(cuid())
+  playerId    String // Player who initiated friendship
+  friendId    String // Player who is the friend
+
+  // Friendship status
+  status      FriendStatus @default(PENDING)
+  requestedAt DateTime @default(now())
+  acceptedAt  DateTime?
+
+  // Relations
+  player      MvpPlayer @relation("FriendPlayer", fields: [playerId], references: [id], onDelete: Cascade)
+  friend      MvpPlayer @relation("FriendFriend", fields: [friendId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, friendId])
+  @@index([playerId])
+  @@index([friendId])
+  @@index([status])
+
+  @@map("friends")
+}
+
+model FriendRequest {
+  id          String @id @default(cuid())
+  senderId    String
+  receiverId  String
+  message     String?
+
+  // Request status
+  status      FriendRequestStatus @default(PENDING)
+  sentAt      DateTime @default(now())
+  respondedAt DateTime?
+
+  // Relations
+  sender      MvpPlayer @relation("FriendRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver    MvpPlayer @relation("FriendRequestReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([status])
+
+  @@map("friend_requests")
+}
+
+model Challenge {
+  id          String @id @default(cuid())
+  challengerId String
+  challengedId String
+
+  // Challenge details
+  challengeType ChallengeType @default(MATCH)
+  message     String?
+  sessionId   String? // Associated session if applicable
+
+  // Challenge parameters
+  matchFormat String @default("SINGLES") // singles, doubles
+  scoringSystem String @default("21_POINT")
+  bestOfGames Int @default(3)
+
+  // Challenge status
+  status      ChallengeStatus @default(PENDING)
+  sentAt      DateTime @default(now())
+  respondedAt DateTime?
+  scheduledAt DateTime?
+
+  // Relations
+  challenger  MvpPlayer @relation("ChallengeChallenger", fields: [challengerId], references: [id], onDelete: Cascade)
+  challenged  MvpPlayer @relation("ChallengeChallenged", fields: [challengedId], references: [id], onDelete: Cascade)
+  session     MvpSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([challengerId])
+  @@index([challengedId])
+  @@index([status])
+  @@index([sentAt])
+
+  @@map("challenges")
+}
+
+model MessageThread {
+  id          String @id @default(cuid())
+  participants String[] // Array of player IDs
+
+  // Thread metadata
+  title       String?
+  lastMessageAt DateTime @default(now())
+  isActive    Boolean @default(true)
+
+  // Relations
+  messages    Message[]
+
+  @@index([participants])
+  @@index([lastMessageAt])
+  @@index([isActive])
+
+  @@map("message_threads")
+}
+
+model Message {
+  id          String @id @default(cuid())
+  threadId    String
+  senderId    String
+  content     String
+
+  // Message metadata
+  messageType MessageType @default(TEXT)
+  sentAt      DateTime @default(now())
+  isRead      Boolean @default(false)
+  readAt      DateTime?
+
+  // Relations
+  thread      MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender      MvpPlayer @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([threadId])
+  @@index([senderId])
+  @@index([sentAt])
+  @@index([isRead])
+
+  @@map("messages")
+}
+
+// Social Features Enums
+enum FriendStatus {
+  PENDING     // Friend request sent
+  ACCEPTED    // Friendship accepted
+  BLOCKED     // Friendship blocked
+}
+
+enum FriendRequestStatus {
+  PENDING     // Request sent, awaiting response
+  ACCEPTED    // Request accepted
+  DECLINED    // Request declined
+  CANCELLED   // Request cancelled by sender
+}
+
+enum ChallengeType {
+  MATCH       // Challenge to a match
+  TOURNAMENT  // Challenge to tournament
+  PRACTICE    // Practice session challenge
+  FRIENDLY    // Friendly match challenge
+}
+
+enum ChallengeStatus {
+  PENDING     // Challenge sent, awaiting response
+  ACCEPTED    // Challenge accepted
+  DECLINED    // Challenge declined
+  CANCELLED   // Challenge cancelled
+  COMPLETED   // Challenge completed
+  EXPIRED     // Challenge expired
+}
+
+enum MessageType {
+  TEXT        // Regular text message
+  IMAGE       // Image message
+  SYSTEM      // System notification
+  CHALLENGE   // Challenge invitation
+}
+
+// Push Notifications Models
+model Notification {
+  id          String @id @default(cuid())
+  playerId    String // Reference to MvpPlayer
+
+  // Notification content
+  title       String
+  body        String
+  data        Json? // Additional data for deep linking
+
+  // Notification type and category
+  type        NotificationType
+  category    NotificationCategory
+
+  // Status and delivery
+  isRead      Boolean @default(false)
+  readAt      DateTime?
+  deliveredAt DateTime?
+  sentAt      DateTime @default(now())
+
+  // Relations
+  player      MvpPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  // Performance indexes
+  @@index([playerId])
+  @@index([type])
+  @@index([category])
+  @@index([isRead])
+  @@index([sentAt])
+  @@index([playerId, isRead])
+  @@index([playerId, sentAt])
+
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id        String @id @default(cuid())
+  playerId  String @unique // Reference to MvpPlayer
+
+  // Notification preferences by category
+  matchResults     Boolean @default(true)  // Match win/loss notifications
+  achievements     Boolean @default(true)  // Achievement unlock notifications
+  friendRequests   Boolean @default(true)  // Friend request notifications
+  challenges       Boolean @default(true)  // Challenge notifications
+  tournamentUpdates Boolean @default(true) // Tournament update notifications
+  socialMessages   Boolean @default(false) // Social message notifications
+  sessionReminders Boolean @default(true)  // Session reminder notifications
+
+  // Global settings
+  pushEnabled      Boolean @default(true)  // Master push notification toggle
+  emailEnabled     Boolean @default(false) // Email notifications (future)
+  quietHoursStart  String?                // Quiet hours start time (HH:MM)
+  quietHoursEnd    String?                // Quiet hours end time (HH:MM)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  player    MvpPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+model PushToken {
+  id        String @id @default(cuid())
+  playerId  String // Reference to MvpPlayer
+
+  // Device information
+  token     String @unique // FCM/APNs token
+  platform  String // ios, android
+  deviceId  String? // Device identifier
+
+  // Token status
+  isActive  Boolean @default(true)
+  lastUsed  DateTime @default(now())
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  player    MvpPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  // Performance indexes
+  @@index([playerId])
+  @@index([token])
+  @@index([isActive])
+  @@index([platform])
+  @@index([playerId, isActive])
+
+  @@map("push_tokens")
+}
+
+// Notification Enums
+enum NotificationType {
+  MATCH_RESULT      // Match win/loss result
+  ACHIEVEMENT_UNLOCK // Achievement unlocked
+  FRIEND_REQUEST    // New friend request
+  FRIEND_ACCEPTED   // Friend request accepted
+  CHALLENGE_RECEIVED // New challenge received
+  CHALLENGE_RESPONSE // Challenge accepted/declined
+  TOURNAMENT_UPDATE // Tournament status update
+  SESSION_REMINDER  // Session reminder
+  SOCIAL_MESSAGE    // New social message
+  SYSTEM_ANNOUNCEMENT // System announcements
+}
+
+enum NotificationCategory {
+  MATCHES         // Match-related notifications
+  ACHIEVEMENTS    // Achievement-related notifications
+  SOCIAL          // Social interaction notifications
+  TOURNAMENTS     // Tournament-related notifications
+  SESSIONS        // Session-related notifications
+  SYSTEM          // System notifications
+}
+
+// Analytics Models for Player Performance and Engagement Tracking
+model PlayerAnalytics {
+  id        String @id @default(cuid())
+  playerId  String @unique // Reference to MvpPlayer
+
+  // Performance Metrics
+  totalMatches       Int     @default(0)
+  totalWins          Int     @default(0)
+  totalLosses        Int     @default(0)
+  winRate            Float   @default(0.0)
+  averageGameDuration Float  @default(0.0) // Average game time in minutes
+  currentStreak      Int     @default(0)   // Current win/loss streak
+  bestStreak         Int     @default(0)   // Best win streak
+
+  // Skill Progression
+  skillRating        Float   @default(0.0) // Calculated skill rating
+  skillChange        Float   @default(0.0) // Rating change in last 30 days
+  rankingPosition    Int?                   // Current leaderboard position
+
+  // Activity Metrics
+  sessionsPlayed     Int     @default(0)   // Total sessions participated
+  tournamentsEntered Int     @default(0)   // Total tournaments entered
+  hoursPlayed        Float   @default(0.0) // Total hours played
+
+  // Social Metrics
+  friendsCount       Int     @default(0)   // Number of friends
+  challengesSent     Int     @default(0)   // Challenges sent
+  challengesAccepted Int     @default(0)   // Challenges accepted
+
+  // Achievement Metrics
+  achievementsUnlocked Int   @default(0)   // Total achievements earned
+  badgesEarned        Int    @default(0)   // Total badges earned
+  totalPoints         Int    @default(0)   // Total achievement points
+
+  // Engagement Metrics
+  lastActiveDate     DateTime?
+  daysActive         Int     @default(0)   // Days with activity in last 30 days
+  notificationsRead  Int     @default(0)   // Notifications read
+  messagesSent       Int     @default(0)   // Messages sent
+
+  // Performance Trends (JSON for flexible storage)
+  monthlyStats       Json?   // Monthly performance data
+  weeklyActivity     Json?   // Weekly activity patterns
+
+  // Timestamps
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relations
+  player             MvpPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  // Performance indexes
+  @@index([playerId])
+  @@index([rankingPosition])
+  @@index([skillRating])
+  @@index([lastActiveDate])
+
+  @@map("player_analytics")
+}
+
+model SessionAnalytics {
+  id        String @id @default(cuid())
+  sessionId String @unique // Reference to MvpSession
+
+  // Session Metrics
+  totalPlayers       Int     @default(0)
+  totalMatches       Int     @default(0)
+  totalGames         Int     @default(0)
+  averageMatchDuration Float @default(0.0) // Average match time in minutes
+  completionRate     Float  @default(0.0) // Percentage of planned matches completed
+
+  // Player Engagement
+  playerRetentionRate Float  @default(0.0) // Players who stayed vs joined
+  averagePlayerSkill  Float @default(0.0) // Average skill rating of participants
+
+  // Location and Timing
+  location           String?
+  scheduledHour      Int?    // Hour of day (0-23)
+  dayOfWeek          Int?    // Day of week (0-6, Sunday=0)
+
+  // Performance Trends
+  matchCompletionTime Json?  // Average time to complete matches
+  playerSatisfaction  Json?  // Player feedback/ratings if available
+
+  // Timestamps
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relations
+  session            MvpSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Performance indexes
+  @@index([sessionId])
+  @@index([scheduledHour])
+  @@index([dayOfWeek])
+  @@index([location])
+
+  @@map("session_analytics")
+}
+
+model TournamentAnalytics {
+  id           String @id @default(cuid())
+  tournamentId String @unique // Reference to Tournament
+
+  // Tournament Metrics
+  totalParticipants    Int     @default(0)
+  totalMatches         Int     @default(0)
+  totalGames           Int     @default(0)
+  completionRate       Float  @default(0.0) // Tournament completion percentage
+  averageMatchDuration Float  @default(0.0) // Average match time in minutes
+
+  // Participation Analytics
+  registrationRate     Float  @default(0.0) // Registrations vs capacity
+  noShowRate          Float  @default(0.0)  // Players who registered but didn't show
+  earlyWithdrawalRate Float  @default(0.0) // Players who withdrew before completion
+
+  // Performance Distribution
+  skillDistribution    Json?  // Distribution of player skill levels
+  roundProgression     Json?  // How players progressed through rounds
+  upsetFrequency       Float @default(0.0) // Frequency of upsets (lower seed beating higher)
+
+  // Engagement Metrics
+  spectatorCount       Int   @default(0)   // If tracking spectators
+  socialInteractions   Int   @default(0)   // Friend challenges, messages during tournament
+
+  // Timestamps
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relations
+  tournament          Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  // Performance indexes
+  @@index([tournamentId])
+  @@index([completionRate])
+
+  @@map("tournament_analytics")
+}
+
+model SystemAnalytics {
+  id        String @id @default(cuid())
+
+  // User Engagement
+  totalActiveUsers     Int     @default(0)   // Users active in last 30 days
+  newUsersToday        Int     @default(0)   // New users registered today
+  returningUsers       Int     @default(0)   // Users who returned after inactivity
+
+  // Session Activity
+  totalSessions        Int     @default(0)   // Total active sessions
+  sessionsCreatedToday Int     @default(0)   // Sessions created today
+  averageSessionSize   Float   @default(0.0) // Average players per session
+
+  // Match Activity
+  totalMatchesToday    Int     @default(0)   // Matches played today
+  averageMatchDuration Float   @default(0.0) // Average match duration
+  peakHours            Json?   // Peak activity hours
+
+  // Tournament Activity
+  activeTournaments    Int     @default(0)   // Currently active tournaments
+  tournamentsCompleted Int     @default(0)   // Tournaments completed this week
+
+  // Social Activity
+  friendRequestsSent   Int     @default(0)   // Friend requests sent today
+  challengesCreated    Int     @default(0)   // Challenges created today
+  messagesSent         Int     @default(0)   // Messages sent today
+
+  // Achievement Activity
+  achievementsUnlocked Int     @default(0)   // Achievements unlocked today
+  badgesEarned         Int     @default(0)   // Badges earned today
+
+  // Technical Metrics
+  apiResponseTime      Float   @default(0.0) // Average API response time
+  errorRate            Float   @default(0.0) // API error rate percentage
+  activeConnections    Int     @default(0)   // Current active connections
+
+  // Geographic Distribution
+  topLocations         Json?   // Most popular locations
+  userDistribution     Json?   // User distribution by region
+
+  // Date tracking
+  date                 DateTime @unique @default(now()) // Date for this analytics record
+
+  // Performance indexes
+  @@index([date])
+
+  @@map("system_analytics")
 }
