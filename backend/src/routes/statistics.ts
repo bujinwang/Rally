@@ -3,7 +3,10 @@ import { statisticsService } from '../services/statisticsService';
 
 const router = Router();
 
-// GET /api/statistics/player/:playerId - Get player statistics
+/**
+ * GET /api/statistics/player/:playerId
+ * Get comprehensive statistics for a specific player
+ */
 router.get('/player/:playerId', async (req: Request, res: Response) => {
   try {
     const { playerId } = req.params;
@@ -12,26 +15,26 @@ router.get('/player/:playerId', async (req: Request, res: Response) => {
     const filters = {
       sessionId: sessionId as string,
       timeRange: timeRange as 'all' | 'week' | 'month' | 'session',
-      minMatches: minMatches ? parseInt(minMatches as string) : undefined
+      minMatches: minMatches ? parseInt(minMatches as string) : undefined,
     };
 
-    const statistics = await statisticsService.getPlayerStatistics(playerId, filters);
+    const stats = await statisticsService.getPlayerStatistics(playerId, filters);
 
-    if (!statistics) {
+    if (!stats) {
       return res.status(404).json({
         success: false,
         error: {
           code: 'PLAYER_NOT_FOUND',
-          message: 'Player not found'
+          message: 'Player not found or has no matches'
         }
       });
     }
 
     res.json({
       success: true,
-      data: statistics
+      data: stats,
+      message: 'Player statistics retrieved successfully'
     });
-
   } catch (error) {
     console.error('Error fetching player statistics:', error);
     res.status(500).json({
@@ -44,29 +47,31 @@ router.get('/player/:playerId', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/statistics/leaderboard - Get leaderboard
+/**
+ * GET /api/statistics/leaderboard
+ * Get leaderboard rankings
+ */
 router.get('/leaderboard', async (req: Request, res: Response) => {
   try {
-    const { sessionId, timeRange, minMatches, limit } = req.query;
+    const { sessionId, minMatches, limit } = req.query;
 
     const filters = {
       sessionId: sessionId as string,
-      timeRange: timeRange as 'all' | 'week' | 'month' | 'session',
-      minMatches: minMatches ? parseInt(minMatches as string) : undefined
+      minMatches: minMatches ? parseInt(minMatches as string) : 1,
     };
 
     const leaderboard = await statisticsService.getLeaderboard(filters);
-    const limitNum = limit ? parseInt(limit as string) : 10;
-    const limitedLeaderboard = leaderboard.slice(0, limitNum);
+
+    // Apply limit if specified
+    const limitedLeaderboard = limit
+      ? leaderboard.slice(0, parseInt(limit as string))
+      : leaderboard;
 
     res.json({
       success: true,
-      data: {
-        leaderboard: limitedLeaderboard,
-        total: leaderboard.length
-      }
+      data: limitedLeaderboard,
+      message: 'Leaderboard retrieved successfully'
     });
-
   } catch (error) {
     console.error('Error fetching leaderboard:', error);
     res.status(500).json({
@@ -79,14 +84,17 @@ router.get('/leaderboard', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/statistics/session/:sessionId - Get session statistics
+/**
+ * GET /api/statistics/session/:sessionId
+ * Get statistics for a specific session
+ */
 router.get('/session/:sessionId', async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
 
-    const statistics = await statisticsService.getSessionStatistics(sessionId);
+    const sessionStats = await statisticsService.getSessionStatistics(sessionId);
 
-    if (!statistics) {
+    if (!sessionStats) {
       return res.status(404).json({
         success: false,
         error: {
@@ -98,9 +106,9 @@ router.get('/session/:sessionId', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: statistics
+      data: sessionStats,
+      message: 'Session statistics retrieved successfully'
     });
-
   } catch (error) {
     console.error('Error fetching session statistics:', error);
     res.status(500).json({
@@ -113,12 +121,15 @@ router.get('/session/:sessionId', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/statistics/compare - Compare multiple players
+/**
+ * GET /api/statistics/compare
+ * Compare multiple players' statistics
+ */
 router.get('/compare', async (req: Request, res: Response) => {
   try {
     const { playerIds, sessionId, timeRange } = req.query;
 
-    if (!playerIds || typeof playerIds !== 'string') {
+    if (!playerIds) {
       return res.status(400).json({
         success: false,
         error: {
@@ -128,38 +139,22 @@ router.get('/compare', async (req: Request, res: Response) => {
       });
     }
 
-    const playerIdArray = playerIds.split(',');
-
-    if (playerIdArray.length < 2 || playerIdArray.length > 5) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Must compare between 2 and 5 players'
-        }
-      });
-    }
+    const playerIdsArray = Array.isArray(playerIds)
+      ? playerIds as string[]
+      : (playerIds as string).split(',');
 
     const filters = {
       sessionId: sessionId as string,
-      timeRange: timeRange as 'all' | 'week' | 'month' | 'session'
+      timeRange: timeRange as 'all' | 'week' | 'month' | 'session',
     };
 
-    const comparison = await statisticsService.getPlayerComparison(playerIdArray, filters);
+    const comparison = await statisticsService.getPlayerComparison(playerIdsArray, filters);
 
     res.json({
       success: true,
-      data: {
-        players: comparison,
-        comparison: {
-          totalPlayers: comparison.length,
-          averageWinRate: comparison.reduce((sum, p) => sum + p.winRate, 0) / comparison.length,
-          highestWinRate: Math.max(...comparison.map(p => p.winRate)),
-          lowestWinRate: Math.min(...comparison.map(p => p.winRate))
-        }
-      }
+      data: comparison,
+      message: 'Player comparison retrieved successfully'
     });
-
   } catch (error) {
     console.error('Error comparing players:', error);
     res.status(500).json({
@@ -172,7 +167,10 @@ router.get('/compare', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/statistics/trends/:playerId - Get performance trends
+/**
+ * GET /api/statistics/trends/:playerId
+ * Get performance trends for a player
+ */
 router.get('/trends/:playerId', async (req: Request, res: Response) => {
   try {
     const { playerId } = req.params;
@@ -180,27 +178,13 @@ router.get('/trends/:playerId', async (req: Request, res: Response) => {
 
     const daysNum = days ? parseInt(days as string) : 30;
 
-    if (daysNum < 1 || daysNum > 365) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Days must be between 1 and 365'
-        }
-      });
-    }
-
     const trends = await statisticsService.getPerformanceTrends(playerId, daysNum);
 
     res.json({
       success: true,
-      data: {
-        playerId,
-        period: `${daysNum} days`,
-        trends
-      }
+      data: trends,
+      message: 'Performance trends retrieved successfully'
     });
-
   } catch (error) {
     console.error('Error fetching performance trends:', error);
     res.status(500).json({

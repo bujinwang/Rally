@@ -215,7 +215,7 @@ router.post('/detailed', async (req: Request, res: Response) => {
 
     // Update rankings
     try {
-      await rankingService.updateRankingsAfterDetailedMatch(match.id);
+      await rankingService.updateRatingsAfterMatch(match.id);
     } catch (rankingError) {
       console.error('Error updating rankings after match:', rankingError);
     }
@@ -268,7 +268,7 @@ router.post('/detailed', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/matches - Record a match result (legacy endpoint)
+// POST /api/matches - Record a match result using new Match model
 router.post('/', async (req: Request, res: Response) => {
   try {
     const { sessionId, player1Id, player2Id, winnerId, scoreType, deviceId } = req.body;
@@ -365,30 +365,35 @@ router.post('/', async (req: Request, res: Response) => {
     // Check if organizer approval is required
     const requiresApproval = !isOrganizer; // Organizer doesn't need approval
 
-    // Create the match record using MvpMatch model
-    const match = await prisma.mvpMatch.create({
+    // Create the match record using new Match model
+    const match = await prisma.match.create({
       data: {
         sessionId,
-        matchNumber: 1, // Will be updated with proper numbering
-        team1Player1: player1Id,
-        team1Player2: '', // Singles match
-        team2Player1: player2Id,
-        team2Player2: '', // Singles match
-        winnerTeam: winnerId === player1Id ? 1 : 2,
-        status: requiresApproval ? 'IN_PROGRESS' : 'COMPLETED'
+        player1Id,
+        player2Id,
+        winnerId,
+        scoreType,
+        recordedBy,
+        approvedBy: isOrganizer ? recordedBy : null,
+        approvedAt: isOrganizer ? new Date() : null
       },
       include: {
+        player1: true,
+        player2: true,
+        winner: true,
+        recorder: true,
+        approver: true,
         session: { select: { id: true, name: true } }
       }
     });
 
-    // Update player statistics
+    // Update player statistics using new Match model
     await updatePlayerStatistics(player1Id, winnerId === player1Id);
     await updatePlayerStatistics(player2Id, winnerId === player2Id);
 
     // Update rankings after match
     try {
-      await rankingService.updateRankingsAfterDetailedMatch(match.id);
+      await rankingService.updateRatingsAfterMatch(match.id);
     } catch (rankingError) {
       console.error('Error updating rankings after match:', rankingError);
       // Don't fail the match recording if ranking update fails
@@ -402,7 +407,8 @@ router.post('/', async (req: Request, res: Response) => {
         sessionId,
         winnerId,
         scoreType,
-        recordedAt: match.createdAt,
+        recordedAt: match.recordedAt,
+        requiresApproval,
         statistics: await getUpdatedStatistics([player1Id, player2Id])
       });
     }
@@ -410,7 +416,18 @@ router.post('/', async (req: Request, res: Response) => {
     res.status(201).json({
       success: true,
       data: {
-        match,
+        match: {
+          id: match.id,
+          sessionId: match.sessionId,
+          player1Id: match.player1Id,
+          player2Id: match.player2Id,
+          winnerId: match.winnerId,
+          scoreType: match.scoreType,
+          recordedBy: match.recordedBy,
+          recordedAt: match.recordedAt,
+          approvedBy: match.approvedBy,
+          approvedAt: match.approvedAt
+        },
         requiresApproval,
         message: requiresApproval
           ? 'Match recorded and pending organizer approval'

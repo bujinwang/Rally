@@ -20,11 +20,19 @@ import MatchRecordingScreen from '../screens/MatchRecordingScreen';
 import StatisticsDashboardScreen from '../screens/StatisticsDashboardScreen';
 import RankingScreen from '../screens/RankingScreen';
 import AchievementScreen from '../screens/AchievementScreen';
+import TournamentListScreen from '../screens/TournamentListScreen';
+import TournamentDetailScreen from '../screens/TournamentDetailScreen';
+import TournamentCreateScreen from '../screens/TournamentCreateScreen';
+import PairingScreen from '../screens/pairing/PairingScreen';
+import MatchSchedulingScreen from '../screens/MatchSchedulingScreen';
+import CreateMatchScreen from '../screens/CreateMatchScreen';
+import MatchDetailsScreen from '../screens/MatchDetailsScreen';
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
 const SessionsStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
+const TournamentsStack = createNativeStackNavigator();
 
 // Stack navigator for Create Session tab
 function HomeStackNavigator() {
@@ -130,6 +138,26 @@ function SessionsStackNavigator() {
         component={MatchRecordingScreen}
         options={{ title: 'Record Match' }}
       />
+      <SessionsStack.Screen
+        name="Pairing"
+        component={PairingScreen}
+        options={{ title: 'Player Pairing' }}
+      />
+      <SessionsStack.Screen
+        name="MatchScheduling"
+        component={MatchSchedulingScreen}
+        options={{ title: 'Match Scheduling' }}
+      />
+      <SessionsStack.Screen
+        name="CreateMatch"
+        component={CreateMatchScreen}
+        options={{ title: 'Schedule Match' }}
+      />
+      <SessionsStack.Screen
+        name="MatchDetails"
+        component={MatchDetailsScreen}
+        options={{ title: 'Match Details' }}
+      />
     </SessionsStack.Navigator>
   );
 }
@@ -174,6 +202,35 @@ function ProfileStackNavigator() {
   );
 }
 
+// Stack navigator for Tournaments tab
+function TournamentsStackNavigator() {
+  return (
+    <TournamentsStack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: '#007AFF' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+      }}
+    >
+      <TournamentsStack.Screen
+        name="TournamentList"
+        component={TournamentListScreen}
+        options={{ title: 'Tournaments' }}
+      />
+      <TournamentsStack.Screen
+        name="TournamentDetail"
+        component={TournamentDetailScreen}
+        options={{ title: 'Tournament Details' }}
+      />
+      <TournamentsStack.Screen
+        name="TournamentCreate"
+        component={TournamentCreateScreen}
+        options={{ title: 'Create Tournament' }}
+      />
+    </TournamentsStack.Navigator>
+  );
+}
+
 const MainTabNavigator = () => {
   return (
     <Tab.Navigator
@@ -186,6 +243,8 @@ const MainTabNavigator = () => {
             iconName = focused ? 'add-circle' : 'add-circle-outline';
           } else if (route.name === 'Sessions') {
             iconName = focused ? 'list' : 'list-outline';
+          } else if (route.name === 'Tournaments') {
+            iconName = focused ? 'trophy' : 'trophy-outline';
           } else if (route.name === 'ProfileTab') {
             iconName = focused ? 'person' : 'person-outline';
           } else if (route.name === 'More') {
@@ -217,16 +276,24 @@ const MainTabNavigator = () => {
           title: 'Create Session'
         }}
       />
-      <Tab.Screen 
-        name="Sessions" 
+      <Tab.Screen
+        name="Sessions"
         component={SessionsStackNavigator}
         options={{
           tabBarLabel: 'My Sessions',
           title: 'My Sessions'
         }}
       />
-      <Tab.Screen 
-        name="ProfileTab" 
+      <Tab.Screen
+        name="Tournaments"
+        component={TournamentsStackNavigator}
+        options={{
+          tabBarLabel: 'Tournaments',
+          title: 'Tournaments'
+        }}
+      />
+      <Tab.Screen
+        name="ProfileTab"
         component={ProfileStackNavigator}
         options={{
           tabBarLabel: 'Profile',

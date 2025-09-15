@@ -1,117 +1,34 @@
 import { PrismaClient } from '@prisma/client';
-import { statisticsService } from './statisticsService';
 
 const prisma = new PrismaClient();
 
-export interface RankingUpdate {
+export interface RankingEntry {
   playerId: string;
-  newRanking: number;
-  newPoints: number;
-  newRating: number;
-  previousRanking?: number;
-  pointsChange: number;
-  reason: 'match_win' | 'match_loss' | 'decay' | 'initial';
-  matchId?: string;
+  playerName: string;
+  rating: number;
+  rank: number;
+  previousRank?: number;
+  matchesPlayed: number;
+  winRate: number;
+  trend: 'up' | 'down' | 'stable';
+  lastMatchDate?: Date;
 }
 
 export interface RankingHistory {
-  id: string;
   playerId: string;
-  ranking: number;
-  rankingPoints: number;
-  performanceRating: number;
-  changeReason: string;
-  matchId?: string;
-  previousRanking?: number;
-  pointsChange: number;
+  rating: number;
+  rank: number;
   recordedAt: Date;
+  matchId?: string;
 }
 
 class RankingService {
-  // ELO-like ranking constants
-  private readonly K_FACTOR = 32; // Rating change factor
-  private readonly BASE_RATING = 1000;
-  private readonly WIN_POINTS = 25;
-  private readonly LOSS_POINTS = -10;
-  private readonly DECAY_RATE = 0.95; // 5% decay per week without matches
-  private readonly MIN_RATING = 800;
-  private readonly MAX_RATING = 2000;
+  private readonly INITIAL_RATING = 1200;
+  private readonly K_FACTOR = 32; // ELO K-factor for rating changes
+  private readonly MIN_MATCHES_FOR_RANKING = 3;
 
   /**
-   * Calculate enhanced player statistics for ranking
-   */
-  private async calculateEnhancedPlayerStats(playerId: string): Promise<{
-    performanceRating: number;
-    totalPoints: number;
-    ranking: number;
-    setWinRate: number;
-    scoringEfficiency: number;
-    comebackWins: number;
-  }> {
-    const stats = await statisticsService.getPlayerStatistics(playerId);
-
-    return {
-      performanceRating: stats?.performanceRating || this.BASE_RATING,
-      totalPoints: (stats?.wins || 0) * this.WIN_POINTS - (stats?.losses || 0) * Math.abs(this.LOSS_POINTS),
-      ranking: stats?.ranking || 0,
-      setWinRate: stats?.setWinRate || 0,
-      scoringEfficiency: stats?.scoringEfficiency || 0,
-      comebackWins: stats?.comebackWins || 0,
-    };
-  }
-
-  /**
-   * Calculate enhanced rating with additional factors
-   */
-  private calculateEnhancedRating(
-    winnerRating: number,
-    loserRating: number,
-    winnerEfficiency: number,
-    loserEfficiency: number
-  ): { winnerNewRating: number; loserNewRating: number } {
-    // Base ELO calculation
-    const expectedWinner = this.calculateExpectedScore(winnerRating, loserRating);
-    const expectedLoser = this.calculateExpectedScore(loserRating, winnerRating);
-
-    // Enhanced factors
-    const efficiencyBonus = (winnerEfficiency - loserEfficiency) * 0.1; // 10% bonus for efficiency difference
-    const comebackBonus = winnerRating > loserRating + 200 ? 0.2 : 0; // Bonus for beating higher rated player
-
-    const winnerNewRating = winnerRating + this.K_FACTOR * (1 - expectedWinner) + efficiencyBonus + comebackBonus;
-    const loserNewRating = loserRating + this.K_FACTOR * (0 - expectedLoser) - efficiencyBonus;
-
-    // Clamp ratings within bounds
-    return {
-      winnerNewRating: Math.max(this.MIN_RATING, Math.min(this.MAX_RATING, winnerNewRating)),
-      loserNewRating: Math.max(this.MIN_RATING, Math.min(this.MAX_RATING, loserNewRating)),
-    };
-  }
-
-  /**
-   * Calculate enhanced points change with multiple factors
-   */
-  private calculateEnhancedPointsChange(
-    ratingChange: number,
-    setWinRate: number,
-    comebackBonus: number
-  ): number {
-    let pointsChange = Math.round(ratingChange / 10);
-
-    // Bonus for high set win rate
-    if (setWinRate > 70) {
-      pointsChange += 5;
-    } else if (setWinRate > 50) {
-      pointsChange += 2;
-    }
-
-    // Comeback bonus
-    pointsChange += comebackBonus * 3;
-
-    return pointsChange;
-  }
-
-  /**
-   * Calculate expected score in ELO system
+   * Calculate expected score for ELO rating system
    */
   private calculateExpectedScore(ratingA: number, ratingB: number): number {
     return 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
@@ -120,60 +37,22 @@ class RankingService {
   /**
    * Calculate new rating after a match
    */
-  private calculateNewRating(winnerRating: number, loserRating: number, isDraw: boolean = false): {
-    winnerNewRating: number;
-    loserNewRating: number;
-  } {
-    const expectedWinner = this.calculateExpectedScore(winnerRating, loserRating);
-    const expectedLoser = this.calculateExpectedScore(loserRating, winnerRating);
-
-    let winnerNewRating: number;
-    let loserNewRating: number;
-
-    if (isDraw) {
-      // Draw: both get partial points
-      winnerNewRating = winnerRating + this.K_FACTOR * (0.5 - expectedWinner);
-      loserNewRating = loserRating + this.K_FACTOR * (0.5 - expectedLoser);
-    } else {
-      // Win/Loss: full points
-      winnerNewRating = winnerRating + this.K_FACTOR * (1 - expectedWinner);
-      loserNewRating = loserRating + this.K_FACTOR * (0 - expectedLoser);
-    }
-
-    // Clamp ratings within bounds
-    winnerNewRating = Math.max(this.MIN_RATING, Math.min(this.MAX_RATING, winnerNewRating));
-    loserNewRating = Math.max(this.MIN_RATING, Math.min(this.MAX_RATING, loserNewRating));
-
-    return { winnerNewRating, loserNewRating };
+  private calculateNewRating(currentRating: number, expectedScore: number, actualScore: number): number {
+    return Math.round(currentRating + this.K_FACTOR * (actualScore - expectedScore));
   }
 
   /**
-   * Apply decay to inactive players
+   * Update player ratings after a match
    */
-  private applyDecay(currentRating: number, weeksSinceLastMatch: number): number {
-    if (weeksSinceLastMatch <= 1) return currentRating;
-
-    const decayFactor = Math.pow(this.DECAY_RATE, weeksSinceLastMatch - 1);
-    const decayedRating = currentRating * decayFactor;
-
-    return Math.max(this.MIN_RATING, decayedRating);
-  }
-
-  /**
-   * Update rankings after a detailed match with enhanced scoring
-   */
-  async updateRankingsAfterDetailedMatch(matchId: string): Promise<RankingUpdate[]> {
+  async updateRatingsAfterMatch(matchId: string): Promise<void> {
     try {
-      // Get detailed match with games and sets
-      const match = await prisma.mvpMatch.findUnique({
+      // Get match details
+      const match = await prisma.match.findUnique({
         where: { id: matchId },
         include: {
-          session: true,
-          games: {
-            include: {
-              sets: true
-            }
-          }
+          player1: true,
+          player2: true,
+          winner: true
         }
       });
 
@@ -181,267 +60,292 @@ class RankingService {
         throw new Error('Match not found');
       }
 
-      // Determine winner and loser based on detailed scoring
-      const player1Id = match.team1Player1;
-      const player2Id = match.team2Player1;
+      // Get current ratings
+      const player1Rating = match.player1.rankingPoints || this.INITIAL_RATING;
+      const player2Rating = match.player2.rankingPoints || this.INITIAL_RATING;
 
-      // Calculate total sets won by each player
-      let player1SetsWon = 0;
-      let player2SetsWon = 0;
+      // Calculate expected scores
+      const expectedScore1 = this.calculateExpectedScore(player1Rating, player2Rating);
+      const expectedScore2 = this.calculateExpectedScore(player2Rating, player1Rating);
 
-      for (const game of match.games) {
-        for (const set of game.sets) {
-          if (set.winnerTeam === 1) {
-            player1SetsWon++;
-          } else if (set.winnerTeam === 2) {
-            player2SetsWon++;
+      // Determine actual scores (1 for win, 0 for loss)
+      const actualScore1 = match.winnerId === match.player1Id ? 1 : 0;
+      const actualScore2 = match.winnerId === match.player2Id ? 1 : 0;
+
+      // Calculate new ratings
+      const newRating1 = this.calculateNewRating(player1Rating, expectedScore1, actualScore1);
+      const newRating2 = this.calculateNewRating(player2Rating, expectedScore2, actualScore2);
+
+      // Update player ratings in database
+      await prisma.mvpPlayer.update({
+        where: { id: match.player1Id },
+        data: {
+          rankingPoints: newRating1,
+          lastMatchDate: match.recordedAt
+        }
+      });
+
+      await prisma.mvpPlayer.update({
+        where: { id: match.player2Id },
+        data: {
+          rankingPoints: newRating2,
+          lastMatchDate: match.recordedAt
+        }
+      });
+
+      // Record rating history
+      await this.recordRatingHistory(match.player1Id, newRating1, match.recordedAt, matchId);
+      await this.recordRatingHistory(match.player2Id, newRating2, match.recordedAt, matchId);
+
+      // Update rankings for all players
+      await this.updateAllRankings();
+
+    } catch (error) {
+      console.error('Error updating ratings after match:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Record rating history for a player
+   */
+  private async recordRatingHistory(
+    playerId: string,
+    rating: number,
+    recordedAt: Date,
+    matchId?: string
+  ): Promise<void> {
+    try {
+      // Get current rank for this player
+      const currentRank = await this.getPlayerRank(playerId);
+
+      await prisma.playerRankingHistory.create({
+        data: {
+          playerId,
+          ranking: currentRank,
+          rankingPoints: rating,
+          performanceRating: rating, // Use rating as performance rating for now
+          recordedAt,
+          matchId,
+          changeReason: matchId ? 'match_win' : 'initial',
+          pointsChange: 0, // Will be calculated later if needed
+          previousRanking: null // Will be set if we track changes
+        }
+      });
+    } catch (error) {
+      console.error('Error recording rating history:', error);
+      // Don't throw - rating history is not critical
+    }
+  }
+
+  /**
+   * Update rankings for all players
+   */
+  async updateAllRankings(): Promise<void> {
+    try {
+      // Get all players ordered by rating
+      const players = await prisma.mvpPlayer.findMany({
+        orderBy: { rankingPoints: 'desc' },
+        where: {
+          gamesPlayed: { gte: this.MIN_MATCHES_FOR_RANKING }
+        }
+      });
+
+      // Update rankings
+      for (let i = 0; i < players.length; i++) {
+        const rank = i + 1;
+        await prisma.mvpPlayer.update({
+          where: { id: players[i].id },
+          data: { ranking: rank }
+        });
+      }
+    } catch (error) {
+      console.error('Error updating all rankings:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get current ranking for a player
+   */
+  async getPlayerRank(playerId: string): Promise<number> {
+    try {
+      const player = await prisma.mvpPlayer.findUnique({
+        where: { id: playerId },
+        select: { ranking: true }
+      });
+
+      return player?.ranking || 0;
+    } catch (error) {
+      console.error('Error getting player rank:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Get ranking leaderboard
+   */
+  async getRankingLeaderboard(limit: number = 50): Promise<RankingEntry[]> {
+    try {
+      const players = await prisma.mvpPlayer.findMany({
+        where: {
+          gamesPlayed: { gte: this.MIN_MATCHES_FOR_RANKING }
+        },
+        orderBy: { rankingPoints: 'desc' },
+        take: limit,
+        select: {
+          id: true,
+          name: true,
+          rankingPoints: true,
+          ranking: true,
+          gamesPlayed: true,
+          wins: true,
+          losses: true,
+          lastMatchDate: true
+        }
+      });
+
+      const leaderboard: RankingEntry[] = players.map(player => ({
+        playerId: player.id,
+        playerName: player.name,
+        rating: player.rankingPoints || this.INITIAL_RATING,
+        rank: player.ranking || 0,
+        matchesPlayed: player.gamesPlayed,
+        winRate: player.gamesPlayed > 0 ? (player.wins / player.gamesPlayed) * 100 : 0,
+        trend: 'stable', // Will be calculated based on recent performance
+        lastMatchDate: player.lastMatchDate || undefined
+      }));
+
+      // Calculate trends based on recent rating changes
+      for (let i = 0; i < leaderboard.length; i++) {
+        const player = leaderboard[i];
+        const recentHistory = await this.getPlayerRatingHistory(player.playerId, 5);
+
+        if (recentHistory.length >= 2) {
+          const currentRating = recentHistory[0].rating;
+          const previousRating = recentHistory[recentHistory.length - 1].rating;
+
+          if (currentRating > previousRating) {
+            player.trend = 'up';
+          } else if (currentRating < previousRating) {
+            player.trend = 'down';
+          } else {
+            player.trend = 'stable';
           }
         }
       }
 
-      const winnerId = player1SetsWon > player2SetsWon ? player1Id : player2Id;
-      const loserId = winnerId === player1Id ? player2Id : player1Id;
-
-      // Get current player stats
-      const winner = await prisma.mvpPlayer.findUnique({
-        where: { id: winnerId }
-      });
-      const loser = await prisma.mvpPlayer.findUnique({
-        where: { id: loserId }
-      });
-
-      if (!winner || !loser) {
-        throw new Error('Players not found');
-      }
-
-      // Calculate enhanced ranking factors
-      const winnerStats = await this.calculateEnhancedPlayerStats(winnerId);
-      const loserStats = await this.calculateEnhancedPlayerStats(loserId);
-
-      // Calculate new ratings using enhanced algorithm
-      const { winnerNewRating, loserNewRating } = this.calculateEnhancedRating(
-        winnerStats.performanceRating,
-        loserStats.performanceRating,
-        winnerStats.scoringEfficiency,
-        loserStats.scoringEfficiency
-      );
-
-      // Calculate points changes with enhanced factors
-      const winnerPointsChange = this.calculateEnhancedPointsChange(
-        winnerNewRating - winnerStats.performanceRating,
-        winnerStats.setWinRate,
-        winnerStats.comebackWins
-      );
-
-      const loserPointsChange = this.calculateEnhancedPointsChange(
-        loserNewRating - loserStats.performanceRating,
-        loserStats.setWinRate,
-        0 // Losers don't get comeback bonus
-      );
-
-      // Update player records with enhanced statistics
-      const updates: RankingUpdate[] = [];
-
-      // Update winner
-      const winnerNewPoints = Math.max(0, winnerStats.totalPoints + winnerPointsChange);
-      const winnerNewRanking = await this.calculatePlayerRanking(winnerId, match.sessionId);
-
-      await prisma.mvpPlayer.update({
-        where: { id: winnerId },
-        data: {
-          wins: winner.wins + 1,
-          matchesPlayed: winner.matchesPlayed + 1,
-          winRate: ((winner.wins + 1) / (winner.matchesPlayed + 1)) * 100
-        }
-      });
-
-      updates.push({
-        playerId: winnerId,
-        newRanking: winnerNewRanking,
-        newPoints: winnerNewPoints,
-        newRating: winnerNewRating,
-        previousRanking: winnerStats.ranking,
-        pointsChange: winnerPointsChange,
-        reason: 'match_win',
-        matchId
-      });
-
-      // Update loser
-      const loserNewPoints = Math.max(0, loserStats.totalPoints + loserPointsChange);
-      const loserNewRanking = await this.calculatePlayerRanking(loserId, match.sessionId);
-
-      await prisma.mvpPlayer.update({
-        where: { id: loserId },
-        data: {
-          losses: loser.losses + 1,
-          matchesPlayed: loser.matchesPlayed + 1,
-          winRate: (loser.wins / (loser.matchesPlayed + 1)) * 100
-        }
-      });
-
-      updates.push({
-        playerId: loserId,
-        newRanking: loserNewRanking,
-        newPoints: loserNewPoints,
-        newRating: loserNewRating,
-        previousRanking: loserStats.ranking,
-        pointsChange: loserPointsChange,
-        reason: 'match_loss',
-        matchId
-      });
-
-      // Record ranking history
-      await this.recordRankingHistory(updates);
-
-      // Update all rankings after changes
-      await this.recalculateAllRankings(match.sessionId);
-
-      return updates;
+      return leaderboard;
     } catch (error) {
-      console.error('Error updating rankings after detailed match:', error);
-      throw new Error('Failed to update rankings after detailed match');
+      console.error('Error getting ranking leaderboard:', error);
+      throw error;
     }
   }
 
   /**
-   * Calculate player's ranking position based on win rate and matches played
+   * Get rating history for a player
    */
-  private async calculatePlayerRanking(playerId: string, sessionId: string): Promise<number> {
-    const allPlayers = await prisma.mvpPlayer.findMany({
-      where: { sessionId }
-    });
+  async getPlayerRatingHistory(playerId: string, limit: number = 10): Promise<RankingHistory[]> {
+    try {
+      const history = await prisma.playerRankingHistory.findMany({
+        where: { playerId },
+        orderBy: { recordedAt: 'desc' },
+        take: limit,
+        select: {
+          playerId: true,
+          rankingPoints: true,
+          ranking: true,
+          recordedAt: true,
+          matchId: true
+        }
+      });
 
-    const playerStats = await Promise.all(
-      allPlayers.map(async (player) => ({
-        ...player,
-        stats: await statisticsService.getPlayerStatistics(player.id, { sessionId })
-      }))
-    );
-
-    // Sort by performance rating (descending)
-    playerStats.sort((a, b) => {
-      const ratingA = a.stats?.performanceRating || 0;
-      const ratingB = b.stats?.performanceRating || 0;
-      return ratingB - ratingA;
-    });
-
-    const playerIndex = playerStats.findIndex(p => p.id === playerId);
-    return playerIndex + 1;
+      return history.map(entry => ({
+        playerId: entry.playerId,
+        rating: entry.rankingPoints,
+        rank: entry.ranking,
+        recordedAt: entry.recordedAt,
+        matchId: entry.matchId || undefined
+      }));
+    } catch (error) {
+      console.error('Error getting player rating history:', error);
+      return [];
+    }
   }
 
   /**
-   * Recalculate all rankings for a session based on current statistics
+   * Get ranking statistics
    */
-  private async recalculateAllRankings(sessionId: string): Promise<void> {
-    const players = await prisma.mvpPlayer.findMany({
-      where: { sessionId }
-    });
-
-    const playerStats = await Promise.all(
-      players.map(async (player) => ({
-        ...player,
-        stats: await statisticsService.getPlayerStatistics(player.id, { sessionId })
-      }))
-    );
-
-    // Sort by performance rating (descending)
-    playerStats.sort((a, b) => {
-      const ratingA = a.stats?.performanceRating || 0;
-      const ratingB = b.stats?.performanceRating || 0;
-      return ratingB - ratingA;
-    });
-
-    // Rankings are calculated on-the-fly, no need to store in database
-    // This method exists for compatibility but doesn't modify the database
-  }
-
-  /**
-   * Record ranking history for audit trail (simplified - no database storage)
-   */
-  private async recordRankingHistory(updates: RankingUpdate[]): Promise<void> {
-    // For now, just log the updates. In a full implementation, this would store in a ranking history table
-    console.log('Ranking updates recorded:', updates.map(u => ({
-      playerId: u.playerId,
-      newRanking: u.newRanking,
-      pointsChange: u.pointsChange,
-      reason: u.reason
-    })));
-  }
-
-  /**
-   * Get player's ranking history (simplified - returns empty array)
-   */
-  async getPlayerRankingHistory(playerId: string, limit: number = 50): Promise<RankingHistory[]> {
-    // Simplified implementation - in a full system this would query a ranking history table
-    console.log(`Getting ranking history for player ${playerId}`);
-    return [];
-  }
-
-  /**
-   * Apply weekly decay to all inactive players (simplified)
-   */
-  async applyWeeklyDecay(): Promise<void> {
-    // Simplified implementation - in a full system this would apply rating decay
-    console.log('Weekly decay applied (simplified implementation)');
-  }
-
-  /**
-   * Get session rankings (simplified - uses statistics service)
-   */
-  async getSessionRankings(sessionId: string, minMatches: number = 0): Promise<any[]> {
+  async getRankingStatistics(): Promise<{
+    totalRankedPlayers: number;
+    averageRating: number;
+    highestRating: number;
+    lowestRating: number;
+    ratingDistribution: { range: string; count: number }[];
+  }> {
     try {
       const players = await prisma.mvpPlayer.findMany({
         where: {
-          sessionId,
-          matchesPlayed: { gte: minMatches }
-        }
+          gamesPlayed: { gte: this.MIN_MATCHES_FOR_RANKING }
+        },
+        select: { rankingPoints: true }
       });
 
-      // Get rankings from statistics service
-      const rankings = await statisticsService.getLeaderboard({
-        sessionId,
-        minMatches
-      });
+      if (players.length === 0) {
+        return {
+          totalRankedPlayers: 0,
+          averageRating: this.INITIAL_RATING,
+          highestRating: this.INITIAL_RATING,
+          lowestRating: this.INITIAL_RATING,
+          ratingDistribution: []
+        };
+      }
 
-      return rankings.map(entry => ({
-        id: entry.playerId,
-        name: entry.playerName,
-        ranking: entry.rank,
-        performanceRating: entry.performanceRating,
-        winRate: entry.winRate,
-        matchesPlayed: entry.matchesPlayed,
-        trend: entry.trend
-      }));
+      const ratings = players.map(p => p.rankingPoints || this.INITIAL_RATING);
+      const averageRating = ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length;
+      const highestRating = Math.max(...ratings);
+      const lowestRating = Math.min(...ratings);
+
+      // Calculate rating distribution
+      const distribution = [
+        { range: '800-999', count: ratings.filter(r => r >= 800 && r < 1000).length },
+        { range: '1000-1199', count: ratings.filter(r => r >= 1000 && r < 1200).length },
+        { range: '1200-1399', count: ratings.filter(r => r >= 1200 && r < 1400).length },
+        { range: '1400-1599', count: ratings.filter(r => r >= 1400 && r < 1600).length },
+        { range: '1600+', count: ratings.filter(r => r >= 1600).length }
+      ];
+
+      return {
+        totalRankedPlayers: players.length,
+        averageRating: Math.round(averageRating),
+        highestRating,
+        lowestRating,
+        ratingDistribution: distribution
+      };
     } catch (error) {
-      console.error('Error fetching session rankings:', error);
-      throw new Error('Failed to fetch session rankings');
+      console.error('Error getting ranking statistics:', error);
+      throw error;
     }
   }
 
   /**
-   * Get global rankings across all sessions (simplified)
-   */
-  async getGlobalRankings(minMatches: number = 5, limit: number = 100): Promise<any[]> {
-    try {
-      // Simplified - in a full implementation this would aggregate across sessions
-      console.log(`Getting global rankings with minMatches: ${minMatches}, limit: ${limit}`);
-      return [];
-    } catch (error) {
-      console.error('Error fetching global rankings:', error);
-      throw new Error('Failed to fetch global rankings');
-    }
-  }
-
-  /**
-   * Initialize rankings for new players (simplified)
+   * Initialize ranking for a new player
    */
   async initializePlayerRanking(playerId: string): Promise<void> {
     try {
-      // Simplified - rankings are calculated on-demand from statistics
-      console.log(`Initialized ranking for player ${playerId}`);
+      await prisma.mvpPlayer.update({
+        where: { id: playerId },
+        data: {
+          rankingPoints: this.INITIAL_RATING,
+          ranking: null // Will be set when rankings are updated
+        }
+      });
+
+      // Record initial rating history
+      await this.recordRatingHistory(playerId, this.INITIAL_RATING, new Date());
     } catch (error) {
       console.error('Error initializing player ranking:', error);
-      throw new Error('Failed to initialize player ranking');
+      throw error;
     }
   }
 }

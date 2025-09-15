@@ -9,11 +9,23 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import tournamentApi, { Tournament, TournamentFilters } from '../services/tournamentApi';
 
+type TournamentsStackParamList = {
+  TournamentList: undefined;
+  TournamentDetail: { tournamentId: string };
+  TournamentCreate: undefined;
+};
+
+type TournamentListNavigationProp = NativeStackNavigationProp<
+  TournamentsStackParamList,
+  'TournamentList'
+>;
+
 const TournamentListScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<TournamentListNavigationProp>();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -88,8 +100,7 @@ const TournamentListScreen: React.FC = () => {
     <TouchableOpacity
       style={[styles.tournamentCard, { backgroundColor: '#fff' }]}
       onPress={() => {
-        // For now, just show an alert - navigation setup needed
-        alert(`Tournament: ${item.name}`);
+        navigation.navigate('TournamentDetail', { tournamentId: item.id });
       }}
     >
       <View style={styles.cardHeader}>
@@ -190,8 +201,7 @@ const TournamentListScreen: React.FC = () => {
         <TouchableOpacity
           style={[styles.createButton, { backgroundColor: '#007AFF' }]}
           onPress={() => {
-            // For now, just show an alert - navigation setup needed
-            alert('Create Tournament - Feature coming soon!');
+            navigation.navigate('TournamentCreate');
           }}
         >
           <Ionicons name="add" size={20} color="white" />

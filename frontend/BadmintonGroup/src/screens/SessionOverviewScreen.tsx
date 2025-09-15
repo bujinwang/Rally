@@ -1,15 +1,17 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { 
-  ScrollView, 
-  View, 
-  Text, 
-  StyleSheet, 
+import {
+  ScrollView,
+  View,
+  Text,
+  StyleSheet,
   RefreshControl,
-  Alert 
+  Alert,
+  TouchableOpacity
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
-import { useRoute, RouteProp } from '@react-navigation/native';
+import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 
 // Components
 import SessionHeader from '../components/design-system/Layout/SessionHeader';
@@ -25,7 +27,7 @@ import { colors, spacing, typography } from '../theme/theme';
 // Services
 import { mvpApiService, MvpSession, MvpPlayer } from '../services/mvpApiService';
 import { createShareableLinks } from '../components/ShareLinkHandler';
-import { socketService } from '../services/socketService';
+import socketService from '../services/socketService';
 import sessionApi from '../services/sessionApi';
 
 // Redux (if needed)
@@ -87,6 +89,7 @@ const transformMvpPlayerToPlayer = (mvpPlayer: MvpPlayer, ownerDeviceId?: string
 };
 
 export const SessionOverviewScreen: React.FC<SessionOverviewScreenProps> = () => {
+  const navigation = useNavigation();
   const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
   const { sessionId, shareCode } = route.params || {};
   
@@ -509,6 +512,22 @@ export const SessionOverviewScreen: React.FC<SessionOverviewScreenProps> = () =>
           shareLoading={loading.share}
           isOrganizer={isOrganizer}
         />
+
+        {/* Pairing Button - Only show for organizers when there are enough active players */}
+        {isOrganizer && active.length >= 4 && (
+          <View style={styles.pairingSection}>
+            <TouchableOpacity
+              style={styles.pairingButton}
+              onPress={() => navigation.navigate('Pairing' as never)}
+            >
+              <Ionicons name="shuffle" size={20} color="#ffffff" />
+              <Text style={styles.pairingButtonText}>生成配对</Text>
+            </TouchableOpacity>
+            <Text style={styles.pairingDescription}>
+              为 {active.length} 位活跃球员生成公平配对
+            </Text>
+          </View>
+        )}
         
         {/* Players List */}
         {active.length > 0 && (
@@ -642,6 +661,40 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
+  },
+
+  pairingSection: {
+    marginBottom: spacing.lg,
+    alignItems: 'center',
+  },
+
+  pairingButton: {
+    backgroundColor: '#28a745',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: 12,
+    gap: spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+
+  pairingButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  pairingDescription: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.xs,
   },
 });
 

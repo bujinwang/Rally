@@ -21,6 +21,10 @@ import notificationsRoutes from './notifications';
 import friendsRoutes from './friends';
 import messagingRoutes from './messaging';
 import challengesRoutes from './challenges';
+import matchSchedulingRoutes from './matchScheduling';
+import equipmentRoutes from './equipment';
+import courtBookingRoutes from './courtBookings';
+import paymentRoutes from './payments';
 
 const router = Router();
 
@@ -76,6 +80,14 @@ console.log('  - /messaging');
 router.use('/messaging', messagingRoutes);
 console.log('  - /challenges');
 router.use('/challenges', challengesRoutes);
+console.log('  - /match-scheduling');
+router.use('/match-scheduling', matchSchedulingRoutes);
+console.log('  - /equipment');
+router.use('/equipment', equipmentRoutes);
+console.log('  - /court-bookings');
+router.use('/court-bookings', courtBookingRoutes);
+console.log('  - /payments');
+router.use('/payments', paymentRoutes);
 console.log('✅ All routes registered successfully');
 
 export const setupRoutes = (): Router => {
