@@ -185,12 +185,86 @@ export interface AnalyticsApiResponse<T> {
   message?: string;
 }
 
+// Session Analytics Types
+export interface SessionTrendsData {
+  totalSessions: number;
+  data: Array<{
+    date: string;
+    sessions: number;
+    avgAttendance: number;
+    totalPlayers: number;
+  }>;
+}
+
+export interface ParticipationAnalysis {
+  totalUniquePlayers: number;
+  avgAttendance: number;
+  frequencyDistribution: Array<{
+    range: string;
+    count: number;
+    percentage: number;
+  }>;
+}
+
+export interface GeographicDistribution {
+  topLocations: Array<{
+    location: string;
+    sessions: number;
+    players: number;
+    coordinates?: {
+      lat: number;
+      lng: number;
+    };
+  }>;
+}
+
+export interface SessionTypeAnalytics {
+  type: string;
+  sessions: number;
+  avgPlayers: number;
+  avgCompletionRate: number;
+}
+
+export interface PeakUsagePatterns {
+  popularTimes: Array<{
+    hour: number;
+    time: string;
+    sessions: number;
+    avgPlayers: number;
+  }>;
+  peakHour?: number;
+}
+
 // Analytics Dashboard Data
 export interface AnalyticsDashboardData {
   playerAnalytics?: PlayerAnalytics;
   leaderboard: LeaderboardEntry[];
   systemAnalytics?: SystemAnalytics;
   performanceTrends?: PlayerPerformanceTrends;
+
+  // New session analytics properties
+  summary?: {
+    totalSessions: number;
+    totalPlayers: number;
+    avgAttendance: number;
+    popularTimes?: Array<{
+      hour: number;
+      time: string;
+      sessions: number;
+      avgPlayers: number;
+    }>;
+    topLocations?: Array<{
+      location: string;
+      sessions: number;
+      players: number;
+    }>;
+  };
+  trends?: SessionTrendsData;
+  participation?: ParticipationAnalysis;
+  geography?: GeographicDistribution;
+  sessionTypes?: SessionTypeAnalytics[];
+  peakUsage?: PeakUsagePatterns;
+  generatedAt?: string;
 }
 
 // Analytics Filter Options

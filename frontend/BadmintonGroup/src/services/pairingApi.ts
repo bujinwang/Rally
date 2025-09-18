@@ -25,6 +25,43 @@ export interface ManualPairingAdjustment {
   }[];
 }
 
+export interface AIPairingSuggestion {
+  pairing: [string, string];
+  confidence: number;
+  reason: string;
+  factors: {
+    skillMatch: number;
+    preferenceMatch: number;
+    historicalCompatibility: number;
+  };
+}
+
+export interface AIPairingResult {
+  suggestions: AIPairingSuggestion[];
+  processingTime: number;
+  algorithmVersion: string;
+}
+
+export interface PairingFeedback {
+  sessionId: string;
+  playerId: string;
+  partnerId: string;
+  feedback: number; // 1-5 rating
+  aiSuggested?: boolean;
+}
+
+export interface PairingExplanation {
+  suggestionId: string;
+  explanation: string;
+  factors: {
+    skillCompatibility: string;
+    historicalPerformance: string;
+    preferenceAlignment: string;
+  };
+  confidence: number;
+  alternatives: string[];
+}
+
 class PairingApiService {
   private getAuthHeaders(): HeadersInit {
     // Get auth token from storage or context
@@ -121,6 +158,106 @@ class PairingApiService {
       }
     } catch (error) {
       console.error('Error clearing pairings:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate AI-powered pairing suggestions
+   */
+  async generateAISuggestions(
+    sessionId: string,
+    playerIds: string[],
+    options: {
+      maxSuggestions?: number;
+      includeHistoricalData?: boolean;
+      preferenceWeight?: number;
+    } = {}
+  ): Promise<AIPairingResult> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/pairings/suggest`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          sessionId,
+          playerIds,
+          options
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to generate AI suggestions');
+      }
+
+      const data = await response.json();
+      return data.data;
+    } catch (error) {
+      console.error('Error generating AI suggestions:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get explanation for a pairing suggestion
+   */
+  async getPairingExplanation(suggestionId: string): Promise<PairingExplanation> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/pairings/explain/${suggestionId}`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to get pairing explanation');
+      }
+
+      const data = await response.json();
+      return data.data;
+    } catch (error) {
+      console.error('Error getting pairing explanation:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Submit feedback on AI pairing suggestions
+   */
+  async submitPairingFeedback(feedback: PairingFeedback): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/pairings/feedback`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(feedback),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to submit feedback');
+      }
+    } catch (error) {
+      console.error('Error submitting pairing feedback:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update player skill levels based on recent performance
+   */
+  async updatePlayerSkillLevels(sessionId: string): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/pairings/update-skills/${sessionId}`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to update skill levels');
+      }
+    } catch (error) {
+      console.error('Error updating player skill levels:', error);
       throw error;
     }
   }

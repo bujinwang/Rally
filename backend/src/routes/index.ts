@@ -25,6 +25,7 @@ import matchSchedulingRoutes from './matchScheduling';
 import equipmentRoutes from './equipment';
 import courtBookingRoutes from './courtBookings';
 import paymentRoutes from './payments';
+import sharingRoutes from './sharing';
 
 const router = Router();
 
@@ -88,6 +89,8 @@ console.log('  - /court-bookings');
 router.use('/court-bookings', courtBookingRoutes);
 console.log('  - /payments');
 router.use('/payments', paymentRoutes);
+console.log('  - /sharing');
+router.use('/sharing', sharingRoutes);
 console.log('✅ All routes registered successfully');
 
 export const setupRoutes = (): Router => {

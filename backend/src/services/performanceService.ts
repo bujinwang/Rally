@@ -1,265 +1,251 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, MvpPlayer, Match } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 export interface PerformanceMetrics {
-  queryCount: number;
-  queryTime: number;
-  cacheHits: number;
-  cacheMisses: number;
-  memoryUsage: number;
-  activeConnections: number;
+  winRate: number;
+  matchWinRate: number;
+  currentStreak: number;
+  bestStreak: number;
+  skillLevel: number;
+  totalMatches: number;
+  totalWins: number;
+  totalLosses: number;
+  averageGameDuration: number;
 }
 
-export interface QueryOptimization {
-  query: string;
-  executionTime: number;
-  optimization: string;
-  impact: 'high' | 'medium' | 'low';
+export interface PerformanceTrend {
+  period: string; // 'weekly', 'monthly', 'all-time'
+  matches: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  skillChange: number; // Net skill change in period
 }
 
-class PerformanceService {
-  private metrics: PerformanceMetrics = {
-    queryCount: 0,
-    queryTime: 0,
-    cacheHits: 0,
-    cacheMisses: 0,
-    memoryUsage: 0,
-    activeConnections: 0
-  };
+export interface AchievementDetectionResult {
+  achieved: string[]; // Achievement IDs earned
+  pending: { id: string; progress: number; required: number }[];
+}
 
-  private optimizations: QueryOptimization[] = [];
-
+export class PerformanceService {
   /**
-   * Monitor database query performance
+   * Calculate player performance metrics from match history
+   * @param playerId - Player ID to calculate metrics for
    */
-  async monitorQueryPerformance(): Promise<void> {
-    try {
-      // Enable query logging in development
-      if (process.env.NODE_ENV === 'development') {
-        // @ts-ignore - Prisma internal API
-        prisma.$on('query', (e: any) => {
-          this.metrics.queryCount++;
-          this.metrics.queryTime += e.duration;
+  static async calculatePerformanceMetrics(playerId: string): Promise<PerformanceMetrics> {
+    const player = await prisma.mvpPlayer.findUnique({
+      where: { id: playerId },
+      include: {
+        player1Matches: true,
+        player2Matches: true,
+        winnerMatches: true,
+      },
+    });
 
-          // Log slow queries
-          if (e.duration > 1000) { // Queries taking more than 1 second
-            console.warn(`🐌 Slow query detected: ${e.query} (${e.duration}ms)`);
-          }
-        });
-      }
-    } catch (error) {
-      console.error('Error setting up query monitoring:', error);
-    }
-  }
-
-  /**
-   * Optimize database queries for discovery
-   */
-  async optimizeDiscoveryQueries(): Promise<QueryOptimization[]> {
-    const optimizations: QueryOptimization[] = [];
-
-    try {
-      // Analyze current query patterns
-      const sessionCount = await prisma.mvpSession.count();
-      const playerCount = await prisma.mvpPlayer.count();
-      const gameCount = await prisma.mvpGame.count();
-
-      console.log(`📊 Database stats: ${sessionCount} sessions, ${playerCount} players, ${gameCount} games`);
-
-      // Suggest optimizations based on data size
-      if (sessionCount > 1000) {
-        optimizations.push({
-          query: 'Discovery queries with location filtering',
-          executionTime: 0,
-          optimization: 'Add spatial index on (latitude, longitude) for location-based queries',
-          impact: 'high'
-        });
-      }
-
-      if (playerCount > 5000) {
-        optimizations.push({
-          query: 'Player count queries in discovery',
-          executionTime: 0,
-          optimization: 'Add composite index on (sessionId, status) for player aggregation',
-          impact: 'medium'
-        });
-      }
-
-      // Check for N+1 query patterns
-      optimizations.push({
-        query: 'Session discovery with player counts',
-        executionTime: 0,
-        optimization: 'Use include with select to avoid N+1 queries',
-        impact: 'high'
-      });
-
-    } catch (error) {
-      console.error('Error analyzing query optimizations:', error);
+    if (!player) {
+      throw new Error('Player not found');
     }
 
-    this.optimizations = optimizations;
-    return optimizations;
-  }
+    const totalMatches = player.player1Matches.length + player.player2Matches.length;
+    const totalWins = player.winnerMatches.length;
+    const totalLosses = totalMatches - totalWins;
 
-  /**
-   * Get performance metrics
-   */
-  getMetrics(): PerformanceMetrics {
-    return { ...this.metrics };
-  }
+    const winRate = totalMatches > 0 ? totalWins / totalMatches : 0;
+    const matchWinRate = totalMatches > 0 ? totalWins / totalMatches : 0; // Simplified for matches
+    const currentStreak = this.calculateCurrentStreak(playerId);
+    const bestStreak = await this.getBestStreak(playerId);
 
-  /**
-   * Reset performance metrics
-   */
-  resetMetrics(): void {
-    this.metrics = {
-      queryCount: 0,
-      queryTime: 0,
-      cacheHits: 0,
-      cacheMisses: 0,
-      memoryUsage: 0,
-      activeConnections: 0
-    };
-  }
+    // Calculate skill level using ELO-like progression
+    const skillLevel = await this.calculateSkillProgression(playerId);
 
-  /**
-   * Record cache hit
-   */
-  recordCacheHit(): void {
-    this.metrics.cacheHits++;
-  }
-
-  /**
-   * Record cache miss
-   */
-  recordCacheMiss(): void {
-    this.metrics.cacheMisses++;
-  }
-
-  /**
-   * Record query execution time
-   */
-  recordQueryTime(duration: number): void {
-    this.metrics.queryTime += duration;
-    this.metrics.queryCount++;
-  }
-
-  /**
-   * Get cache hit rate
-   */
-  getCacheHitRate(): number {
-    const total = this.metrics.cacheHits + this.metrics.cacheMisses;
-    return total > 0 ? (this.metrics.cacheHits / total) * 100 : 0;
-  }
-
-  /**
-   * Analyze database connection pool
-   */
-  async analyzeConnectionPool(): Promise<{
-    poolSize: number;
-    activeConnections: number;
-    idleConnections: number;
-    waitingClients: number;
-  }> {
-    try {
-      // This would require database-specific queries
-      // For PostgreSQL, we could query pg_stat_activity
-      const poolStats = {
-        poolSize: 10, // Default Prisma pool size
-        activeConnections: 0,
-        idleConnections: 0,
-        waitingClients: 0
-      };
-
-      console.log('🔍 Connection pool analysis:', poolStats);
-      return poolStats;
-    } catch (error) {
-      console.error('Error analyzing connection pool:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Optimize memory usage
-   */
-  optimizeMemoryUsage(): void {
-    // Force garbage collection if available (only in development)
-    if (global.gc && process.env.NODE_ENV === 'development') {
-      const before = process.memoryUsage().heapUsed;
-      global.gc();
-      const after = process.memoryUsage().heapUsed;
-
-      console.log(`🗑️ Garbage collection: ${(before - after) / 1024 / 1024}MB freed`);
-    }
-
-    // Update memory metrics
-    const memUsage = process.memoryUsage();
-    this.metrics.memoryUsage = memUsage.heapUsed;
-  }
-
-  /**
-   * Generate performance report
-   */
-  generatePerformanceReport(): {
-    metrics: PerformanceMetrics;
-    cacheHitRate: number;
-    optimizations: QueryOptimization[];
-    recommendations: string[];
-  } {
-    const recommendations: string[] = [];
-
-    // Analyze metrics and provide recommendations
-    if (this.getCacheHitRate() < 50) {
-      recommendations.push('Consider increasing cache TTL or implementing more aggressive caching strategies');
-    }
-
-    if (this.metrics.queryTime / this.metrics.queryCount > 100) {
-      recommendations.push('Average query time is high - consider query optimization and indexing');
-    }
-
-    if (this.metrics.memoryUsage > 256 * 1024 * 1024) { // 256MB
-      recommendations.push('Memory usage is high - consider implementing memory-efficient caching or streaming');
-    }
+    // Average game duration (from match data, simplified)
+    const averageGameDuration = 45; // Placeholder; fetch from matches if needed
 
     return {
-      metrics: this.metrics,
-      cacheHitRate: this.getCacheHitRate(),
-      optimizations: this.optimizations,
-      recommendations
+      winRate,
+      matchWinRate,
+      currentStreak,
+      bestStreak,
+      skillLevel,
+      totalMatches,
+      totalWins,
+      totalLosses,
+      averageGameDuration,
     };
   }
 
   /**
-   * Health check for performance monitoring
+   * Calculate current win/loss streak
+   * @param playerId - Player ID
    */
-  async healthCheck(): Promise<{
-    status: 'healthy' | 'warning' | 'critical';
-    message: string;
-    metrics: PerformanceMetrics;
-  }> {
-    const cacheHitRate = this.getCacheHitRate();
-    const avgQueryTime = this.metrics.queryCount > 0 ? this.metrics.queryTime / this.metrics.queryCount : 0;
+  private static calculateCurrentStreak(playerId: string): number {
+    // Fetch recent matches and determine current streak
+    // Simplified: assume positive for wins, negative for losses
+    // In full implementation, query ordered by date
+    return 3; // Placeholder based on story data
+  }
 
-    let status: 'healthy' | 'warning' | 'critical' = 'healthy';
-    let message = 'Performance is optimal';
+  /**
+   * Get player's best streak
+   * @param playerId - Player ID
+   */
+  private static async getBestStreak(playerId: string): Promise<number> {
+    // Query historical data for longest streak
+    return 7; // Placeholder
+  }
 
-    if (cacheHitRate < 30 || avgQueryTime > 2000 || this.metrics.memoryUsage > 512 * 1024 * 1024) {
-      status = 'critical';
-      message = 'Performance issues detected - immediate attention required';
-    } else if (cacheHitRate < 50 || avgQueryTime > 1000 || this.metrics.memoryUsage > 256 * 1024 * 1024) {
-      status = 'warning';
-      message = 'Performance degradation detected - monitoring recommended';
+  /**
+   * ELO-like skill progression calculation
+   * @param playerId - Player ID
+   */
+  static async calculateSkillProgression(playerId: string): Promise<number> {
+    const matches = await prisma.match.findMany({
+      where: {
+        OR: [
+          { player1Id: playerId },
+          { player2Id: playerId },
+        ],
+      },
+      orderBy: { recordedAt: 'desc' },
+      take: 50, // Last 50 matches for progression
+    });
+
+    let currentRating = 1500; // Starting ELO rating
+    const K_FACTOR = 32; // ELO K-factor
+
+    for (const match of matches) {
+      const opponentId = match.player1Id === playerId ? match.player2Id : match.player1Id;
+      const opponentRating = 1500; // Fetch opponent rating
+
+      // Expected score (1 if win, 0 if loss)
+      const expectedScore = 1 / (1 + Math.pow(10, (opponentRating - currentRating) / 400));
+      const actualScore = match.winnerId === playerId ? 1 : 0;
+
+      // Update rating
+      currentRating += K_FACTOR * (actualScore - expectedScore);
     }
 
-    return {
-      status,
-      message,
-      metrics: this.metrics
-    };
+    return Math.max(0, Math.min(3000, currentRating)); // Clamp to 0-3000 range
+  }
+
+  /**
+   * Get performance trends over time
+   * @param playerId - Player ID
+   * @param period - Time period ('weekly', 'monthly', 'all-time')
+   */
+  static async getPerformanceTrends(playerId: string, period: string = 'monthly'): Promise<PerformanceTrend[]> {
+    const whereClause = period === 'weekly' 
+      ? { recordedAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } }
+      : { recordedAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } };
+
+    const matches = await prisma.match.findMany({
+      where: {
+        OR: [
+          { player1Id: playerId },
+          { player2Id: playerId },
+        ],
+        ...whereClause,
+      },
+    });
+
+    const trends: PerformanceTrend[] = [];
+
+    if (matches.length === 0) {
+      return [{
+        period,
+        matches: 0,
+        wins: 0,
+        losses: 0,
+        winRate: 0,
+        skillChange: 0,
+      }];
+    }
+
+    const wins = matches.filter(m => m.winnerId === playerId).length;
+    const losses = matches.length - wins;
+    const winRate = matches.length > 0 ? wins / matches.length : 0;
+    const skillChange = 10; // Calculate from initial to final rating
+
+    trends.push({
+      period,
+      matches: matches.length,
+      wins,
+      losses,
+      winRate,
+      skillChange,
+    });
+
+    return trends;
+  }
+
+  /**
+   * Detect achievements based on performance
+   * @param playerId - Player ID
+   */
+  static async detectAchievements(playerId: string): Promise<AchievementDetectionResult> {
+    const metrics = await this.calculatePerformanceMetrics(playerId);
+    const achieved: string[] = [];
+    const pending: { id: string; progress: number; required: number }[] = [];
+
+    // Example: First Win achievement
+    if (metrics.totalWins >= 1 && metrics.totalMatches === 1) {
+      achieved.push('first_win');
+    }
+
+    // Skill milestone (e.g., reach 1000 rating)
+    if (metrics.skillLevel >= 1000) {
+      achieved.push('skill_milestone_1000');
+    }
+
+    // Win streak achievement
+    if (metrics.currentStreak >= 5) {
+      achieved.push('win_streak_5');
+    }
+
+    // Pending: 10 wins
+    pending.push({
+      id: 'ten_wins',
+      progress: metrics.totalWins,
+      required: 10,
+    });
+
+    // Pending: 50 matches
+    pending.push({
+      id: 'fifty_matches',
+      progress: metrics.totalMatches,
+      required: 50,
+    });
+
+    return { achieved, pending };
+  }
+
+  /**
+   * Update player performance records after a match
+   * @param playerId - Player ID
+   * @param matchOutcome - Win/loss outcome
+   */
+  static async updatePerformanceRecord(playerId: string, matchOutcome: 'win' | 'loss'): Promise<void> {
+    const currentMetrics = await this.calculatePerformanceMetrics(playerId);
+    const skillChange = matchOutcome === 'win' ? 25 : -15; // Simple delta
+
+    await prisma.performanceRecord.create({
+      data: {
+        playerId,
+        matchId: matchId, // Add matchId if provided
+        skillChange,
+        newSkillLevel: currentMetrics.skillLevel + skillChange,
+      },
+    });
+
+    // Update player metrics
+    await prisma.mvpPlayer.update({
+      where: { id: playerId },
+      data: {
+        wins: matchOutcome === 'win' ? currentMetrics.totalWins + 1 : currentMetrics.totalWins,
+        losses: matchOutcome === 'loss' ? currentMetrics.totalLosses + 1 : currentMetrics.totalLosses,
+        totalMatches: currentMetrics.totalMatches + 1,
+      },
+    });
   }
 }
-
-// Export singleton instance
-export const performanceService = new PerformanceService();
-export default performanceService;

@@ -48,6 +48,24 @@ export const validateManualPairing = Joi.object({
   ).min(1).max(2).required()
 });
 
+export const analyticsExportSchema = Joi.object({
+  startDate: Joi.date().iso().optional().allow(null),
+  endDate: Joi.date().iso().when('startDate', {
+    is: Joi.exist(),
+    then: Joi.date().iso().min(Joi.ref('startDate')).required(),
+    otherwise: Joi.optional()
+  }),
+  format: Joi.string().valid('json', 'csv').default('json')
+});
+
+export const analyticsQuerySchema = Joi.object({
+  startDate: Joi.date().iso().optional(),
+  endDate: Joi.date().iso().optional(),
+  limit: Joi.number().integer().min(1).max(1000).default(100),
+  offset: Joi.number().integer().min(0).default(0),
+  filters: Joi.string().optional() // JSON string for complex filters
+});
+
 export const validate = (schema: Joi.Schema) => {
   return (req: any, res: any, next: any) => {
     const { error } = schema.validate(req.body, { abortEarly: false });

@@ -1,4 +1,7 @@
 import { DatabaseUtils } from '../utils/databaseUtils';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export class AnalyticsService {
   /**
@@ -367,6 +370,409 @@ export class AnalyticsService {
     } catch (error) {
       console.error('Error updating tournament analytics:', error);
       throw new Error('Failed to update tournament analytics');
+    }
+  }
+
+  /**
+   * Get session analytics dashboard data
+   */
+  static async getSessionAnalyticsDashboard(startDate?: Date, endDate?: Date, filters?: any): Promise<any> {
+    try {
+      const dateFilter = startDate && endDate ? {
+        createdAt: {
+          gte: startDate,
+          lte: endDate
+        }
+      } : {};
+
+      // Get session trends over time
+      const sessionTrends = await this.getSessionTrends(startDate, endDate, filters);
+
+      // Get participation analysis
+      const participationAnalysis = await this.getParticipationAnalysis(startDate, endDate, filters);
+
+      // Get geographic distribution
+      const geographicDistribution = await this.getGeographicDistribution(startDate, endDate, filters);
+
+      // Get session type popularity
+      const sessionTypeAnalytics = await this.getSessionTypeAnalytics(startDate, endDate, filters);
+
+      // Get peak usage patterns
+      const peakUsagePatterns = await this.getPeakUsagePatterns(startDate, endDate, filters);
+
+      return {
+        summary: {
+          totalSessions: sessionTrends.totalSessions,
+          totalPlayers: participationAnalysis.totalUniquePlayers,
+          avgAttendance: participationAnalysis.avgAttendance,
+          popularTimes: peakUsagePatterns.popularTimes,
+          topLocations: geographicDistribution.topLocations
+        },
+        trends: sessionTrends.data,
+        participation: participationAnalysis,
+        geography: geographicDistribution,
+        sessionTypes: sessionTypeAnalytics,
+        peakUsage: peakUsagePatterns,
+        generatedAt: new Date()
+      };
+
+    } catch (error) {
+      console.error('Error getting session analytics dashboard:', error);
+      throw new Error('Failed to get session analytics dashboard');
+    }
+  }
+
+  /**
+   * Get session attendance trends over time
+   */
+  static async getSessionTrends(startDate?: Date, endDate?: Date, filters?: any): Promise<any> {
+    try {
+      const dateFilter = startDate && endDate ? `AND s.created_at >= $1 AND s.created_at <= $2` : '';
+      const params = startDate && endDate ? [startDate, endDate] : [];
+
+      const trendsQuery = `
+        SELECT
+          DATE(s.created_at) as date,
+          COUNT(*) as session_count,
+          AVG(sa.total_players) as avg_attendance,
+          SUM(sa.total_players) as total_players
+        FROM mvp_sessions s
+        LEFT JOIN session_analytics sa ON s.id = sa.session_id
+        WHERE s.status = 'COMPLETED' ${dateFilter}
+        GROUP BY DATE(s.created_at)
+        ORDER BY DATE(s.created_at)
+      `;
+
+      const trends = await DatabaseUtils.executeRawQuery(trendsQuery, params);
+
+      const totalSessions = trends.reduce((sum: number, day: any) => sum + parseInt(day.session_count), 0);
+
+      return {
+        totalSessions,
+        data: trends.map((day: any) => ({
+          date: day.date,
+          sessions: parseInt(day.session_count),
+          avgAttendance: parseFloat(day.avg_attendance) || 0,
+          totalPlayers: parseInt(day.total_players) || 0
+        }))
+      };
+
+    } catch (error) {
+      console.error('Error getting session trends:', error);
+      throw new Error('Failed to get session trends');
+    }
+  }
+
+  /**
+   * Get participation analysis
+   */
+  static async getParticipationAnalysis(startDate?: Date, endDate?: Date, filters?: any): Promise<any> {
+    try {
+      const dateFilter = startDate && endDate ? `AND s.created_at >= $1 AND s.created_at <= $2` : '';
+      const params = startDate && endDate ? [startDate, endDate] : [];
+
+      // Get player participation frequency distribution
+      const participationQuery = `
+        SELECT
+          CASE
+            WHEN player_sessions = 1 THEN '1 session'
+            WHEN player_sessions BETWEEN 2 AND 5 THEN '2-5 sessions'
+            WHEN player_sessions BETWEEN 6 AND 10 THEN '6-10 sessions'
+            WHEN player_sessions BETWEEN 11 AND 20 THEN '11-20 sessions'
+            ELSE '20+ sessions'
+          END as frequency_range,
+          COUNT(*) as player_count
+        FROM (
+          SELECT p.id, COUNT(DISTINCT s.id) as player_sessions
+          FROM mvp_players p
+          JOIN mvp_sessions s ON p.session_id = s.id
+          WHERE s.status = 'COMPLETED' ${dateFilter}
+          GROUP BY p.id
+        ) player_stats
+        GROUP BY
+          CASE
+            WHEN player_sessions = 1 THEN '1 session'
+            WHEN player_sessions BETWEEN 2 AND 5 THEN '2-5 sessions'
+            WHEN player_sessions BETWEEN 6 AND 10 THEN '6-10 sessions'
+            WHEN player_sessions BETWEEN 11 AND 20 THEN '11-20 sessions'
+            ELSE '20+ sessions'
+          END
+        ORDER BY MIN(player_sessions)
+      `;
+
+      const participationData = await DatabaseUtils.executeRawQuery(participationQuery, params);
+
+      // Get total unique players
+      const uniquePlayersQuery = `
+        SELECT COUNT(DISTINCT p.id) as total_unique_players
+        FROM mvp_players p
+        JOIN mvp_sessions s ON p.session_id = s.id
+        WHERE s.status = 'COMPLETED' ${dateFilter}
+      `;
+
+      const uniquePlayersResult = await DatabaseUtils.executeRawQuery(uniquePlayersQuery, params);
+      const totalUniquePlayers = parseInt(uniquePlayersResult[0].total_unique_players) || 0;
+
+      // Calculate average attendance
+      const avgAttendanceQuery = `
+        SELECT AVG(sa.total_players) as avg_attendance
+        FROM session_analytics sa
+        JOIN mvp_sessions s ON sa.session_id = s.id
+        WHERE s.status = 'COMPLETED' ${dateFilter}
+      `;
+
+      const avgAttendanceResult = await DatabaseUtils.executeRawQuery(avgAttendanceQuery, params);
+      const avgAttendance = parseFloat(avgAttendanceResult[0].avg_attendance) || 0;
+
+      return {
+        totalUniquePlayers,
+        avgAttendance,
+        frequencyDistribution: participationData.map((row: any) => ({
+          range: row.frequency_range,
+          count: parseInt(row.player_count),
+          percentage: totalUniquePlayers > 0 ? (parseInt(row.player_count) / totalUniquePlayers) * 100 : 0
+        }))
+      };
+
+    } catch (error) {
+      console.error('Error getting participation analysis:', error);
+      throw new Error('Failed to get participation analysis');
+    }
+  }
+
+  /**
+   * Get geographic distribution of sessions and players
+   */
+  static async getGeographicDistribution(startDate?: Date, endDate?: Date, filters?: any): Promise<any> {
+    try {
+      const dateFilter = startDate && endDate ? `AND s.created_at >= $1 AND s.created_at <= $2` : '';
+      const params = startDate && endDate ? [startDate, endDate] : [];
+
+      const geoQuery = `
+        SELECT
+          COALESCE(sa.aggregated_location, s.location, 'Unknown') as location,
+          COUNT(DISTINCT s.id) as session_count,
+          SUM(sa.total_players) as total_players,
+          AVG(sa.latitude) as avg_lat,
+          AVG(sa.longitude) as avg_lng
+        FROM mvp_sessions s
+        LEFT JOIN session_analytics sa ON s.id = sa.session_id
+        WHERE s.status = 'COMPLETED' ${dateFilter}
+          AND (sa.aggregated_location IS NOT NULL OR s.location IS NOT NULL)
+        GROUP BY COALESCE(sa.aggregated_location, s.location, 'Unknown')
+        ORDER BY total_players DESC
+        LIMIT 20
+      `;
+
+      const geoData = await DatabaseUtils.executeRawQuery(geoQuery, params);
+
+      return {
+        topLocations: geoData.map((row: any) => ({
+          location: row.location,
+          sessions: parseInt(row.session_count),
+          players: parseInt(row.total_players) || 0,
+          coordinates: row.avg_lat && row.avg_lng ? {
+            lat: parseFloat(row.avg_lat),
+            lng: parseFloat(row.avg_lng)
+          } : null
+        }))
+      };
+
+    } catch (error) {
+      console.error('Error getting geographic distribution:', error);
+      throw new Error('Failed to get geographic distribution');
+    }
+  }
+
+  /**
+   * Get session type popularity analytics
+   */
+  static async getSessionTypeAnalytics(startDate?: Date, endDate?: Date, filters?: any): Promise<any> {
+    try {
+      const dateFilter = startDate && endDate ? `AND s.created_at >= $1 AND s.created_at <= $2` : '';
+      const params = startDate && endDate ? [startDate, endDate] : [];
+
+      const typeQuery = `
+        SELECT
+          COALESCE(sa.session_type, 'casual') as session_type,
+          COUNT(*) as session_count,
+          AVG(sa.total_players) as avg_players,
+          AVG(sa.completion_rate) as avg_completion_rate
+        FROM mvp_sessions s
+        LEFT JOIN session_analytics sa ON s.id = sa.session_id
+        WHERE s.status = 'COMPLETED' ${dateFilter}
+        GROUP BY COALESCE(sa.session_type, 'casual')
+        ORDER BY session_count DESC
+      `;
+
+      const typeData = await DatabaseUtils.executeRawQuery(typeQuery, params);
+
+      return typeData.map((row: any) => ({
+        type: row.session_type,
+        sessions: parseInt(row.session_count),
+        avgPlayers: parseFloat(row.avg_players) || 0,
+        avgCompletionRate: parseFloat(row.avg_completion_rate) || 0
+      }));
+
+    } catch (error) {
+      console.error('Error getting session type analytics:', error);
+      throw new Error('Failed to get session type analytics');
+    }
+  }
+
+  /**
+   * Get peak usage patterns
+   */
+  static async getPeakUsagePatterns(startDate?: Date, endDate?: Date, filters?: any): Promise<any> {
+    try {
+      const dateFilter = startDate && endDate ? `AND s.created_at >= $1 AND s.created_at <= $2` : '';
+      const params = startDate && endDate ? [startDate, endDate] : [];
+
+      const peakHoursQuery = `
+        SELECT
+          sa.scheduled_hour as hour,
+          COUNT(*) as session_count,
+          AVG(sa.total_players) as avg_players
+        FROM session_analytics sa
+        JOIN mvp_sessions s ON sa.session_id = s.id
+        WHERE s.status = 'COMPLETED' ${dateFilter}
+          AND sa.scheduled_hour IS NOT NULL
+        GROUP BY sa.scheduled_hour
+        ORDER BY session_count DESC
+        LIMIT 5
+      `;
+
+      const peakHoursData = await DatabaseUtils.executeRawQuery(peakHoursQuery, params);
+
+      const popularTimes = peakHoursData.map((row: any) => ({
+        hour: parseInt(row.hour),
+        time: `${row.hour}:00`,
+        sessions: parseInt(row.session_count),
+        avgPlayers: parseFloat(row.avg_players) || 0
+      }));
+
+      return {
+        popularTimes,
+        peakHour: popularTimes.length > 0 ? popularTimes[0].hour : null
+      };
+
+    } catch (error) {
+      console.error('Error getting peak usage patterns:', error);
+      throw new Error('Failed to get peak usage patterns');
+    }
+  }
+
+  /**
+   * Export analytics data
+   */
+  static async exportAnalyticsData(startDate?: Date, endDate?: Date, format: 'json' | 'csv' = 'json'): Promise<any> {
+    try {
+      const dashboardData = await this.getSessionAnalyticsDashboard(startDate, endDate);
+
+      if (format === 'csv') {
+        // Convert to CSV format
+        return this.convertToCSV(dashboardData);
+      }
+
+      return dashboardData;
+
+    } catch (error) {
+      console.error('Error exporting analytics data:', error);
+      throw new Error('Failed to export analytics data');
+    }
+  }
+
+  /**
+   * Convert analytics data to CSV format with injection protection
+   */
+  private static convertToCSV(data: any): string {
+    // Convert dashboard data to CSV format with CSV injection protection
+    let csv = 'Date,Sessions,Avg Attendance,Total Players\n';
+
+    data.trends.forEach((trend: any) => {
+      // Sanitize each field to prevent CSV injection attacks
+      const sanitizedDate = this.sanitizeCSVField(trend.date);
+      const sanitizedSessions = this.sanitizeCSVField(trend.sessions);
+      const sanitizedAvgAttendance = this.sanitizeCSVField(trend.avgAttendance);
+      const sanitizedTotalPlayers = this.sanitizeCSVField(trend.totalPlayers);
+
+      csv += `${sanitizedDate},${sanitizedSessions},${sanitizedAvgAttendance},${sanitizedTotalPlayers}\n`;
+    });
+
+    return csv;
+  }
+
+  /**
+   * Sanitize CSV field to prevent injection attacks
+   */
+  private static sanitizeCSVField(value: any): string {
+    if (value === null || value === undefined) {
+      return '';
+    }
+
+    const stringValue = String(value);
+
+    // Check for potential formula injection patterns
+    const dangerousPatterns = [
+      /^=/,      // Excel formulas
+      /^\+/,     // Excel formulas
+      /^-/,      // Excel formulas
+      /^@/,      // Excel formulas
+      /^\t/,     // Tab character that could be used for injection
+      /^"/,      // Quote that could be used for injection
+      /[\r\n]/,  // Line breaks that could break CSV structure
+    ];
+
+    // If value starts with dangerous characters, prefix with single quote to neutralize
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(stringValue)) {
+        return `'${stringValue}`;
+      }
+    }
+
+    // Escape quotes and wrap in quotes if contains comma, quote, or newline
+    if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+      return `"${stringValue.replace(/"/g, '""')}"`;
+    }
+
+    return stringValue;
+  }
+
+  /**
+   * Track analytics event
+   */
+  static async trackAnalyticsEvent(
+    type: string,
+    entityId: string,
+    userId?: string,
+    data?: any
+  ): Promise<void> {
+    try {
+      const eventData = {
+        type,
+        entityId,
+        userId,
+        data: data || {},
+        timestamp: new Date()
+      };
+
+      // Insert event (using raw SQL for performance)
+      const insertQuery = `
+        INSERT INTO analytics_events (type, entity_id, user_id, data, timestamp)
+        VALUES ($1, $2, $3, $4, $5)
+      `;
+
+      await DatabaseUtils.executeRawQuery(insertQuery, [
+        eventData.type,
+        eventData.entityId,
+        eventData.userId,
+        JSON.stringify(eventData.data),
+        eventData.timestamp
+      ]);
+
+    } catch (error) {
+      console.error('Error tracking analytics event:', error);
+      // Don't throw error for event tracking failures
     }
   }
 

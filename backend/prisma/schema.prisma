@@ -63,6 +63,9 @@ model MvpSession {
   // Match Scheduling Relations
   scheduledMatches ScheduledMatch[]
 
+  // AI Pairing Relations
+  pairingHistory PairingHistory[]
+
   // Performance indexes for discovery and filtering
   @@index([scheduledAt])
   @@index([latitude, longitude])
@@ -157,6 +160,7 @@ model MvpPlayer {
   joinedAt    DateTime        @default(now())
   status      MvpPlayerStatus @default(ACTIVE)
   gamesPlayed Int             @default(0)
+  sessionsParticipated Int    @default(0)
   wins        Int             @default(0)
   losses      Int             @default(0)
 
@@ -177,6 +181,12 @@ model MvpPlayer {
   winRate             Float @default(0.0) // Overall win percentage
   matchWinRate        Float @default(0.0) // Match win percentage
   averageGameDuration Float @default(0.0) // Average game duration in minutes
+  currentStreak       Int   @default(0) // Current win/loss streak
+  bestStreak          Int   @default(0) // Best win streak ever
+
+  // AI Pairing Fields
+  skillLevel Float? // Calculated skill level (0-100)
+  preferences Json? // {"singles": true, "doubles": false, "time": "evenings", "skillPreference": "balanced"}
 
   // Scoring and Statistics System Fields
   totalMatches  Int       @default(0) // Total matches played
@@ -203,6 +213,10 @@ model MvpPlayer {
   receivedChallenges     Challenge[]     @relation("ChallengeChallenged")
   sentMessages           Message[]       @relation("MessageSender")
 
+  // Social Sharing Relations
+  shares                 Share[]
+  socialConnections      SocialConnection[]
+
   // Push Notification Relations
   notifications           Notification[]
   notificationPreferences NotificationPreference?
@@ -210,6 +224,11 @@ model MvpPlayer {
 
   // Analytics Relations
   analytics PlayerAnalytics?
+
+  // AI Pairing Relations
+  pairingHistory PairingHistory[]
+  performanceRecords PerformanceRecord[]
+  achievements     Achievement[]
 
   // Rest Management
   restGamesRemaining Int       @default(0) // Games remaining in rest period
@@ -227,6 +246,12 @@ model MvpPlayer {
   // Status History (JSON for flexible tracking)
   statusHistory Json? // Track status changes over time
 
+  // Privacy Settings for Social Sharing
+  privacySettings Json? // {"session_share": "public", "stats_share": "friends", "achievements_share": "public"}
+  
+  // Engagement and Prediction Preferences
+  engagementPreferences Json? // {"opt_in_analytics": true, "share_predictions": false, "nps_surveys": true}
+
   @@unique([sessionId, name]) // Prevent duplicate names in same session
   @@unique([sessionId, deviceId]) // Prevent same device joining same session twice
   // Performance indexes
@@ -234,6 +259,106 @@ model MvpPlayer {
   @@index([status])
   @@index([sessionId, status]) // Composite index for active players in session
   @@map("mvp_players")
+}
+
+model PerformanceRecord {
+  id          String   @id @default(cuid())
+  playerId    String
+  matchId     String?
+  skillChange Float
+  newSkillLevel Float
+  timestamp   DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  match  Match? @relation(fields: [matchId], references: [id], onDelete: SetNull)
+
+  @@index([playerId])
+  @@index([matchId])
+  @@index([timestamp])
+  @@map("performance_records")
+}
+
+model Achievement {
+  id          String   @id @default(cuid())
+  playerId    String
+  type        String   // "first_win", "skill_milestone", etc.
+  title       String
+  description String
+  earnedAt    DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId])
+  @@index([type])
+  @@index([earnedAt])
+  @@map("achievements")
+}
+
+// AI Pairing History Model
+model PairingHistory {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   MvpSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  playerId  String
+  player    MvpPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  partnerId String? // Partner player ID (null for singles)
+  partner   MvpPlayer? @relation("PairingPartner", fields: [partnerId], references: [id])
+
+  // Pairing outcome and feedback
+  feedback  Int?     // 1-5 rating of pairing quality
+  outcome   String?  // "win", "loss", "draw"
+  duration  Int?     // Match duration in minutes
+
+  // AI context
+  aiSuggested    Boolean @default(false) // Whether this pairing was AI suggested
+  confidenceScore Float? // AI confidence score (0-1)
+  pairingReason   String? // AI explanation for the pairing
+
+  createdAt DateTime @default(now())
+
+  // Relations for partner lookup
+  partnerPairings PairingHistory[] @relation("PairingPartner")
+
+  @@index([sessionId])
+  @@index([playerId])
+  @@index([partnerId])
+  @@index([aiSuggested])
+  @@index([sessionId, playerId])
+  @@map("pairing_history")
+}
+
+// AI Model Parameters for Pairing Algorithm
+model AIModelParameters {
+  id        String   @id @default(cuid())
+  version   String   @unique // Version identifier (e.g., "v1.0.0")
+  isActive  Boolean  @default(false) // Only one version can be active
+
+  // Model weights and parameters (stored as JSON)
+  skillWeights     Json // Weights for skill-based matching
+  preferenceWeights Json // Weights for preference matching
+  historyWeights    Json // Weights for historical data
+
+  // Training metadata
+  trainingDataSize Int // Number of training samples
+  accuracy         Float // Model accuracy score
+  lastTrainedAt    DateTime @default(now())
+
+  // Model configuration
+  algorithmType    String @default("COLLABORATIVE_FILTERING") // Algorithm type
+  hyperparameters  Json // Algorithm-specific parameters
+
+  // Privacy and compliance
+  dataRetentionDays Int @default(365) // How long to keep training data
+  anonymizedOnly    Boolean @default(true) // Whether data is anonymized
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([version])
+  @@map("ai_model_parameters")
 }
 
 // MVP Game tracking for session history
@@ -590,9 +715,10 @@ model Tournament {
   rounds  TournamentRound[]
   matches TournamentMatch[]
   results TournamentResult?
-
-  // Analytics Relations
   analytics TournamentAnalytics?
+  feedback TournamentFeedback[]
+
+  @@map("tournaments")
 
   // Performance indexes
   @@index([startDate])
@@ -1162,6 +1288,49 @@ model Message {
   @@map("messages")
 }
 
+// Social Sharing Models
+model Share {
+  id        String   @id @default(cuid())
+  type      String   // "session", "match", "achievement"
+  entityId  String   // ID of the shared entity
+  sharerId  String   // ID of the player who shared
+  platform  String   // "twitter", "facebook", "whatsapp", "copy_link"
+  url       String   // Generated share URL
+  message   String?  // Optional custom message
+  createdAt DateTime @default(now())
+
+  // Relations
+  sharer MvpPlayer @relation(fields: [sharerId], references: [id], onDelete: Cascade)
+
+  // Performance indexes
+  @@index([sharerId])
+  @@index([type])
+  @@index([platform])
+  @@index([createdAt])
+  @@index([sharerId, type])
+  @@map("shares")
+}
+
+model SocialConnection {
+  id           String @id @default(cuid())
+  playerId     String
+  provider     String // "google", "facebook", "twitter"
+  providerId   String // OAuth provider's user ID
+  providerData Json?  // Additional data from OAuth provider
+  connectedAt  DateTime @default(now())
+  lastUsedAt   DateTime?
+
+  // Relations
+  player MvpPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  // Performance indexes
+  @@unique([playerId, provider])
+  @@index([provider])
+  @@index([providerId])
+  @@index([connectedAt])
+  @@map("social_connections")
+}
+
 // Social Features Enums
 enum FriendStatus {
   PENDING // Friend request sent
@@ -1314,6 +1483,24 @@ enum NotificationCategory {
   SYSTEM // System notifications
 }
 
+// Analytics Event Tracking for Session Activities
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  type      String   // "session_created", "player_joined", "player_left", "match_completed", "session_ended"
+  entityId  String   // ID of the related entity (session, player, match)
+  userId    String?  // User ID if applicable
+  data      Json     // Additional event data (location, duration, etc.)
+  timestamp DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([type])
+  @@index([entityId])
+  @@index([timestamp])
+  @@index([type, timestamp])
+  @@map("analytics_events")
+}
+
 // Analytics Models for Player Performance and Engagement Tracking
 model PlayerAnalytics {
   id       String @id @default(cuid())
@@ -1393,9 +1580,25 @@ model SessionAnalytics {
   scheduledHour Int? // Hour of day (0-23)
   dayOfWeek     Int? // Day of week (0-6, Sunday=0)
 
+  // Geographic Distribution
+  latitude  Float? // GPS latitude for location-based analytics
+  longitude Float? // GPS longitude for location-based analytics
+
+  // Session Type Analytics
+  sessionType String? // casual, competitive, training, tournament
+
+  // Participation Analysis
+  playerFrequency Json? // Distribution of player participation frequency
+  peakHours       Json? // Peak activity hours during session
+  durationStats   Json? // Session duration statistics
+
   // Performance Trends
   matchCompletionTime Json? // Average time to complete matches
   playerSatisfaction  Json? // Player feedback/ratings if available
+
+  // Privacy-compliant Aggregated Data
+  anonymizedPlayerCount Int @default(0) // For privacy compliance
+  aggregatedLocation    String? // Generalized location (city level)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -1409,45 +1612,40 @@ model SessionAnalytics {
   @@index([scheduledHour])
   @@index([dayOfWeek])
   @@index([location])
+  @@index([sessionType])
+  @@index([latitude, longitude])
   @@map("session_analytics")
 }
 
 model TournamentAnalytics {
-  id           String @id @default(cuid())
-  tournamentId String @unique // Reference to Tournament
+  id                    String   @id @default(cuid())
+  tournamentId          String   @unique
+  totalParticipants     Int
+  completionRate        Float
+  avgMatchDuration      Float
+  bracketEfficiency     Float
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
-  // Tournament Metrics
-  totalParticipants    Int   @default(0)
-  totalMatches         Int   @default(0)
-  totalGames           Int   @default(0)
-  completionRate       Float @default(0.0) // Tournament completion percentage
-  averageMatchDuration Float @default(0.0) // Average match time in minutes
-
-  // Participation Analytics
-  registrationRate    Float @default(0.0) // Registrations vs capacity
-  noShowRate          Float @default(0.0) // Players who registered but didn't show
-  earlyWithdrawalRate Float @default(0.0) // Players who withdrew before completion
-
-  // Performance Distribution
-  skillDistribution Json? // Distribution of player skill levels
-  roundProgression  Json? // How players progressed through rounds
-  upsetFrequency    Float @default(0.0) // Frequency of upsets (lower seed beating higher)
-
-  // Engagement Metrics
-  spectatorCount     Int @default(0) // If tracking spectators
-  socialInteractions Int @default(0) // Friend challenges, messages during tournament
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-
-  // Performance indexes
+  tournament Tournament @relation(fields: [tournamentId], references: [id])
   @@index([tournamentId])
-  @@index([completionRate])
   @@map("tournament_analytics")
+}
+
+model TournamentFeedback {
+  id           String   @id @default(cuid())
+  tournamentId String
+  playerId     String
+  rating       Int      // 1-5 scale
+  comments     String?
+  submittedAt  DateTime @default(now())
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id])
+  player     MvpPlayer @relation(fields: [playerId], references: [id])
+
+  @@index([tournamentId])
+  @@index([playerId])
+  @@map("tournament_feedback")
 }
 
 model SystemAnalytics {
@@ -2436,4 +2634,42 @@ enum VenueType {
   HOTEL
   STADIUM
   OTHER
+}
+
+model PredictionModel {
+  id            String            @id @default(cuid())
+  type          String            // "demand", "churn", "utilization", "growth"
+  version       String            @unique
+  accuracy      Float             // Model accuracy score
+  lastTrained   DateTime
+  isActive      Boolean           @default(false) // Only one active per type
+  parameters    Json?             // Model parameters (encrypted/sensitive)
+  hyperparameters Json?           // Training hyperparameters
+  trainingDataSize Int?           // Number of samples used
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  results       PredictionResult[]
+
+  @@index([type])
+  @@index([version])
+  @@index([isActive])
+  @@index([lastTrained])
+  @@map("prediction_models")
+}
+
+model PredictionResult {
+  id          String         @id @default(cuid())
+  modelId     String
+  model       PredictionModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  inputData   Json           // Input features for the prediction
+  prediction  Json           // Predicted output (forecast array, probability, etc.)
+  confidence  Float          // Confidence score (0-1)
+  explanation String?        // Model explainability (feature importance)
+  timestamp   DateTime       @default(now())
+
+  @@index([modelId])
+  @@index([timestamp])
+  @@index([confidence])
+  @@map("prediction_results")
 }
