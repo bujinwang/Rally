@@ -2,7 +2,7 @@
 # Optimized for production deployment with security hardening
 
 # Build stage
-FROM node:18-alpine AS builder
+FROM node:24-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache \
@@ -30,7 +30,7 @@ RUN npm run build
 RUN npm prune --production
 
 # Production stage
-FROM node:18-alpine AS production
+FROM node:24-alpine AS production
 
 # Install production runtime dependencies
 RUN apk add --no-cache \
