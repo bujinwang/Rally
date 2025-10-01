@@ -9,14 +9,14 @@ import { PasswordUtils } from '../utils/password';
 
 const router = Router();
 
-const ORGANIZER_SECRET_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const ORGANIZER_SECRET_LENGTH = 6;
+const ORGANIZER_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ORGANIZER_CODE_LENGTH = 6;
 
-const generateOrganizerSecret = (): string => {
+const generateOrganizerCode = (): string => {
   let secret = '';
-  for (let i = 0; i < ORGANIZER_SECRET_LENGTH; i += 1) {
-    const index = Math.floor(Math.random() * ORGANIZER_SECRET_CHARSET.length);
-    secret += ORGANIZER_SECRET_CHARSET[index];
+  for (let i = 0; i < ORGANIZER_CODE_LENGTH; i += 1) {
+    const index = Math.floor(Math.random() * ORGANIZER_CODE_CHARS.length);
+    secret += ORGANIZER_CODE_CHARS[index];
   }
   return secret;
 };
@@ -239,7 +239,7 @@ const joinSessionValidation = [
 
 const claimSessionValidation = [
   body('shareCode').isLength({ min: 1, max: 20 }).withMessage('Share code is required'),
-  body('secret').isLength({ min: 6, max: 64 }).withMessage('Organizer secret is required'),
+  body('secret').isLength({ min: 6, max: 64 }).withMessage('Organizer code is required'),
   body('deviceId').isLength({ min: 3, max: 255 }).withMessage('Device identifier is required'),
   body('playerName').optional().isLength({ min: 2, max: 100 }).withMessage('Player name must be between 2 and 100 characters')
 ];
@@ -272,8 +272,8 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
 
     const sessionData = req.body;
 
-    const organizerSecret = generateOrganizerSecret();
-    const organizerSecretHash = await PasswordUtils.hashPassword(organizerSecret);
+    const organizerCode = generateOrganizerCode();
+    const organizerCodeHash = await PasswordUtils.hashPassword(organizerCode);
     const secretTimestamp = new Date();
 
     let shareCode = generateShareCode();
@@ -293,8 +293,8 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
         shareCode,
         status: 'ACTIVE',
         ownerDeviceId: sessionData.ownerDeviceId || null,
-        organizerSecretHash,
-        organizerSecretUpdatedAt: secretTimestamp,
+        organizerCodeHash,
+        organizerCodeUpdatedAt: secretTimestamp,
         ownershipClaimedAt: sessionData.ownerDeviceId ? secretTimestamp : null
       }
     });
@@ -382,7 +382,7 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
           createdAt: session.createdAt
         },
         shareLink: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/join/${session.shareCode}`,
-        organizerSecret
+        organizerCode
       },
       message: 'Session created successfully',
       timestamp: new Date().toISOString()
@@ -682,24 +682,24 @@ router.post('/claim', claimSessionValidation, async (req: Request, res: Response
       });
     }
 
-    if (!session.organizerSecretHash) {
+    if (!session.organizerCodeHash) {
       return res.status(409).json({
         success: false,
         error: {
           code: 'ORGANIZER_SECRET_NOT_SET',
-          message: 'This session has no organizer secret configured yet'
+          message: 'This session has no organizer code configured yet'
         },
         timestamp: new Date().toISOString()
       });
     }
 
-    const isSecretValid = await PasswordUtils.verifyPassword(secret, session.organizerSecretHash);
+    const isSecretValid = await PasswordUtils.verifyPassword(secret, session.organizerCodeHash);
     if (!isSecretValid) {
       return res.status(403).json({
         success: false,
         error: {
           code: 'INVALID_SECRET',
-          message: 'Organizer secret is incorrect'
+          message: 'Organizer code is incorrect'
         },
         timestamp: new Date().toISOString()
       });
