@@ -2,7 +2,7 @@ import { Router } from 'express';
 
 // Import route modules
 import authRoutes from './auth';
-import sessionRoutes from './sessions';
+// import sessionRoutes from './sessions'; // Temporarily disabled due to schema mismatch
 import userRoutes from './users';
 import mvpSessionRoutes from './mvpSessions';
 import sessionHistoryRoutes from './sessionHistory';
@@ -43,8 +43,8 @@ router.get('/', (req, res) => {
 console.log('📍 Registering routes:');
 console.log('  - /auth');
 router.use('/auth', authRoutes);
-console.log('  - /sessions');
-router.use('/sessions', sessionRoutes);
+// console.log('  - /sessions');
+// router.use('/sessions', sessionRoutes); // Temporarily disabled
 console.log('  - /users');
 router.use('/users', userRoutes);
 console.log('  - /mvp-sessions');

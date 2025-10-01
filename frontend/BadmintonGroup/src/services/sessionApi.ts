@@ -1,5 +1,6 @@
 import { API_BASE_URL, DEVICE_ID_KEY } from '../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import DeviceService from './deviceService';
 
 export interface CreateSessionRequest {
   name?: string;
@@ -92,19 +93,9 @@ class SessionApiService {
     return response.json();
   }
 
-  // Get or create device ID
+  // Get or create device ID using DeviceService
   async getDeviceId(): Promise<string> {
-    try {
-      let deviceId = await AsyncStorage.getItem(DEVICE_ID_KEY);
-      if (!deviceId) {
-        deviceId = 'device_' + Math.random().toString(36).substr(2, 11) + Date.now().toString(36);
-        await AsyncStorage.setItem(DEVICE_ID_KEY, deviceId);
-      }
-      return deviceId;
-    } catch (error) {
-      console.error('Error managing device ID:', error);
-      return 'device_' + Math.random().toString(36).substr(2, 11) + Date.now().toString(36);
-    }
+    return await DeviceService.getDeviceId();
   }
 
   // Create a new session

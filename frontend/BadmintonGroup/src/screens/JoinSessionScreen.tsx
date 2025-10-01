@@ -10,6 +10,8 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import { OrganizerClaimModal } from '../components/OrganizerClaimModal';
+import DeviceService from '../services/deviceService';
 
 const API_BASE_URL = 'http://localhost:3001/api/v1';
 
@@ -43,6 +45,7 @@ export default function JoinSessionScreen() {
   const [playerName, setPlayerName] = useState('');
   const [sessionData, setSessionData] = useState<SessionData | null>(null);
   const [shareCode, setShareCode] = useState<string>('');
+  const [showClaimModal, setShowClaimModal] = useState(false);
 
   useEffect(() => {
     // Extract share code from route params or URL
@@ -95,7 +98,7 @@ export default function JoinSessionScreen() {
         },
         body: JSON.stringify({
           name: playerName.trim(),
-          deviceId: 'device_' + Math.random().toString(36).substr(2, 9)
+          deviceId: await DeviceService.getDeviceId()
         }),
       });
 
@@ -247,7 +250,25 @@ export default function JoinSessionScreen() {
             This session is currently full. Please check back later.
           </Text>
         )}
+
+        <TouchableOpacity
+          style={styles.organizerButton}
+          onPress={() => setShowClaimModal(true)}
+        >
+          <Text style={styles.organizerButtonText}>
+            ⭐ I'm the organizer
+          </Text>
+        </TouchableOpacity>
       </View>
+
+      <OrganizerClaimModal
+        visible={showClaimModal}
+        onClose={() => setShowClaimModal(false)}
+        shareCode={shareCode}
+        onSuccess={() => {
+          fetchSessionData(shareCode);
+        }}
+      />
     </ScrollView>
   );
 }
@@ -402,6 +423,20 @@ const styles = StyleSheet.create({
   buttonText: {
     color: 'white',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  organizerButton: {
+    marginTop: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#007AFF',
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#F0F8FF',
+  },
+  organizerButtonText: {
+    color: '#007AFF',
+    fontSize: 15,
     fontWeight: '600',
   },
   warningText: {

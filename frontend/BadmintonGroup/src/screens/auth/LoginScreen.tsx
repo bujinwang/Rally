@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { loginUser, clearError } from '../../store/slices/authSlice';
+import DeviceService from '../../services/deviceService';
 
 interface LoginScreenProps {
   navigation: any;
@@ -30,10 +31,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     }
 
     try {
+      const deviceId = await DeviceService.getDeviceId();
       await dispatch(loginUser({
         email: email.trim(),
         password,
-        deviceId: 'mobile-device', // TODO: Generate unique device ID
+        deviceId,
       }) as any);
 
       // Navigation will be handled by the auth state change

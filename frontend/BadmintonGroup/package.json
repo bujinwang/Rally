@@ -42,7 +42,9 @@
     "react-native-vector-icons": "^10.3.0",
     "react-redux": "^9.2.0",
     "redux-persist": "^6.0.0",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "expo-application": "~6.0.2",
+    "expo-constants": "~17.0.8"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

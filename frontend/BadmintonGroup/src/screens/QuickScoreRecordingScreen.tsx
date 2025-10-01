@@ -11,6 +11,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { matchesApi, MatchSubmission } from '../services/matchesApi';
+import DeviceService from '../services/deviceService';
 
 interface Player {
   id: string;
@@ -78,13 +79,14 @@ const QuickScoreRecordingScreen: React.FC = () => {
     try {
       setIsLoading(true);
 
+      const deviceId = await DeviceService.getDeviceId();
       const matchData: MatchSubmission = {
         sessionId,
         player1Id: players.player1.id,
         player2Id: players.player2.id,
         winnerId: selectedWinner,
         scoreType: selectedScoreType,
-        deviceId: 'device-123', // TODO: Get from device fingerprinting
+        deviceId,
       };
 
       const result = await matchesApi.recordMatch(matchData);

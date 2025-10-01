@@ -148,7 +148,8 @@ export default function CreateSessionScreen() {
           : result.data.session.shareCode;
         setCreatedSession({
           ...result.data.session,
-          shareCode
+          shareCode,
+          organizerSecret: result.data.organizerSecret
         });
         setShowShareModal(true);
       } else {
@@ -289,6 +290,7 @@ export default function CreateSessionScreen() {
           shareCode={createdSession.shareCode}
           sessionName={createdSession.name}
           sessionDate={formatDateTime(new Date(createdSession.scheduledAt))}
+          organizerSecret={createdSession.organizerSecret}
         />
       )}
     </KeyboardAvoidingView>

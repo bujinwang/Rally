@@ -37,6 +37,11 @@ model MvpSession {
   ownerName     String
   ownerDeviceId String? // For session management
 
+  // Legacy organizer claim support
+  organizerSecretHash      String?
+  organizerSecretUpdatedAt DateTime?
+  ownershipClaimedAt       DateTime?
+
   // Shareable link
   shareCode String @unique // Short code for sharing
 
@@ -157,12 +162,12 @@ model MvpPlayer {
   role     MvpPlayerRole @default(PLAYER) // Role in the session
 
   // Player stats
-  joinedAt    DateTime        @default(now())
-  status      MvpPlayerStatus @default(ACTIVE)
-  gamesPlayed Int             @default(0)
-  sessionsParticipated Int    @default(0)
-  wins        Int             @default(0)
-  losses      Int             @default(0)
+  joinedAt             DateTime        @default(now())
+  status               MvpPlayerStatus @default(ACTIVE)
+  gamesPlayed          Int             @default(0)
+  sessionsParticipated Int             @default(0)
+  wins                 Int             @default(0)
+  losses               Int             @default(0)
 
   // Match Statistics
   matchesPlayed Int @default(0)
@@ -185,7 +190,7 @@ model MvpPlayer {
   bestStreak          Int   @default(0) // Best win streak ever
 
   // AI Pairing Fields
-  skillLevel Float? // Calculated skill level (0-100)
+  skillLevel  Float? // Calculated skill level (0-100)
   preferences Json? // {"singles": true, "doubles": false, "time": "evenings", "skillPreference": "balanced"}
 
   // Scoring and Statistics System Fields
@@ -214,8 +219,8 @@ model MvpPlayer {
   sentMessages           Message[]       @relation("MessageSender")
 
   // Social Sharing Relations
-  shares                 Share[]
-  socialConnections      SocialConnection[]
+  shares            Share[]
+  socialConnections SocialConnection[]
 
   // Push Notification Relations
   notifications           Notification[]
@@ -226,9 +231,9 @@ model MvpPlayer {
   analytics PlayerAnalytics?
 
   // AI Pairing Relations
-  pairingHistory PairingHistory[]
+  pairingHistory     PairingHistory[]    @relation("PlayerPairings")
+  partnerPairings    PairingHistory[]    @relation("PairingPartner")
   performanceRecords PerformanceRecord[]
-  achievements     Achievement[]
 
   // Rest Management
   restGamesRemaining Int       @default(0) // Games remaining in rest period
@@ -248,9 +253,10 @@ model MvpPlayer {
 
   // Privacy Settings for Social Sharing
   privacySettings Json? // {"session_share": "public", "stats_share": "friends", "achievements_share": "public"}
-  
+
   // Engagement and Prediction Preferences
   engagementPreferences Json? // {"opt_in_analytics": true, "share_predictions": false, "nps_surveys": true}
+  TournamentFeedback    TournamentFeedback[]
 
   @@unique([sessionId, name]) // Prevent duplicate names in same session
   @@unique([sessionId, deviceId]) // Prevent same device joining same session twice
@@ -262,15 +268,15 @@ model MvpPlayer {
 }
 
 model PerformanceRecord {
-  id          String   @id @default(cuid())
-  playerId    String
-  matchId     String?
-  skillChange Float
+  id            String   @id @default(cuid())
+  playerId      String
+  matchId       String?
+  skillChange   Float
   newSkillLevel Float
-  timestamp   DateTime @default(now())
+  timestamp     DateTime @default(now())
 
-  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  match  Match? @relation(fields: [matchId], references: [id], onDelete: SetNull)
+  player MvpPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  match  Match?    @relation("PerformanceRecords", fields: [matchId], references: [id], onDelete: SetNull)
 
   @@index([playerId])
   @@index([matchId])
@@ -278,48 +284,29 @@ model PerformanceRecord {
   @@map("performance_records")
 }
 
-model Achievement {
-  id          String   @id @default(cuid())
-  playerId    String
-  type        String   // "first_win", "skill_milestone", etc.
-  title       String
-  description String
-  earnedAt    DateTime @default(now())
-
-  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
-
-  @@index([playerId])
-  @@index([type])
-  @@index([earnedAt])
-  @@map("achievements")
-}
-
 // AI Pairing History Model
 model PairingHistory {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   sessionId String
   session   MvpSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
-  playerId  String
-  player    MvpPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId String
+  player   MvpPlayer @relation("PlayerPairings", fields: [playerId], references: [id], onDelete: Cascade)
 
   partnerId String? // Partner player ID (null for singles)
   partner   MvpPlayer? @relation("PairingPartner", fields: [partnerId], references: [id])
 
   // Pairing outcome and feedback
-  feedback  Int?     // 1-5 rating of pairing quality
-  outcome   String?  // "win", "loss", "draw"
-  duration  Int?     // Match duration in minutes
+  feedback Int? // 1-5 rating of pairing quality
+  outcome  String? // "win", "loss", "draw"
+  duration Int? // Match duration in minutes
 
   // AI context
-  aiSuggested    Boolean @default(false) // Whether this pairing was AI suggested
+  aiSuggested     Boolean @default(false) // Whether this pairing was AI suggested
   confidenceScore Float? // AI confidence score (0-1)
   pairingReason   String? // AI explanation for the pairing
 
   createdAt DateTime @default(now())
-
-  // Relations for partner lookup
-  partnerPairings PairingHistory[] @relation("PairingPartner")
 
   @@index([sessionId])
   @@index([playerId])
@@ -331,12 +318,12 @@ model PairingHistory {
 
 // AI Model Parameters for Pairing Algorithm
 model AIModelParameters {
-  id        String   @id @default(cuid())
-  version   String   @unique // Version identifier (e.g., "v1.0.0")
-  isActive  Boolean  @default(false) // Only one version can be active
+  id       String  @id @default(cuid())
+  version  String  @unique // Version identifier (e.g., "v1.0.0")
+  isActive Boolean @default(false) // Only one version can be active
 
   // Model weights and parameters (stored as JSON)
-  skillWeights     Json // Weights for skill-based matching
+  skillWeights      Json // Weights for skill-based matching
   preferenceWeights Json // Weights for preference matching
   historyWeights    Json // Weights for historical data
 
@@ -346,11 +333,11 @@ model AIModelParameters {
   lastTrainedAt    DateTime @default(now())
 
   // Model configuration
-  algorithmType    String @default("COLLABORATIVE_FILTERING") // Algorithm type
-  hyperparameters  Json // Algorithm-specific parameters
+  algorithmType   String @default("COLLABORATIVE_FILTERING") // Algorithm type
+  hyperparameters Json // Algorithm-specific parameters
 
   // Privacy and compliance
-  dataRetentionDays Int @default(365) // How long to keep training data
+  dataRetentionDays Int     @default(365) // How long to keep training data
   anonymizedOnly    Boolean @default(true) // Whether data is anonymized
 
   createdAt DateTime @default(now())
@@ -495,12 +482,13 @@ model Match {
   scoreType String // "2-0" or "2-1"
 
   // Recording and approval
-  recordedBy String
-  recorder   MvpPlayer  @relation("RecorderMatches", fields: [recordedBy], references: [id])
-  recordedAt DateTime   @default(now())
-  approvedBy String?
-  approver   MvpPlayer? @relation("ApproverMatches", fields: [approvedBy], references: [id])
-  approvedAt DateTime?
+  recordedBy         String
+  recorder           MvpPlayer           @relation("RecorderMatches", fields: [recordedBy], references: [id])
+  recordedAt         DateTime            @default(now())
+  approvedBy         String?
+  approver           MvpPlayer?          @relation("ApproverMatches", fields: [approvedBy], references: [id])
+  approvedAt         DateTime?
+  performanceRecords PerformanceRecord[] @relation("PerformanceRecords")
 
   // Performance indexes
   @@index([sessionId])
@@ -586,8 +574,9 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  ownedSessions  Session[]       @relation("SessionOwner")
+  ownedSessions  Session[]        @relation("SessionOwner")
   sessionPlayers SessionPlayer[]
+  AnalyticsEvent AnalyticsEvent[]
 
   @@map("users")
 }
@@ -711,14 +700,12 @@ model Tournament {
   updatedAt DateTime @updatedAt
 
   // Relations
-  players TournamentPlayer[]
-  rounds  TournamentRound[]
-  matches TournamentMatch[]
-  results TournamentResult?
+  players   TournamentPlayer[]
+  rounds    TournamentRound[]
+  matches   TournamentMatch[]
+  results   TournamentResult?
   analytics TournamentAnalytics?
-  feedback TournamentFeedback[]
-
-  @@map("tournaments")
+  feedback  TournamentFeedback[]
 
   // Performance indexes
   @@index([startDate])
@@ -1291,12 +1278,12 @@ model Message {
 // Social Sharing Models
 model Share {
   id        String   @id @default(cuid())
-  type      String   // "session", "match", "achievement"
-  entityId  String   // ID of the shared entity
-  sharerId  String   // ID of the player who shared
-  platform  String   // "twitter", "facebook", "whatsapp", "copy_link"
-  url       String   // Generated share URL
-  message   String?  // Optional custom message
+  type      String // "session", "match", "achievement"
+  entityId  String // ID of the shared entity
+  sharerId  String // ID of the player who shared
+  platform  String // "twitter", "facebook", "whatsapp", "copy_link"
+  url       String // Generated share URL
+  message   String? // Optional custom message
   createdAt DateTime @default(now())
 
   // Relations
@@ -1312,12 +1299,12 @@ model Share {
 }
 
 model SocialConnection {
-  id           String @id @default(cuid())
+  id           String    @id @default(cuid())
   playerId     String
   provider     String // "google", "facebook", "twitter"
   providerId   String // OAuth provider's user ID
-  providerData Json?  // Additional data from OAuth provider
-  connectedAt  DateTime @default(now())
+  providerData Json? // Additional data from OAuth provider
+  connectedAt  DateTime  @default(now())
   lastUsedAt   DateTime?
 
   // Relations
@@ -1486,10 +1473,10 @@ enum NotificationCategory {
 // Analytics Event Tracking for Session Activities
 model AnalyticsEvent {
   id        String   @id @default(cuid())
-  type      String   // "session_created", "player_joined", "player_left", "match_completed", "session_ended"
-  entityId  String   // ID of the related entity (session, player, match)
-  userId    String?  // User ID if applicable
-  data      Json     // Additional event data (location, duration, etc.)
+  type      String // "session_created", "player_joined", "player_left", "match_completed", "session_ended"
+  entityId  String // ID of the related entity (session, player, match)
+  userId    String? // User ID if applicable
+  data      Json // Additional event data (location, duration, etc.)
   timestamp DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id])
@@ -1597,7 +1584,7 @@ model SessionAnalytics {
   playerSatisfaction  Json? // Player feedback/ratings if available
 
   // Privacy-compliant Aggregated Data
-  anonymizedPlayerCount Int @default(0) // For privacy compliance
+  anonymizedPlayerCount Int     @default(0) // For privacy compliance
   aggregatedLocation    String? // Generalized location (city level)
 
   // Timestamps
@@ -1618,16 +1605,17 @@ model SessionAnalytics {
 }
 
 model TournamentAnalytics {
-  id                    String   @id @default(cuid())
-  tournamentId          String   @unique
-  totalParticipants     Int
-  completionRate        Float
-  avgMatchDuration      Float
-  bracketEfficiency     Float
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                String   @id @default(cuid())
+  tournamentId      String   @unique
+  totalParticipants Int
+  completionRate    Float
+  avgMatchDuration  Float
+  bracketEfficiency Float
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   tournament Tournament @relation(fields: [tournamentId], references: [id])
+
   @@index([tournamentId])
   @@map("tournament_analytics")
 }
@@ -1636,12 +1624,12 @@ model TournamentFeedback {
   id           String   @id @default(cuid())
   tournamentId String
   playerId     String
-  rating       Int      // 1-5 scale
+  rating       Int // 1-5 scale
   comments     String?
   submittedAt  DateTime @default(now())
 
   tournament Tournament @relation(fields: [tournamentId], references: [id])
-  player     MvpPlayer @relation(fields: [playerId], references: [id])
+  player     MvpPlayer  @relation(fields: [playerId], references: [id])
 
   @@index([tournamentId])
   @@index([playerId])
@@ -2637,19 +2625,19 @@ enum VenueType {
 }
 
 model PredictionModel {
-  id            String            @id @default(cuid())
-  type          String            // "demand", "churn", "utilization", "growth"
-  version       String            @unique
-  accuracy      Float             // Model accuracy score
-  lastTrained   DateTime
-  isActive      Boolean           @default(false) // Only one active per type
-  parameters    Json?             // Model parameters (encrypted/sensitive)
-  hyperparameters Json?           // Training hyperparameters
-  trainingDataSize Int?           // Number of samples used
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  id               String   @id @default(cuid())
+  type             String // "demand", "churn", "utilization", "growth"
+  version          String   @unique
+  accuracy         Float // Model accuracy score
+  lastTrained      DateTime
+  isActive         Boolean  @default(false) // Only one active per type
+  parameters       Json? // Model parameters (encrypted/sensitive)
+  hyperparameters  Json? // Training hyperparameters
+  trainingDataSize Int? // Number of samples used
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  results       PredictionResult[]
+  results PredictionResult[]
 
   @@index([type])
   @@index([version])
@@ -2659,14 +2647,14 @@ model PredictionModel {
 }
 
 model PredictionResult {
-  id          String         @id @default(cuid())
+  id          String          @id @default(cuid())
   modelId     String
   model       PredictionModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
-  inputData   Json           // Input features for the prediction
-  prediction  Json           // Predicted output (forecast array, probability, etc.)
-  confidence  Float          // Confidence score (0-1)
-  explanation String?        // Model explainability (feature importance)
-  timestamp   DateTime       @default(now())
+  inputData   Json // Input features for the prediction
+  prediction  Json // Predicted output (forecast array, probability, etc.)
+  confidence  Float // Confidence score (0-1)
+  explanation String? // Model explainability (feature importance)
+  timestamp   DateTime        @default(now())
 
   @@index([modelId])
   @@index([timestamp])

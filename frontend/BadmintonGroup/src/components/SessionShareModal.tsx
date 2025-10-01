@@ -19,6 +19,7 @@ interface SessionShareModalProps {
   shareCode: string;
   sessionName: string;
   sessionDate: string;
+  organizerSecret?: string;
 }
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -29,7 +30,8 @@ export default function SessionShareModal({
   onClose, 
   shareCode, 
   sessionName, 
-  sessionDate 
+  sessionDate,
+  organizerSecret
 }: SessionShareModalProps) {
   const [copied, setCopied] = useState(false);
   
@@ -44,6 +46,16 @@ export default function SessionShareModal({
       Alert.alert('Copied!', 'Share code copied to clipboard');
     } catch (error) {
       Alert.alert('Error', 'Failed to copy share code');
+    }
+  };
+
+  const handleCopySecret = async () => {
+    if (!organizerSecret) return;
+    try {
+      await Clipboard.setString(organizerSecret);
+      Alert.alert('Copied!', 'Organizer secret copied to clipboard');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to copy organizer secret');
     }
   };
   
@@ -94,6 +106,28 @@ export default function SessionShareModal({
             <Text style={styles.sessionName}>{sessionName}</Text>
             <Text style={styles.sessionDate}>{sessionDate}</Text>
           </View>
+
+          {/* Organizer Secret - Only shown on creation */}
+          {organizerSecret && (
+            <View style={styles.secretSection}>
+              <View style={styles.secretHeader}>
+                <Ionicons name="key" size={20} color="#FF9500" />
+                <Text style={styles.secretTitle}>Organizer Secret</Text>
+              </View>
+              <View style={styles.secretContainer}>
+                <Text style={styles.secretCode}>{organizerSecret}</Text>
+                <TouchableOpacity onPress={handleCopySecret} style={styles.copyButton}>
+                  <Ionicons name="copy" size={20} color="#007AFF" />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.warningBox}>
+                <Ionicons name="warning" size={16} color="#FF3B30" />
+                <Text style={styles.warningText}>
+                  Save this secret! You'll need it to regain organizer access if you change devices.
+                </Text>
+              </View>
+            </View>
+          )}
 
           {/* QR Code */}
           <View style={styles.qrContainer}>
@@ -224,6 +258,56 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     textAlign: 'center',
+  },
+  secretSection: {
+    marginBottom: 20,
+    padding: 16,
+    backgroundColor: '#FFF9E6',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FFD700',
+  },
+  secretHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  secretTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+    marginLeft: 8,
+  },
+  secretContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  secretCode: {
+    flex: 1,
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#FF9500',
+    fontFamily: 'monospace',
+    textAlign: 'center',
+    letterSpacing: 2,
+  },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFE8E8',
+    padding: 10,
+    borderRadius: 8,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#FF3B30',
+    marginLeft: 8,
+    lineHeight: 18,
   },
   codeSection: {
     marginBottom: 20,

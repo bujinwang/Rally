@@ -1,6 +1,8 @@
 import { PrismaClient, MvpPlayer } from '@prisma/client';
 import { cacheService } from './cacheService';
-import { performanceService } from './performanceService';
+import { PerformanceService } from './performanceService';
+
+const performanceService = new PerformanceService();
 
 const prisma = new PrismaClient();
 
@@ -43,12 +45,12 @@ export class PairingService {
 
       if (cachedPlayers) {
         console.log('✅ Active players cache hit');
-        performanceService.recordCacheHit();
+        // performanceService.recordCacheHit(); // Cache stats not implemented
         return cachedPlayers;
       }
 
       console.log('📡 Active players cache miss, querying database');
-      performanceService.recordCacheMiss();
+      // performanceService.recordCacheMiss(); // Cache stats not implemented
 
       const players = await prisma.mvpPlayer.findMany({
         where: {

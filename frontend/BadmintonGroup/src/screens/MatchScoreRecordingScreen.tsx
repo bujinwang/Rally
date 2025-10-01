@@ -21,6 +21,7 @@ import {
 } from '../types/statistics';
 import { statisticsApi } from '../services/statisticsApi';
 import { sessionApi } from '../services/sessionApi';
+import DeviceService from '../services/deviceService';
 
 const { width } = Dimensions.get('window');
 
@@ -167,9 +168,7 @@ const MatchScoreRecordingScreen: React.FC = () => {
         bestOfGames,
       };
 
-      // Get device ID (simplified - in real app this would come from device fingerprinting)
-      const deviceId = 'device-123'; // TODO: Get from device fingerprinting service
-
+      const deviceId = await DeviceService.getDeviceId();
       const result = await statisticsApi.recordDetailedMatch(matchData, deviceId);
 
       Alert.alert(
