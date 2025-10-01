@@ -5,8 +5,21 @@ import { generateOptimalRotation, getRotationExplanation } from '../utils/rotati
 import { updatePlayerGameStatistics, updatePlayerMatchStatistics, getPlayerStatistics, getSessionStatistics, getSessionLeaderboard } from '../utils/statisticsService';
 import { io } from '../server';
 import { requireOrganizer, requireOrganizerOrSelf } from '../middleware/permissions';
+import { PasswordUtils } from '../utils/password';
 
 const router = Router();
+
+const ORGANIZER_SECRET_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ORGANIZER_SECRET_LENGTH = 6;
+
+const generateOrganizerSecret = (): string => {
+  let secret = '';
+  for (let i = 0; i < ORGANIZER_SECRET_LENGTH; i += 1) {
+    const index = Math.floor(Math.random() * ORGANIZER_SECRET_CHARSET.length);
+    secret += ORGANIZER_SECRET_CHARSET[index];
+  }
+  return secret;
+};
 
 // Get all active sessions (for discovery)
 router.get('/', async (req: Request, res: Response) => {
@@ -214,13 +227,21 @@ const createSessionValidation = [
   body('dateTime').isISO8601().withMessage('Valid date/time required'),
   body('location').optional().isLength({ max: 255 }),
   body('maxPlayers').optional().isInt({ min: 2, max: 20 }).withMessage('Max players must be between 2 and 20'),
-  body('organizerName').isLength({ min: 2, max: 30 }).withMessage('Organizer name is required')
+  body('organizerName').isLength({ min: 2, max: 30 }).withMessage('Organizer name is required'),
+  body('ownerDeviceId').optional().isLength({ min: 3, max: 255 }).withMessage('Device identifier must be 3-255 characters')
 ];
 
 const joinSessionValidation = [
   param('shareCode').isLength({ min: 1 }).withMessage('Share code is required'),
   body('name').isLength({ min: 1, max: 100 }).withMessage('Player name is required'),
   body('deviceId').optional().isLength({ max: 255 })
+];
+
+const claimSessionValidation = [
+  body('shareCode').isLength({ min: 1, max: 20 }).withMessage('Share code is required'),
+  body('secret').isLength({ min: 6, max: 64 }).withMessage('Organizer secret is required'),
+  body('deviceId').isLength({ min: 3, max: 255 }).withMessage('Device identifier is required'),
+  body('playerName').optional().isLength({ min: 2, max: 100 }).withMessage('Player name must be between 2 and 100 characters')
 ];
 
 // Generate short share code
@@ -250,6 +271,11 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
     }
 
     const sessionData = req.body;
+
+    const organizerSecret = generateOrganizerSecret();
+    const organizerSecretHash = await PasswordUtils.hashPassword(organizerSecret);
+    const secretTimestamp = new Date();
+
     let shareCode = generateShareCode();
 
     // Ensure unique share code
@@ -265,7 +291,11 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
         maxPlayers: sessionData.maxPlayers || 20, // Use the value from frontend, default to 20
         ownerName: sessionData.organizerName,
         shareCode,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        ownerDeviceId: sessionData.ownerDeviceId || null,
+        organizerSecretHash,
+        organizerSecretUpdatedAt: secretTimestamp,
+        ownershipClaimedAt: sessionData.ownerDeviceId ? secretTimestamp : null
       }
     });
 
@@ -275,7 +305,8 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
         sessionId: session.id,
         name: sessionData.ownerName,
         deviceId: sessionData.ownerDeviceId,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        role: 'ORGANIZER'
       }
     });
 
@@ -337,6 +368,7 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
           maxPlayers: session.maxPlayers,
           status: session.status,
           organizerName: session.ownerName,
+          ownerDeviceId: session.ownerDeviceId,
           playerCount: sessionWithPlayers?.players.length || 1,
           players: sessionWithPlayers?.players.map(player => ({
             id: player.id,
@@ -349,7 +381,8 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
           })) || [],
           createdAt: session.createdAt
         },
-        shareLink: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/join/${session.shareCode}`
+        shareLink: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/join/${session.shareCode}`,
+        organizerSecret
       },
       message: 'Session created successfully',
       timestamp: new Date().toISOString()
@@ -605,6 +638,194 @@ router.post('/join/:shareCode', joinSessionValidation, async (req: Request, res:
       error: {
         code: 'INTERNAL_ERROR',
         message: 'Failed to join session'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Claim organizer control for an existing session
+router.post('/claim', claimSessionValidation, async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid input data',
+          details: errors.array()
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const { shareCode, secret, deviceId, playerName } = req.body;
+
+    const session = await prisma.mvpSession.findUnique({
+      where: { shareCode },
+      include: {
+        players: {
+          orderBy: { joinedAt: 'asc' }
+        }
+      }
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'SESSION_NOT_FOUND',
+          message: 'Session not found'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    if (!session.organizerSecretHash) {
+      return res.status(409).json({
+        success: false,
+        error: {
+          code: 'ORGANIZER_SECRET_NOT_SET',
+          message: 'This session has no organizer secret configured yet'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const isSecretValid = await PasswordUtils.verifyPassword(secret, session.organizerSecretHash);
+    if (!isSecretValid) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'INVALID_SECRET',
+          message: 'Organizer secret is incorrect'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    let organizerPlayer = session.players.find(player => player.deviceId === deviceId);
+
+    if (!organizerPlayer && playerName) {
+      organizerPlayer = session.players.find(player => player.name.toLowerCase() === playerName.toLowerCase());
+    }
+
+    if (!organizerPlayer && !playerName) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'PLAYER_NAME_REQUIRED',
+          message: 'Player name is required to claim organizer role for new devices'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const now = new Date();
+
+    await prisma.$transaction(async tx => {
+      if (organizerPlayer) {
+        await tx.mvpPlayer.update({
+          where: { id: organizerPlayer.id },
+          data: {
+            deviceId,
+            role: 'ORGANIZER'
+          }
+        });
+      } else {
+        organizerPlayer = await tx.mvpPlayer.create({
+          data: {
+            sessionId: session.id,
+            name: playerName!,
+            deviceId,
+            status: 'ACTIVE',
+            role: 'ORGANIZER'
+          }
+        });
+      }
+
+      await tx.mvpPlayer.updateMany({
+        where: {
+          sessionId: session.id,
+          id: {
+            not: organizerPlayer!.id
+          },
+          role: 'ORGANIZER'
+        },
+        data: {
+          role: 'PLAYER'
+        }
+      });
+
+      await tx.mvpSession.update({
+        where: { id: session.id },
+        data: {
+          ownerDeviceId: deviceId,
+          ownershipClaimedAt: now
+        }
+      });
+    });
+
+    const refreshedSession = await prisma.mvpSession.findUnique({
+      where: { id: session.id },
+      include: {
+        players: {
+          orderBy: { joinedAt: 'asc' }
+        }
+      }
+    });
+
+    if (!refreshedSession) {
+      return res.status(500).json({
+        success: false,
+        error: {
+          code: 'SESSION_REFRESH_FAILED',
+          message: 'Failed to refresh session after claim'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const formattedSession = {
+      id: refreshedSession.id,
+      name: refreshedSession.name,
+      shareCode: refreshedSession.shareCode,
+      scheduledAt: refreshedSession.scheduledAt,
+      location: refreshedSession.location,
+      maxPlayers: refreshedSession.maxPlayers,
+      status: refreshedSession.status,
+      organizerName: refreshedSession.ownerName,
+      ownerDeviceId: refreshedSession.ownerDeviceId,
+      playerCount: refreshedSession.players?.length || 0,
+      players: refreshedSession.players?.map(player => ({
+        id: player.id,
+        name: player.name,
+        status: player.status,
+        gamesPlayed: player.gamesPlayed,
+        wins: player.wins,
+        losses: player.losses,
+        joinedAt: player.joinedAt
+      })) || [],
+      createdAt: refreshedSession.createdAt
+    };
+
+    res.json({
+      success: true,
+      data: {
+        session: formattedSession,
+        currentUserRole: 'ORGANIZER'
+      },
+      message: 'Organizer role claimed successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Organizer claim error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to claim organizer role'
       },
       timestamp: new Date().toISOString()
     });
@@ -2829,8 +3050,6 @@ router.put('/:shareCode/players/:playerId/status', requireOrganizerOrSelf('updat
       data: { status }
     });
 
-    // TODO: Emit real-time update when Socket.IO is properly configured
-
     res.json({
       success: true,
       data: {
@@ -2843,6 +3062,24 @@ router.put('/:shareCode/players/:playerId/status', requireOrganizerOrSelf('updat
       message: 'Player status updated successfully',
       timestamp: new Date().toISOString()
     });
+
+    // Emit Socket.IO event for real-time update
+    try {
+      const updatedSession = await prisma.mvpSession.findUnique({
+        where: { id: player.sessionId },
+        include: { players: { orderBy: { joinedAt: 'asc' } } }
+      });
+
+      if (updatedSession) {
+        io.to(`session-${updatedSession.shareCode}`).emit('mvp-session-updated', {
+          session: updatedSession,
+          timestamp: new Date().toISOString()
+        });
+        console.log(`📡 Socket.IO: Emitted player status update for ${updatedSession.shareCode}`);
+      }
+    } catch (error) {
+      console.error('Failed to emit Socket.IO status update:', error);
+    }
   } catch (error) {
     console.error('Update player status error:', error);
     res.status(500).json({
@@ -2934,13 +3171,29 @@ router.delete('/:shareCode/players/:playerId', async (req, res) => {
       where: { id: playerId }
     });
 
-    // TODO: Emit real-time update when Socket.IO is properly configured
-
     res.json({
       success: true,
       message: 'Player removed from session successfully',
       timestamp: new Date().toISOString()
     });
+
+    // Emit Socket.IO event for real-time update
+    try {
+      const updatedSession = await prisma.mvpSession.findUnique({
+        where: { shareCode },
+        include: { players: { orderBy: { joinedAt: 'asc' } } }
+      });
+
+      if (updatedSession) {
+        io.to(`session-${shareCode}`).emit('mvp-session-updated', {
+          session: updatedSession,
+          timestamp: new Date().toISOString()
+        });
+        console.log(`📡 Socket.IO: Emitted player removal for ${shareCode}`);
+      }
+    } catch (error) {
+      console.error('Failed to emit Socket.IO player removal:', error);
+    }
   } catch (error) {
     console.error('Remove player error:', error);
     res.status(500).json({
@@ -3088,14 +3341,33 @@ router.post('/:shareCode/games', async (req, res) => {
       }
     }
 
-    // TODO: Emit real-time update when Socket.IO is properly configured
-
     res.json({
       success: true,
       data: { game },
       message: 'Game saved successfully',
       timestamp: new Date().toISOString()
     });
+
+    // Emit Socket.IO event for real-time update
+    try {
+      const updatedSession = await prisma.mvpSession.findUnique({
+        where: { shareCode },
+        include: {
+          players: { orderBy: { joinedAt: 'asc' } },
+          games: { orderBy: { createdAt: 'desc' }, take: 10 }
+        }
+      });
+
+      if (updatedSession) {
+        io.to(`session-${shareCode}`).emit('mvp-session-updated', {
+          session: updatedSession,
+          timestamp: new Date().toISOString()
+        });
+        console.log(`📡 Socket.IO: Emitted game save for ${shareCode}`);
+      }
+    } catch (error) {
+      console.error('Failed to emit Socket.IO game save:', error);
+    }
   } catch (error) {
     console.error('Save game error:', error);
     res.status(500).json({
