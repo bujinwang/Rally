@@ -28,6 +28,11 @@ import MatchSchedulingScreen from '../screens/MatchSchedulingScreen';
 import CreateMatchScreen from '../screens/CreateMatchScreen';
 import MatchDetailsScreen from '../screens/MatchDetailsScreen';
 
+// User Profile screens (Epic 4 Story 4.1)
+import UserProfileScreen from '../screens/UserProfileScreen';
+import EditProfileScreen from '../screens/EditProfileScreen';
+import SettingsScreen from '../screens/SettingsScreen';
+
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
 const SessionsStack = createNativeStackNavigator();
@@ -177,6 +182,22 @@ function ProfileStackNavigator() {
         component={PlayerProfileScreen}
         options={{ title: 'My Profile' }}
         initialParams={{ isOwnProfile: true }}
+      />
+      {/* User Profile Management (Epic 4 Story 4.1) */}
+      <ProfileStack.Screen
+        name="UserProfile"
+        component={UserProfileScreen}
+        options={{ title: 'Profile' }}
+      />
+      <ProfileStack.Screen
+        name="EditProfile"
+        component={EditProfileScreen}
+        options={{ title: 'Edit Profile' }}
+      />
+      <ProfileStack.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{ title: 'Settings' }}
       />
       <ProfileStack.Screen
         name="SessionHistory"
