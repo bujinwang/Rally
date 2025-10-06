@@ -1,32 +1,56 @@
-import { Router } from 'express';
-import { friendsService } from '../services/friendsService';
+import { Router, Request } from 'express';
+import { FriendService } from '../services/friendService';
+import { authenticateToken } from '../middleware/auth';
 import { validate } from '../utils/validation';
 import Joi from 'joi';
 
 const router = Router();
 
+// Apply authentication to all routes
+router.use(authenticateToken);
+
+// Extend Request type for TypeScript
+interface AuthRequest extends Request {
+  user?: {
+    id: string;
+    email: string | null;
+    role: string;
+  };
+}
+
 // Validation schemas
 const sendFriendRequestSchema = Joi.object({
-  receiverId: Joi.string().uuid().required(),
+  receiverId: Joi.string().required(),
   message: Joi.string().max(500).optional()
 });
 
-const respondToRequestSchema = Joi.object({
-  requestId: Joi.string().uuid().required(),
-  accept: Joi.boolean().required()
-});
-
 /**
- * @route POST /api/friends/request
+ * @route POST /api/v1/friends/requests
  * @desc Send a friend request
  * @access Private
  */
-router.post('/request', validate(sendFriendRequestSchema), async (req, res) => {
+router.post('/requests', validate(sendFriendRequestSchema), async (req: AuthRequest, res) => {
   try {
     const { receiverId, message } = req.body;
-    const senderId = 'player-123'; // Mock user ID for MVP
+    const senderId = req.user?.id;
 
-    const friendRequest = await friendsService.sendFriendRequest({
+    if (!senderId) {
+      return res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    if (senderId === receiverId) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Cannot send friend request to yourself' },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const friendRequest = await FriendService.sendFriendRequest({
       senderId,
       receiverId,
       message
@@ -35,220 +59,396 @@ router.post('/request', validate(sendFriendRequestSchema), async (req, res) => {
     res.status(201).json({
       success: true,
       data: friendRequest,
-      message: 'Friend request sent successfully'
+      message: 'Friend request sent successfully',
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
+    console.error('Send friend request error:', error);
     res.status(400).json({
       success: false,
-      message: error instanceof Error ? error.message : 'Failed to send friend request'
+      error: {
+        code: 'BAD_REQUEST',
+        message: error instanceof Error ? error.message : 'Failed to send friend request'
+      },
+      timestamp: new Date().toISOString()
     });
   }
 });
 
 /**
- * @route POST /api/friends/respond
- * @desc Respond to a friend request
+ * @route PUT /api/v1/friends/requests/:requestId
+ * @desc Respond to a friend request (accept or decline)
  * @access Private
  */
-router.post('/respond', validate(respondToRequestSchema), async (req, res) => {
+router.put('/requests/:requestId', async (req: AuthRequest, res) => {
   try {
-    const { requestId, accept } = req.body;
-    const userId = 'player-123'; // Mock user ID for MVP
+    const { requestId } = req.params;
+    const { accept } = req.body;
+    const userId = req.user?.id;
 
-    const response = await friendsService.respondToFriendRequest(requestId, userId, userId, accept);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    if (typeof accept !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: '"accept" must be a boolean' },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const response = await FriendService.respondToFriendRequest(requestId, userId, accept);
 
     res.json({
       success: true,
       data: response,
-      message: accept ? 'Friend request accepted' : 'Friend request declined'
+      message: accept ? 'Friend request accepted' : 'Friend request declined',
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
+    console.error('Respond to friend request error:', error);
     res.status(400).json({
       success: false,
-      message: error instanceof Error ? error.message : 'Failed to respond to friend request'
+      error: {
+        code: 'BAD_REQUEST',
+        message: error instanceof Error ? error.message : 'Failed to respond to friend request'
+      },
+      timestamp: new Date().toISOString()
     });
   }
 });
 
 /**
- * @route GET /api/friends/requests
- * @desc Get friend requests for the current user
+ * @route GET /api/v1/friends/requests
+ * @desc Get friend requests (sent or received)
  * @access Private
  */
-router.get('/requests', async (req, res) => {
+router.get('/requests', async (req: AuthRequest, res) => {
   try {
-    const userId = 'player-123'; // Mock user ID for MVP
+    const userId = req.user?.id;
     const type = (req.query.type as 'sent' | 'received') || 'received';
 
-    const requests = await friendsService.getFriendRequests(userId, type);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const requests = await FriendService.getFriendRequests(userId, type);
 
     res.json({
       success: true,
       data: requests,
-      count: requests.length
+      count: requests.length,
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
+    console.error('Get friend requests error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch friend requests'
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch friend requests' },
+      timestamp: new Date().toISOString()
     });
   }
 });
 
 /**
- * @route GET /api/friends
+ * @route GET /api/v1/friends
  * @desc Get user's friends list
  * @access Private
  */
-router.get('/', async (req, res) => {
+router.get('/', async (req: AuthRequest, res) => {
   try {
-    const userId = 'player-123'; // Mock user ID for MVP
+    const userId = req.user?.id;
 
-    const friends = await friendsService.getFriends(userId);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const friends = await FriendService.getFriends(userId);
 
     res.json({
       success: true,
       data: friends,
-      count: friends.length
+      count: friends.length,
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
+    console.error('Get friends error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch friends list'
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch friends list' },
+      timestamp: new Date().toISOString()
     });
   }
 });
 
 /**
- * @route DELETE /api/friends/:friendId
+ * @route DELETE /api/v1/friends/:friendId
  * @desc Remove a friend
  * @access Private
  */
-router.delete('/:friendId', async (req, res) => {
+router.delete('/:friendId', async (req: AuthRequest, res) => {
   try {
     const { friendId } = req.params;
-    const userId = 'player-123'; // Mock user ID for MVP
+    const userId = req.user?.id;
 
-    const result = await friendsService.removeFriend(userId, friendId);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date().toISOString()
+      });
+    }
 
-    res.json(result);
+    const result = await FriendService.removeFriend(userId, friendId);
+
+    res.json({
+      ...result,
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
+    console.error('Remove friend error:', error);
     res.status(400).json({
       success: false,
-      message: error instanceof Error ? error.message : 'Failed to remove friend'
+      error: {
+        code: 'BAD_REQUEST',
+        message: error instanceof Error ? error.message : 'Failed to remove friend'
+      },
+      timestamp: new Date().toISOString()
     });
   }
 });
 
 /**
- * @route POST /api/friends/block/:userId
+ * @route POST /api/v1/friends/block/:userId
  * @desc Block a user
  * @access Private
  */
-router.post('/block/:userId', async (req, res) => {
+router.post('/block/:targetUserId', async (req: AuthRequest, res) => {
   try {
-    const { userId: targetUserId } = req.params;
-    const userId = 'player-123'; // Mock user ID for MVP
+    const { targetUserId } = req.params;
+    const userId = req.user?.id;
 
-    const result = await friendsService.blockUser(userId, targetUserId);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date().toISOString()
+      });
+    }
 
-    res.json(result);
+    if (userId === targetUserId) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Cannot block yourself' },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const result = await FriendService.blockUser(userId, targetUserId);
+
+    res.json({
+      ...result,
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
+    console.error('Block user error:', error);
     res.status(400).json({
       success: false,
-      message: error instanceof Error ? error.message : 'Failed to block user'
+      error: {
+        code: 'BAD_REQUEST',
+        message: error instanceof Error ? error.message : 'Failed to block user'
+      },
+      timestamp: new Date().toISOString()
     });
   }
 });
 
 /**
- * @route POST /api/friends/unblock/:userId
+ * @route DELETE /api/v1/friends/block/:userId
  * @desc Unblock a user
  * @access Private
  */
-router.post('/unblock/:userId', async (req, res) => {
+router.delete('/block/:targetUserId', async (req: AuthRequest, res) => {
   try {
-    const { userId: targetUserId } = req.params;
-    const userId = 'player-123'; // Mock user ID for MVP
+    const { targetUserId } = req.params;
+    const userId = req.user?.id;
 
-    const result = await friendsService.unblockUser(userId, targetUserId);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date().toISOString()
+      });
+    }
 
-    res.json(result);
+    const result = await FriendService.unblockUser(userId, targetUserId);
+
+    res.json({
+      ...result,
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
+    console.error('Unblock user error:', error);
     res.status(400).json({
       success: false,
-      message: error instanceof Error ? error.message : 'Failed to unblock user'
+      error: {
+        code: 'BAD_REQUEST',
+        message: error instanceof Error ? error.message : 'Failed to unblock user'
+      },
+      timestamp: new Date().toISOString()
     });
   }
 });
 
 /**
- * @route GET /api/friends/blocked
+ * @route GET /api/v1/friends/blocked
  * @desc Get blocked users list
  * @access Private
  */
-router.get('/blocked', async (req, res) => {
+router.get('/blocked', async (req: AuthRequest, res) => {
   try {
-    const userId = 'player-123'; // Mock user ID for MVP
+    const userId = req.user?.id;
 
-    const blockedUsers = await friendsService.getBlockedUsers(userId);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const blockedUsers = await FriendService.getBlockedUsers(userId);
 
     res.json({
       success: true,
       data: blockedUsers,
-      count: blockedUsers.length
+      count: blockedUsers.length,
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
+    console.error('Get blocked users error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch blocked users'
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch blocked users' },
+      timestamp: new Date().toISOString()
     });
   }
 });
 
 /**
- * @route GET /api/friends/stats
+ * @route GET /api/v1/friends/stats
  * @desc Get friend statistics
  * @access Private
  */
-router.get('/stats', async (req, res) => {
+router.get('/stats', async (req: AuthRequest, res) => {
   try {
-    const userId = 'player-123'; // Mock user ID for MVP
+    const userId = req.user?.id;
 
-    const stats = await friendsService.getFriendStats(userId);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const stats = await FriendService.getFriendStats(userId);
 
     res.json({
       success: true,
-      data: stats
+      data: stats,
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
+    console.error('Get friend stats error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch friend statistics'
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch friend statistics' },
+      timestamp: new Date().toISOString()
     });
   }
 });
 
 /**
- * @route GET /api/friends/check/:userId
+ * @route GET /api/v1/friends/check/:userId
  * @desc Check if two users are friends
  * @access Private
  */
-router.get('/check/:userId', async (req, res) => {
+router.get('/check/:otherUserId', async (req: AuthRequest, res) => {
   try {
-    const { userId: otherUserId } = req.params;
-    const userId = 'player-123'; // Mock user ID for MVP
+    const { otherUserId } = req.params;
+    const userId = req.user?.id;
 
-    const areFriends = await friendsService.areFriends(userId, otherUserId);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const areFriends = await FriendService.areFriends(userId, otherUserId);
 
     res.json({
       success: true,
-      data: { areFriends }
+      data: { areFriends },
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
+    console.error('Check friendship error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to check friendship status'
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to check friendship status' },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * @route GET /api/v1/friends/suggestions
+ * @desc Get friend suggestions
+ * @access Private
+ */
+router.get('/suggestions', async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const suggestions = await FriendService.getFriendSuggestions(userId, limit);
+
+    res.json({
+      success: true,
+      data: suggestions,
+      count: suggestions.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Get friend suggestions error:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch friend suggestions' },
+      timestamp: new Date().toISOString()
     });
   }
 });

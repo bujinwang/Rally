@@ -33,6 +33,11 @@ import UserProfileScreen from '../screens/UserProfileScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 
+// Friend System screens (Epic 4 Story 4.2)
+import FriendsListScreen from '../screens/FriendsListScreen';
+import FriendRequestsScreen from '../screens/FriendRequestsScreen';
+import AddFriendScreen from '../screens/AddFriendScreen';
+
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
 const SessionsStack = createNativeStackNavigator();
@@ -218,6 +223,22 @@ function ProfileStackNavigator() {
         name="Achievements"
         component={AchievementScreen}
         options={{ title: 'Achievements' }}
+      />
+      {/* Friend System (Epic 4 Story 4.2) */}
+      <ProfileStack.Screen
+        name="FriendsList"
+        component={FriendsListScreen}
+        options={{ title: 'Friends' }}
+      />
+      <ProfileStack.Screen
+        name="FriendRequests"
+        component={FriendRequestsScreen}
+        options={{ title: 'Friend Requests' }}
+      />
+      <ProfileStack.Screen
+        name="AddFriend"
+        component={AddFriendScreen}
+        options={{ title: 'Add Friend' }}
       />
     </ProfileStack.Navigator>
   );

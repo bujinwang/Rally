@@ -1,58 +1,108 @@
-import {
-  Friend,
-  FriendRequest,
-  FriendWithDetails,
-  FriendRequestApiResponse,
-  FriendApiResponse,
-  ApiResponse,
-  SendFriendRequestForm,
-  RespondToFriendRequestForm,
-  FriendStats,
-  BlockedUser
-} from '../types/social';
+import { API_BASE_URL } from '../config/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+export interface FriendRequest {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  message: string | null;
+  status: string;
+  sentAt: string;
+  respondedAt: string | null;
+  sender: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+  };
+  receiver: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+  };
+}
+
+export interface Friend {
+  id: string;
+  playerId: string;
+  friendId: string;
+  status: string;
+  requestedAt: string;
+  acceptedAt: string | null;
+  friend: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+    status: string;
+  };
+}
+
+export interface FriendStats {
+  totalFriends: number;
+  pendingRequests: number;
+  sentRequests: number;
+  blockedUsers: number;
+}
+
+export interface BlockedUser {
+  id: string;
+  userId: string;
+  name: string;
+  avatarUrl: string | null;
+  blockedAt: string;
+}
 
 class FriendsApiService {
-  private baseUrl = 'http://localhost:3000/api/friends';
+  private baseUrl: string;
+
+  constructor() {
+    this.baseUrl = API_BASE_URL;
+  }
+
+  private async getAuthHeaders(): Promise<HeadersInit> {
+    const token = await AsyncStorage.getItem('accessToken');
+    return {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` })
+    };
+  }
 
   /**
    * Send a friend request
    */
-  async sendFriendRequest(data: SendFriendRequestForm): Promise<FriendRequest> {
-    const response = await fetch(`${this.baseUrl}/request`, {
+  async sendFriendRequest(receiverId: string, message?: string): Promise<FriendRequest> {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/friends/requests`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
+      headers,
+      body: JSON.stringify({ receiverId, message }),
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to send friend request');
+      throw new Error(error.error?.message || 'Failed to send friend request');
     }
 
-    const result: ApiResponse<FriendRequest> = await response.json();
+    const result = await response.json();
     return result.data;
   }
 
   /**
    * Respond to a friend request
    */
-  async respondToFriendRequest(data: RespondToFriendRequestForm): Promise<FriendRequest> {
-    const response = await fetch(`${this.baseUrl}/respond`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
+  async respondToFriendRequest(requestId: string, accept: boolean): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/friends/requests/${requestId}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ accept }),
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to respond to friend request');
+      throw new Error(error.error?.message || 'Failed to respond to friend request');
     }
 
-    const result: ApiResponse<FriendRequest> = await response.json();
+    const result = await response.json();
     return result.data;
   }
 
@@ -60,29 +110,35 @@ class FriendsApiService {
    * Get friend requests
    */
   async getFriendRequests(type: 'sent' | 'received' = 'received'): Promise<FriendRequest[]> {
-    const response = await fetch(`${this.baseUrl}/requests?type=${type}`);
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/friends/requests?type=${type}`, {
+      headers
+    });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch friend requests');
+      throw new Error(error.error?.message || 'Failed to fetch friend requests');
     }
 
-    const result: FriendRequestApiResponse = await response.json();
+    const result = await response.json();
     return result.data;
   }
 
   /**
    * Get friends list
    */
-  async getFriends(): Promise<FriendWithDetails[]> {
-    const response = await fetch(this.baseUrl);
+  async getFriends(): Promise<Friend[]> {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/friends`, {
+      headers
+    });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch friends');
+      throw new Error(error.error?.message || 'Failed to fetch friends');
     }
 
-    const result: FriendApiResponse = await response.json();
+    const result = await response.json();
     return result.data;
   }
 
@@ -90,13 +146,15 @@ class FriendsApiService {
    * Remove a friend
    */
   async removeFriend(friendId: string): Promise<{ success: boolean; message: string }> {
-    const response = await fetch(`${this.baseUrl}/${friendId}`, {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/friends/${friendId}`, {
       method: 'DELETE',
+      headers
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to remove friend');
+      throw new Error(error.error?.message || 'Failed to remove friend');
     }
 
     return await response.json();
@@ -106,13 +164,15 @@ class FriendsApiService {
    * Block a user
    */
   async blockUser(userId: string): Promise<{ success: boolean; message: string }> {
-    const response = await fetch(`${this.baseUrl}/block/${userId}`, {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/friends/block/${userId}`, {
       method: 'POST',
+      headers
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to block user');
+      throw new Error(error.error?.message || 'Failed to block user');
     }
 
     return await response.json();
@@ -122,13 +182,15 @@ class FriendsApiService {
    * Unblock a user
    */
   async unblockUser(userId: string): Promise<{ success: boolean; message: string }> {
-    const response = await fetch(`${this.baseUrl}/unblock/${userId}`, {
-      method: 'POST',
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/friends/block/${userId}`, {
+      method: 'DELETE',
+      headers
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to unblock user');
+      throw new Error(error.error?.message || 'Failed to unblock user');
     }
 
     return await response.json();
@@ -138,14 +200,17 @@ class FriendsApiService {
    * Get blocked users
    */
   async getBlockedUsers(): Promise<BlockedUser[]> {
-    const response = await fetch(`${this.baseUrl}/blocked`);
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/friends/blocked`, {
+      headers
+    });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch blocked users');
+      throw new Error(error.error?.message || 'Failed to fetch blocked users');
     }
 
-    const result: ApiResponse<BlockedUser[]> = await response.json();
+    const result = await response.json();
     return result.data;
   }
 
@@ -153,14 +218,17 @@ class FriendsApiService {
    * Get friend statistics
    */
   async getFriendStats(): Promise<FriendStats> {
-    const response = await fetch(`${this.baseUrl}/stats`);
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/friends/stats`, {
+      headers
+    });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch friend statistics');
+      throw new Error(error.error?.message || 'Failed to fetch friend statistics');
     }
 
-    const result: ApiResponse<FriendStats> = await response.json();
+    const result = await response.json();
     return result.data;
   }
 
@@ -168,25 +236,36 @@ class FriendsApiService {
    * Check if two users are friends
    */
   async checkFriendship(userId: string): Promise<{ areFriends: boolean }> {
-    const response = await fetch(`${this.baseUrl}/check/${userId}`);
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/friends/check/${userId}`, {
+      headers
+    });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to check friendship status');
+      throw new Error(error.error?.message || 'Failed to check friendship status');
     }
 
-    const result: ApiResponse<{ areFriends: boolean }> = await response.json();
+    const result = await response.json();
     return result.data;
   }
 
   /**
-   * Search for users (placeholder for future implementation)
+   * Get friend suggestions
    */
-  async searchUsers(query: string): Promise<any[]> {
-    // This would typically call a user search endpoint
-    // For now, return empty array
-    console.log('User search not implemented yet:', query);
-    return [];
+  async getFriendSuggestions(limit: number = 10): Promise<any[]> {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/friends/suggestions?limit=${limit}`, {
+      headers
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to fetch friend suggestions');
+    }
+
+    const result = await response.json();
+    return result.data;
   }
 }
 
