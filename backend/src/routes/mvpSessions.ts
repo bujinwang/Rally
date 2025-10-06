@@ -6,6 +6,9 @@ import { updatePlayerGameStatistics, updatePlayerMatchStatistics, getPlayerStati
 import { io } from '../server';
 import { requireOrganizer, requireOrganizerOrSelf } from '../middleware/permissions';
 import { PasswordUtils } from '../utils/password';
+import { createRateLimiters } from '../middleware/rateLimit';
+
+const rateLimiters = createRateLimiters();
 
 const router = Router();
 
@@ -293,8 +296,8 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
         shareCode,
         status: 'ACTIVE',
         ownerDeviceId: sessionData.ownerDeviceId || null,
-        organizerCodeHash,
-        organizerCodeUpdatedAt: secretTimestamp,
+        organizerSecretHash: organizerCodeHash,
+        organizerSecretUpdatedAt: secretTimestamp,
         ownershipClaimedAt: sessionData.ownerDeviceId ? secretTimestamp : null
       }
     });
@@ -682,7 +685,7 @@ router.post('/claim', claimSessionValidation, async (req: Request, res: Response
       });
     }
 
-    if (!session.organizerCodeHash) {
+    if (!session.organizerSecretHash) {
       return res.status(409).json({
         success: false,
         error: {
@@ -693,7 +696,7 @@ router.post('/claim', claimSessionValidation, async (req: Request, res: Response
       });
     }
 
-    const isSecretValid = await PasswordUtils.verifyPassword(secret, session.organizerCodeHash);
+    const isSecretValid = await PasswordUtils.verifyPassword(secret, session.organizerSecretHash);
     if (!isSecretValid) {
       return res.status(403).json({
         success: false,
@@ -945,7 +948,7 @@ router.get('/my-sessions/:deviceId', async (req, res) => {
 });
 
 // Update session settings (owner only)
-router.put('/:shareCode', requireOrganizer('edit_session'), async (req, res) => {
+router.put('/:shareCode', rateLimiters.sensitive, requireOrganizer('edit_session'), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { ownerDeviceId, courtCount, maxPlayers, location, description, skillLevel, cost } = req.body;
@@ -1165,7 +1168,7 @@ router.put('/:shareCode', requireOrganizer('edit_session'), async (req, res) => 
 });
 
 // Terminate session (owner only)
-router.put('/terminate/:shareCode', requireOrganizer('delete_session'), async (req, res) => {
+router.put('/terminate/:shareCode', rateLimiters.sensitive, requireOrganizer('delete_session'), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { ownerDeviceId } = req.body;
@@ -1378,8 +1381,9 @@ router.put('/reactivate/:shareCode', requireOrganizer('edit_session'), async (re
   }
 });
 
-// Remove player from session (owner only)
-router.delete('/:shareCode/players/:playerId', async (req, res) => {
+// Remove player from session (owner only) - DEPRECATED: Use the one with requireOrganizer middleware at line 2745
+// This route is kept for backwards compatibility but should be removed after frontend migration
+router.delete('/:shareCode/players/:playerId', rateLimiters.sensitive, requireOrganizer('remove_players'), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
     const { deviceId: ownerDeviceId } = req.body;
@@ -1469,7 +1473,7 @@ router.delete('/:shareCode/players/:playerId', async (req, res) => {
 });
 
 // Add player to session (owner only)
-router.post('/:shareCode/add-player', requireOrganizer('add_players'), async (req, res) => {
+router.post('/:shareCode/add-player', rateLimiters.api, requireOrganizer('add_players'), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { playerName, deviceId: ownerDeviceId } = req.body;
@@ -1584,7 +1588,7 @@ router.post('/:shareCode/add-player', requireOrganizer('add_players'), async (re
 // Game Management Routes
 
 // Create a new game
-router.post('/:shareCode/games', async (req, res) => {
+router.post('/:shareCode/games', requireOrganizer('generate_pairings'), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { team1Player1, team1Player2, team2Player1, team2Player2, courtName } = req.body;
@@ -1648,7 +1652,7 @@ router.post('/:shareCode/games', async (req, res) => {
 });
 
 // Update game score (finish game)
-router.put('/:shareCode/games/:gameId/score', async (req, res) => {
+router.put('/:shareCode/games/:gameId/score', requireOrganizer('modify_pairings'), async (req, res) => {
   try {
     const { shareCode, gameId } = req.params;
     const { team1FinalScore, team2FinalScore } = req.body;
@@ -1786,7 +1790,7 @@ router.put('/:shareCode/games/:gameId/score', async (req, res) => {
 });
 
 // Update teams during live game (team switching)
-router.put('/:shareCode/games/:gameId/teams', async (req, res) => {
+router.put('/:shareCode/games/:gameId/teams', requireOrganizer('modify_pairings'), async (req, res) => {
   try {
     const { shareCode, gameId } = req.params;
     const { team1Player1, team1Player2, team2Player1, team2Player2 } = req.body;
@@ -2070,7 +2074,7 @@ router.get('/:shareCode/rotation', async (req, res) => {
 // Match Management Routes
 
 // Create a new match (best of 3 or 5 games)
-router.post('/:shareCode/matches', async (req, res) => {
+router.post('/:shareCode/matches', requireOrganizer('generate_pairings'), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { team1Player1, team1Player2, team2Player1, team2Player2, courtName, bestOf = 3 } = req.body;
@@ -2135,7 +2139,7 @@ router.post('/:shareCode/matches', async (req, res) => {
 });
 
 // Create a new game within a match
-router.post('/:shareCode/matches/:matchId/games', async (req, res) => {
+router.post('/:shareCode/matches/:matchId/games', requireOrganizer('generate_pairings'), async (req, res) => {
   try {
     const { shareCode, matchId } = req.params;
 
@@ -2231,7 +2235,7 @@ router.post('/:shareCode/matches/:matchId/games', async (req, res) => {
 });
 
 // Update game score and check for match completion
-router.put('/:shareCode/matches/:matchId/games/:gameId/score', async (req, res) => {
+router.put('/:shareCode/matches/:matchId/games/:gameId/score', requireOrganizer('modify_pairings'), async (req, res) => {
   try {
     const { shareCode, matchId, gameId } = req.params;
     const { team1FinalScore, team2FinalScore } = req.body;
@@ -2616,8 +2620,9 @@ router.get('/:shareCode/leaderboard', async (req, res) => {
 
 // Player Management Endpoints
 
-// Update player status (for self-dropout or organizer management)
-router.put('/:shareCode/players/:playerId/status', async (req, res) => {
+// Update player status (for self-dropout or organizer management) - DEPRECATED: Use the one with requireOrganizerOrSelf at line 2960
+// This route is kept for backwards compatibility but should be removed after frontend migration
+router.put('/:shareCode/players/:playerId/status', requireOrganizerOrSelf('update_player_status'), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
     const { status, reason } = req.body;
@@ -2742,7 +2747,7 @@ router.put('/:shareCode/players/:playerId/status', async (req, res) => {
 });
 
 // Remove player from session (organizer only)
-router.delete('/:shareCode/players/:playerId', requireOrganizer('remove_players'), async (req, res) => {
+router.delete('/:shareCode/players/:playerId', rateLimiters.sensitive, requireOrganizer('remove_players'), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
     const { organizerDeviceId, reason } = req.body;
@@ -3093,8 +3098,9 @@ router.put('/:shareCode/players/:playerId/status', requireOrganizerOrSelf('updat
   }
 });
 
-// Remove player from session (organizer only)
-router.delete('/:shareCode/players/:playerId', async (req, res) => {
+// Remove player from session (organizer only) - DUPLICATE: This is a duplicate of line 1382
+// Consider removing this after verifying frontend uses the correct endpoint
+router.delete('/:shareCode/players/:playerId', requireOrganizer('remove_players'), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
     const { ownerDeviceId } = req.body;
@@ -3271,8 +3277,9 @@ router.get('/:shareCode/players/me/:deviceId', async (req, res) => {
   }
 });
 
-// Create/Save completed game
-router.post('/:shareCode/games', async (req, res) => {
+// Create/Save completed game - DUPLICATE: This is a duplicate of line 1587
+// Consider removing this after verifying frontend uses the correct endpoint  
+router.post('/:shareCode/games', requireOrganizer('generate_pairings'), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { 
@@ -3382,7 +3389,7 @@ router.post('/:shareCode/games', async (req, res) => {
 });
 
 // Update session court settings
-router.put('/:shareCode/courts', requireOrganizer('edit_session'), async (req, res) => {
+router.put('/:shareCode/courts', rateLimiters.api, requireOrganizer('edit_session'), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { courtCount, ownerDeviceId } = req.body;
