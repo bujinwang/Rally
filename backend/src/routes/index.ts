@@ -8,10 +8,12 @@ import mvpSessionRoutes from './mvpSessions';
 import sessionHistoryRoutes from './sessionHistory';
 import searchRoutes from './search';
 import playerStatusRoutes from './playerStatus';
+import scoringRoutes from './scoring';
 import pairingRoutes from './pairings';
 import discoveryRoutes from './discovery';
 import sessionConfigRoutes from './sessionConfig';
-import tournamentRoutes from './tournaments';
+// Tournament routes disabled (not part of MVP)
+// import tournamentRoutes from './tournaments';
 import matchesRoutes from './matches';
 import statisticsRoutes from './statistics';
 import rankingsRoutes from './rankings';
@@ -22,9 +24,12 @@ import friendsRoutes from './friends';
 import messagingRoutes from './messaging';
 import challengesRoutes from './challenges';
 import matchSchedulingRoutes from './matchScheduling';
-import equipmentRoutes from './equipment';
-import courtBookingRoutes from './courtBookings';
-import paymentRoutes from './payments';
+// Equipment routes disabled (not part of MVP, compilation errors)
+// import equipmentRoutes from './equipment';
+// Court booking routes disabled (depends on payment service)
+// import courtBookingRoutes from './courtBookings';
+// Payment routes disabled (requires Stripe dependency)
+// import paymentRoutes from './payments';
 import sharingRoutes from './sharing';
 
 const router = Router();
@@ -51,14 +56,17 @@ console.log('  - /mvp-sessions');
 router.use('/mvp-sessions', mvpSessionRoutes);
 console.log('  - /player-status');
 router.use('/player-status', playerStatusRoutes);
+console.log('  - /scoring');
+router.use('/scoring', scoringRoutes);
 console.log('  - /pairings');
 router.use('/pairings', pairingRoutes);
 console.log('  - /sessions/discovery');
 router.use('/sessions/discovery', discoveryRoutes);
 console.log('  - /sessions/config');
 router.use('/sessions/config', sessionConfigRoutes);
-console.log('  - /tournaments');
-router.use('/tournaments', tournamentRoutes);
+// Tournament routes disabled (not part of MVP)
+// console.log('  - /tournaments');
+// router.use('/tournaments', tournamentRoutes);
 console.log('  - /session-history');
 router.use('/session-history', sessionHistoryRoutes);
 console.log('  - /search');
@@ -83,12 +91,15 @@ console.log('  - /challenges');
 router.use('/challenges', challengesRoutes);
 console.log('  - /match-scheduling');
 router.use('/match-scheduling', matchSchedulingRoutes);
-console.log('  - /equipment');
-router.use('/equipment', equipmentRoutes);
-console.log('  - /court-bookings');
-router.use('/court-bookings', courtBookingRoutes);
-console.log('  - /payments');
-router.use('/payments', paymentRoutes);
+// Equipment routes disabled (not part of MVP)
+// console.log('  - /equipment');
+// router.use('/equipment', equipmentRoutes);
+// Court booking routes disabled (not part of MVP)
+// console.log('  - /court-bookings');
+// router.use('/court-bookings', courtBookingRoutes);
+// Payment routes disabled (not part of MVP)
+// console.log('  - /payments');
+// router.use('/payments', paymentRoutes);
 console.log('  - /sharing');
 router.use('/sharing', sharingRoutes);
 console.log('✅ All routes registered successfully');
