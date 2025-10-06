@@ -25,3 +25,7 @@ export { PermissionErrorAlert } from './PermissionErrorAlert';
 
 export { RestingQueue } from './RestingQueue';
 export { PairingGeneratorPanel } from './PairingGeneratorPanel';
+
+export { QuickScoreEntry } from './QuickScoreEntry';
+export { default as LeaderboardScreen } from '../screens/LeaderboardScreen';
+export { StatisticsCard } from './StatisticsCard';
