@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/database';
+import { AuditLogger } from '../utils/auditLogger';
 
 // Permission matrix defining what each role can do
 export const PERMISSION_MATRIX = {
@@ -127,6 +128,19 @@ export const requireRole = (requiredRole: PlayerRole, action: PermissionAction) 
       // Add player and session info to request for use in route handlers
       (req as any).player = player;
       (req as any).session = session;
+
+      // Log permission check for audit trail (organizer actions only)
+      if (requiredRole === 'ORGANIZER') {
+        AuditLogger.logAction({
+          action: `PERMISSION_CHECK_${action.toUpperCase()}`,
+          actorId: player.id,
+          actorName: player.name,
+          sessionId: session.id,
+          metadata: { action, granted: true },
+          ipAddress: req.ip || req.connection.remoteAddress,
+          userAgent: req.get('user-agent')
+        });
+      }
 
       next();
     } catch (error) {

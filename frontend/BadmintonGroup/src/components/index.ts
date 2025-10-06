@@ -20,4 +20,8 @@ export { default as AISuggestionScreen } from './AISuggestionScreen';
 export { default as AnalyticsDashboardScreen } from './AnalyticsDashboardScreen';
 
 // Hooks
-export { useEnhancedQueue } from '../hooks/useEnhancedQueue';
+export { useEnhancedQueue } from '../hooks/useEnhancedQueue';export { OrganizerControls } from './OrganizerControls';
+export { PermissionErrorAlert } from './PermissionErrorAlert';
+
+export { RestingQueue } from './RestingQueue';
+export { PairingGeneratorPanel } from './PairingGeneratorPanel';
