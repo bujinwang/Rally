@@ -32,3 +32,4 @@ export { StatisticsCard } from './StatisticsCard';
 
 // User Profile Components
 export { AvatarPicker } from './AvatarPicker';
+export { FriendCard } from './FriendCard';
