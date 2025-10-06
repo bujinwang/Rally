@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import { Server as SocketServer } from 'socket.io';
 import { createServer } from 'http';
 import dotenv from 'dotenv';
+import path from 'path';
 
 // Import configurations
 import { connectDB } from './config/database';
@@ -54,6 +55,10 @@ app.use('/api/', limiter);
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Serve static files (uploaded avatars)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+console.log('📁 Static files served from /uploads');
 
 // Health check endpoint
 app.get('/health', (req, res) => {

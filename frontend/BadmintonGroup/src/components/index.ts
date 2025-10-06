@@ -29,3 +29,6 @@ export { PairingGeneratorPanel } from './PairingGeneratorPanel';
 export { QuickScoreEntry } from './QuickScoreEntry';
 export { default as LeaderboardScreen } from '../screens/LeaderboardScreen';
 export { StatisticsCard } from './StatisticsCard';
+
+// User Profile Components
+export { AvatarPicker } from './AvatarPicker';

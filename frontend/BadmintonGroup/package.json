@@ -44,7 +44,9 @@
     "redux-persist": "^6.0.0",
     "socket.io-client": "^4.8.1",
     "expo-application": "~6.0.2",
-    "expo-constants": "~17.0.8"
+    "expo-constants": "~17.0.8",
+    "expo-notifications": "~0.29.14",
+    "expo-image-picker": "~16.0.6"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
