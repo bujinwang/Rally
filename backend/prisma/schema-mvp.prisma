@@ -1,0 +1,195 @@
+// ==========================================
+// 🏸 Badminton Group - MVP Schema (Simplified)
+// ==========================================
+// Version: 1.0.0-mvp
+// Purpose: Minimum viable product schema
+// Models: 6 core models only
+// ==========================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// CORE MVP MODELS
+// ==========================================
+
+/// Session/Game/局 - 羽毛球活动场次
+model MvpSession {
+  id   String @id @default(cuid())
+  name String // 格式: "北京-2025-01-30-14:00"
+
+  // 基本信息
+  scheduledAt DateTime
+  location    String?
+  maxPlayers  Int      @default(20)
+  courtCount  Int      @default(1) // 场地数量
+
+  // 组织者信息 (无需认证)
+  ownerName     String
+  ownerDeviceId String?
+
+  // 组织者密钥 (用于重新获取权限)
+  organizerSecretHash      String?
+  organizerSecretUpdatedAt DateTime?
+  ownershipClaimedAt       DateTime?
+
+  // 分享功能
+  shareCode String @unique // 短链接码，如: "ABC123"
+
+  // 状态
+  status    SessionStatus @default(ACTIVE)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  // 关系
+  players MvpPlayer[]
+  games   MvpGame[]
+
+  // 关键索引 (仅保留高频查询)
+  @@index([shareCode])
+  @@index([status, scheduledAt])
+  @@index([ownerDeviceId])
+  @@map("mvp_sessions")
+}
+
+/// Player - 球员 (同一场次中的参与者)
+model MvpPlayer {
+  id        String     @id @default(cuid())
+  sessionId String
+  session   MvpSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // 球员信息 (MVP: 仅姓名+设备ID)
+  name     String
+  deviceId String
+  role     PlayerRole @default(PLAYER) // ORGANIZER 或 PLAYER
+
+  // 状态管理
+  status   PlayerStatus @default(ACTIVE) // ACTIVE, RESTING, LEFT
+  joinedAt DateTime     @default(now())
+
+  // 统计数据 (用于轮换算法)
+  gamesPlayed          Int @default(0) // 已打局数
+  wins                 Int @default(0) // 胜场数
+  losses               Int @default(0) // 负场数
+  wasBenchedLastRound  Boolean @default(false) // 上一轮是否下场
+
+  // "歇一下" 功能字段
+  restRequestedAt DateTime? // 何时申请休息
+  restExpiresAt   DateTime? // 休息到期时间
+  restGamesCount  Int       @default(0) // 要休息几局
+
+  // 状态变更追踪
+  statusChangedAt DateTime?
+  statusChangedBy String? // 谁修改的状态 (deviceId)
+
+  // 参与的比赛
+  team1Games MvpGame[] @relation("Team1Player1")
+  team2Games MvpGame[] @relation("Team2Player1")
+
+  // 唯一性约束
+  @@unique([sessionId, name])
+  @@unique([sessionId, deviceId])
+
+  // 关键索引
+  @@index([sessionId, status])
+  @@index([deviceId])
+  @@index([gamesPlayed])
+  @@map("mvp_players")
+}
+
+/// Game - 单场比赛记录 (双打，4人)
+model MvpGame {
+  id        String     @id @default(cuid())
+  sessionId String
+  session   MvpSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // 比赛编号
+  gameNumber Int // 本场次的第几局比赛
+  courtName  String? // 哪个场地
+
+  // 参赛队伍 (双打: 每队2人)
+  team1Player1Id String
+  team1Player2Id String
+  team2Player1Id String
+  team2Player2Id String
+
+  // 队伍关系
+  team1Player1 MvpPlayer @relation("Team1Player1", fields: [team1Player1Id], references: [id])
+  team1Player2 MvpPlayer @relation("Team1Player2", fields: [team1Player2Id], references: [id])
+  team2Player1 MvpPlayer @relation("Team2Player1", fields: [team2Player1Id], references: [id])
+  team2Player2 MvpPlayer @relation("Team2Player2", fields: [team2Player2Id], references: [id])
+
+  // 比赛结果
+  team1Score Int  @default(0) // 队1最终比分
+  team2Score Int  @default(0) // 队2最终比分
+  winnerTeam Int? // 1 或 2
+
+  // 比赛详情 (可选)
+  scoreType String? // "2-0" 或 "2-1" (大分格式)
+  duration  Int? // 比赛时长(分钟)
+
+  // 时间记录
+  startTime DateTime?
+  endTime   DateTime?
+  status    GameStatus @default(IN_PROGRESS)
+
+  // 记录人
+  recordedBy String // deviceId
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // 关键索引
+  @@index([sessionId, status])
+  @@index([gameNumber])
+  @@map("mvp_games")
+}
+
+// ==========================================
+// ENUMS (MVP版本)
+// ==========================================
+
+enum SessionStatus {
+  ACTIVE // 进行中
+  COMPLETED // 已结束
+  CANCELLED // 已取消
+}
+
+enum PlayerRole {
+  ORGANIZER // 组织者(局主)
+  PLAYER // 普通球员
+}
+
+enum PlayerStatus {
+  ACTIVE // 正常参与
+  RESTING // 歇一下
+  LEFT // 已离场
+}
+
+enum GameStatus {
+  IN_PROGRESS // 进行中
+  COMPLETED // 已完成
+  CANCELLED // 已取消
+}
+
+// ==========================================
+// SIMPLIFIED RELATIONS
+// ==========================================
+// ✅ MvpSession → MvpPlayer (1:N)
+// ✅ MvpSession → MvpGame (1:N)
+// ✅ MvpPlayer → MvpGame (N:M through team relations)
+//
+// ❌ Removed for MVP:
+// - User authentication models
+// - Tournament system
+// - Achievement system
+// - Social features (friends, messages)
+// - Equipment management
+// - Court booking
+// - Analytics models (can be added later)
+// ==========================================
