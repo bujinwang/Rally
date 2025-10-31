@@ -1,4 +1,4 @@
-import { MvpPlayerRole, MvpPlayerStatus } from '@prisma/client';
+import { PlayerRole, PlayerStatus } from '@prisma/client';
 
 export interface PlayerStatistics {
   totalMatches: number;
@@ -15,8 +15,8 @@ export interface PlayerWithStatistics {
   sessionId: string;
   name: string;
   deviceId?: string;
-  role: MvpPlayerRole;
-  status: MvpPlayerStatus;
+  role: PlayerRole;
+  status: PlayerStatus;
   joinedAt: Date;
   gamesPlayed: number;
   wins: number;
@@ -61,7 +61,7 @@ export interface CreatePlayerInput {
   sessionId: string;
   name: string;
   deviceId?: string;
-  role?: MvpPlayerRole;
+  role?: PlayerRole;
 }
 
 export interface UpdatePlayerStatisticsInput {

@@ -1,0 +1,1 @@
+{"version":3,"file":"tournamentAnalyticsService.d.ts","sourceRoot":"","sources":["../../src/services/tournamentAnalyticsService.ts"],"names":[],"mappings":"AAIA,qBAAa,0BAA0B;IACrC;;OAEG;WACU,6BAA6B,CAAC,YAAY,EAAE,MAAM;;;;;;;IAiD/D;;OAEG;WACU,0BAA0B,CAAC,YAAY,EAAE,MAAM;;;;;;IA0D5D;;OAEG;WACU,yBAAyB,CAAC,YAAY,EAAE,MAAM;IA6C3D;;OAEG;WACU,wBAAwB,CAAC,aAAa,EAAE,MAAM,EAAE;CA4C9D"}
