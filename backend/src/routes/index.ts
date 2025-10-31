@@ -1,31 +1,13 @@
 import { Router } from 'express';
 
-// Import route modules
-import authRoutes from './auth';
-// import sessionRoutes from './sessions'; // Temporarily disabled due to schema mismatch
-import userRoutes from './users';
+// ==========================================
+// MVP ROUTES ONLY
+// ==========================================
+// Only core MVP functionality is enabled
+// All Phase 2+ features moved to future-features/
+// ==========================================
+
 import mvpSessionRoutes from './mvpSessions';
-import sessionHistoryRoutes from './sessionHistory';
-import searchRoutes from './search';
-import playerStatusRoutes from './playerStatus';
-import pairingRoutes from './pairings';
-import discoveryRoutes from './discovery';
-import sessionConfigRoutes from './sessionConfig';
-import tournamentRoutes from './tournaments';
-import matchesRoutes from './matches';
-import statisticsRoutes from './statistics';
-import rankingsRoutes from './rankings';
-import achievementsRoutes from './achievements';
-import analyticsRoutes from './analytics';
-import notificationsRoutes from './notifications';
-import friendsRoutes from './friends';
-import messagingRoutes from './messaging';
-import challengesRoutes from './challenges';
-import matchSchedulingRoutes from './matchScheduling';
-import equipmentRoutes from './equipment';
-import courtBookingRoutes from './courtBookings';
-import paymentRoutes from './payments';
-import sharingRoutes from './sharing';
 
 const router = Router();
 
@@ -33,65 +15,44 @@ const router = Router();
 router.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'Badminton Group API v1',
+    message: 'Badminton Group API - MVP v1.0',
     timestamp: new Date().toISOString(),
-    version: '1.0.0'
+    version: '1.0.0-mvp',
+    features: {
+      mvp: ['sessions', 'players', 'games', 'rotation'],
+      phase2: 'coming soon',
+      phase3: 'coming soon'
+    }
   });
 });
 
-// API routes
-console.log('📍 Registering routes:');
-console.log('  - /auth');
-router.use('/auth', authRoutes);
-// console.log('  - /sessions');
-// router.use('/sessions', sessionRoutes); // Temporarily disabled
-console.log('  - /users');
-router.use('/users', userRoutes);
-console.log('  - /mvp-sessions');
+// MVP API routes
+console.log('📍 Registering MVP routes:');
+console.log('  - /mvp-sessions (Core MVP functionality)');
 router.use('/mvp-sessions', mvpSessionRoutes);
-console.log('  - /player-status');
-router.use('/player-status', playerStatusRoutes);
-console.log('  - /pairings');
-router.use('/pairings', pairingRoutes);
-console.log('  - /sessions/discovery');
-router.use('/sessions/discovery', discoveryRoutes);
-console.log('  - /sessions/config');
-router.use('/sessions/config', sessionConfigRoutes);
-console.log('  - /tournaments');
-router.use('/tournaments', tournamentRoutes);
-console.log('  - /session-history');
-router.use('/session-history', sessionHistoryRoutes);
-console.log('  - /search');
-router.use('/search', searchRoutes);
-console.log('  - /matches');
-router.use('/matches', matchesRoutes);
-console.log('  - /statistics');
-router.use('/statistics', statisticsRoutes);
-console.log('  - /rankings');
-router.use('/rankings', rankingsRoutes);
-console.log('  - /achievements');
-router.use('/achievements', achievementsRoutes);
-console.log('  - /analytics');
-router.use('/analytics', analyticsRoutes);
-console.log('  - /notifications');
-router.use('/notifications', notificationsRoutes);
-console.log('  - /friends');
-router.use('/friends', friendsRoutes);
-console.log('  - /messaging');
-router.use('/messaging', messagingRoutes);
-console.log('  - /challenges');
-router.use('/challenges', challengesRoutes);
-console.log('  - /match-scheduling');
-router.use('/match-scheduling', matchSchedulingRoutes);
-console.log('  - /equipment');
-router.use('/equipment', equipmentRoutes);
-console.log('  - /court-bookings');
-router.use('/court-bookings', courtBookingRoutes);
-console.log('  - /payments');
-router.use('/payments', paymentRoutes);
-console.log('  - /sharing');
-router.use('/sharing', sharingRoutes);
-console.log('✅ All routes registered successfully');
+console.log('✅ MVP routes registered successfully');
+
+// ==========================================
+// DISABLED ROUTES (Phase 2+)
+// ==========================================
+// The following routes are disabled for MVP:
+// - /auth (Phase 2: User authentication)
+// - /users (Phase 2: User management)
+// - /tournaments (Phase 3: Tournament system)
+// - /achievements (Phase 3: Achievement system)
+// - /friends (Phase 3: Social features)
+// - /messaging (Phase 3: Social features)
+// - /challenges (Phase 3: Social features)
+// - /equipment (Phase 4: Equipment management)
+// - /court-bookings (Phase 4: Court booking)
+// - /analytics (Phase 3: Advanced analytics)
+// - /rankings (Phase 3: Ranking system)
+// - /statistics (Phase 3: Advanced statistics)
+// - /pairings (Phase 4: AI pairing)
+// - /notifications (Phase 2: Push notifications)
+// - /payments (Phase 4: Payment integration)
+// - /sharing (Phase 3: Social sharing)
+// ==========================================
 
 export const setupRoutes = (): Router => {
   return router;
