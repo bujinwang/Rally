@@ -1,7 +1,7 @@
 // Tournament Service - Handles business logic for tournament creation and management
 // Implements bracket generation, seeding, and tournament lifecycle management
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, TournamentType } from '@prisma/client';
 import { Tournament, TournamentPlayer, TournamentRound, TournamentMatch, TournamentGame, TournamentGameSet } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -25,7 +25,7 @@ export async function createTournament(input: TournamentInput) {
   return prisma.tournament.create({
     data: {
       name: input.name,
-      format: input.format,
+      // format: input.format, // format field not in schema
       status: 'REGISTRATION_OPEN',
       organizer: input.organizer,
       startDate: input.startDate,
@@ -38,7 +38,7 @@ export async function createTournament(input: TournamentInput) {
       venueAddress: '',
       latitude: null,
       longitude: null,
-      tournamentType: 'SINGLES',
+      tournamentType: 'SINGLES' as TournamentType,
       scoringSystem: '21_POINT',
       bestOfGames: 3,
       entryFee: 0,
@@ -57,7 +57,7 @@ export async function generateBracket(tournamentId: string, players: TournamentP
     include: { players: true },
   });
 
-  if (!tournament || players.length !== tournament.maxPlayers || players.length & (players.length - 1) !== 0) {
+  if (!tournament || players.length !== tournament.maxPlayers || (players.length & (players.length - 1)) !== 0) {
     throw new Error('Tournament must have power of 2 players for single elimination');
   }
 
@@ -72,7 +72,7 @@ export async function generateBracket(tournamentId: string, players: TournamentP
       data: {
         tournamentId,
         roundNumber: roundNum,
-        roundName: getRoundName(roundNum, tournament.format),
+        roundName: getRoundName(roundNum, 'SINGLE_ELIMINATION'), // format field not in schema
         roundType: 'ELIMINATION',
         matchesRequired: players.length / 2,
         playersAdvancing: players.length / 2,
@@ -111,15 +111,15 @@ export async function calculateSeeding(tournamentId: string, players: string[]) 
   // Fetch player data for seeding
   const playerData = await prisma.tournamentPlayer.findMany({
     where: { tournamentId },
-    include: { player: { select: { winRate: true, totalMatches: true } } },
+    // Player relation not available, using TournamentPlayer fields directly
   });
 
   // Sort by winRate descending, then by totalMatches
   const seeded = playerData.sort((a, b) => {
-    if (a.player.winRate !== b.player.winRate) {
-      return b.player.winRate - a.player.winRate;
+    if (a.winRate !== b.winRate) {
+      return b.winRate - a.winRate;
     }
-    return b.player.totalMatches - a.player.totalMatches;
+    return b.totalMatches - a.totalMatches;
   });
 
   // Assign seeds 1 to n
@@ -135,7 +135,7 @@ export async function calculateSeeding(tournamentId: string, players: string[]) 
 
 // Get round name based on round number and tournament format
 function getRoundName(roundNum: number, format: string): string {
-  const names = {
+  const names: Record<number, string> = {
     1: 'Round of 64',
     2: 'Round of 32',
     3: 'Round of 16',
@@ -151,10 +151,14 @@ function getRoundName(roundNum: number, format: string): string {
 export async function checkTournamentPermission(userId: string, tournamentId: string, action: string) {
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
-    select: { organizer: true },
+    // organizer field not in schema, using organizerName
   });
 
-  if (tournament.organizer !== userId) {
+  if (!tournament) {
+    return false;
+  }
+
+  if (tournament.organizerName !== userId) {
     throw new Error('Unauthorized: Only organizers can perform this action');
   }
 

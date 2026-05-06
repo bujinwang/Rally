@@ -1,11 +1,12 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Provider } from 'react-redux';
+import { Provider, useSelector } from 'react-redux';
 import { Linking } from 'react-native';
 
 import { store } from '../store';
 import MainTabNavigator from './MainTabNavigator';
+import AuthNavigator from './AuthNavigator';
 
 const Stack = createNativeStackNavigator();
 
@@ -15,8 +16,9 @@ const linking = {
     screens: {
       Main: {
         screens: {
-          Home: {
+          CreateSession: {
             screens: {
+              CreateSession: 'create',
               JoinSession: {
                 path: '/join/:shareCode',
                 parse: {
@@ -42,9 +44,15 @@ const AppNavigator = () => {
 };
 
 const RootNavigator = () => {
+  const isAuthenticated = useSelector((state: any) => state.auth.isAuthenticated);
+
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Main" component={MainTabNavigator} />
+      {isAuthenticated ? (
+        <Stack.Screen name="Main" component={MainTabNavigator} />
+      ) : (
+        <Stack.Screen name="Auth" component={AuthNavigator} />
+      )}
     </Stack.Navigator>
   );
 };

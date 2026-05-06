@@ -33,3 +33,9 @@ export { StatisticsCard } from './StatisticsCard';
 // User Profile Components
 export { AvatarPicker } from './AvatarPicker';
 export { FriendCard } from './FriendCard';
+
+// Messaging Components (Epic 4 Story 4.3)
+export { ConversationCard } from './ConversationCard';
+export { MessageBubble } from './MessageBubble';
+export { TypingIndicator } from './TypingIndicator';
+export { MessageInput } from './MessageInput';

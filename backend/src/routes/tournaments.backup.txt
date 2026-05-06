@@ -1,8 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { body, param, query, validationResult } from 'express-validator';
-import tournamentService from '../services/tournamentService';
+// Tournament feature not yet implemented in MVP
+// import * as tournamentService from '../services/tournamentService';
 
 const router = Router();
+
+// Tournament routes disabled - feature not part of MVP
+// Re-enable when tournament system is fully implemented
 
 /**
  * @route POST /api/tournaments

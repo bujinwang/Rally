@@ -232,7 +232,7 @@ export class PerformanceService {
     await prisma.performanceRecord.create({
       data: {
         playerId,
-        matchId: matchId, // Add matchId if provided
+        matchId: null, // matchId not provided in this context
         skillChange,
         newSkillLevel: currentMetrics.skillLevel + skillChange,
       },

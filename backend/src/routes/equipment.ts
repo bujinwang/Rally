@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { EquipmentService } from '../services/equipmentService';
-import { EquipmentSearchFilters, EquipmentReservationRequest, EquipmentReturnRequest } from '../types/equipment';
+import { EquipmentSearchFilters, EquipmentReservationRequest, EquipmentReturnRequest, EquipmentCategory, EquipmentType, EquipmentStatus, EquipmentCondition, MaintenanceStatus } from '../types/equipment';
 import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
@@ -12,10 +12,10 @@ router.use(authenticateToken);
 router.get('/', async (req: Request, res: Response) => {
   try {
     const filters: EquipmentSearchFilters = {
-      category: req.query.category ? [req.query.category as string] : undefined,
-      type: req.query.type ? [req.query.type as string] : undefined,
-      status: req.query.status ? [req.query.status as string] : undefined,
-      condition: req.query.condition ? [req.query.condition as string] : undefined,
+      category: req.query.category ? [req.query.category as EquipmentCategory] : undefined,
+      type: req.query.type ? [req.query.type as EquipmentType] : undefined,
+      status: req.query.status ? [req.query.status as EquipmentStatus] : undefined,
+      condition: req.query.condition ? [req.query.condition as EquipmentCondition] : undefined,
       location: req.query.location as string,
       venueId: req.query.venueId as string,
       availableOnly: req.query.availableOnly === 'true',
@@ -185,7 +185,10 @@ router.post('/:id/maintenance', async (req: Request, res: Response) => {
       scheduledDate: req.body.scheduledDate ? new Date(req.body.scheduledDate) : undefined,
       performedBy: req.body.performedBy,
       notes: req.body.notes,
-      status: 'SCHEDULED',
+      status: MaintenanceStatus.SCHEDULED,
+      cost: req.body.cost || 0,
+      currency: req.body.currency || 'USD',
+      partsUsed: req.body.partsUsed || [],
     };
 
     const maintenance = await EquipmentService.createMaintenance(req.params.id, maintenanceData);
@@ -201,7 +204,7 @@ router.put('/maintenance/:maintenanceId/complete', async (req: Request, res: Res
   try {
     const maintenance = await EquipmentService.updateMaintenanceStatus(
       req.params.maintenanceId,
-      'COMPLETED',
+      MaintenanceStatus.COMPLETED,
       req.body.completedBy
     );
     res.json({ success: true, data: maintenance });

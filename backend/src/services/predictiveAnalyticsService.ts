@@ -18,8 +18,8 @@ const mockTimeSeriesForecast = (data: number[]) => {
 };
 
 const mockLinearProgramming = (constraints: any) => ({
-  optimalSchedule: constraints.bookings.map(b => ({ ...b, assignedCourt: Math.floor(Math.random() * constraints.courts) })),
-  totalCost: constraints.bookings.reduce((sum, b) => sum + (b.totalPrice || 0), 0),
+  optimalSchedule: constraints.bookings.map((b: any) => ({ ...b, assignedCourt: Math.floor(Math.random() * constraints.courts) })),
+  totalCost: constraints.bookings.reduce((sum: number, b: any) => sum + (b.totalPrice || 0), 0),
 });
 
 export class PredictiveAnalyticsService {
@@ -100,14 +100,14 @@ export class PredictiveAnalyticsService {
   static async predictChurn(playerId: string): Promise<any> {
     const player = await prisma.mvpPlayer.findUnique({
       where: { id: playerId },
-      select: { lastActiveAt: true, totalMatches: true, winRate: true, sessionsParticipated: true },
+      select: { updatedAt: true, totalMatches: true, winRate: true, sessionsParticipated: true },
     });
 
     if (!player) {
       throw new Error('Player not found');
     }
 
-    const daysInactive = Math.floor((Date.now() - new Date(player.lastActiveAt).getTime()) / (1000 * 60 * 60 * 24));
+    const daysInactive = Math.floor((Date.now() - new Date(player.updatedAt).getTime()) / (1000 * 60 * 60 * 24));
     const features = [[daysInactive, player.totalMatches || 0, player.winRate || 0, player.sessionsParticipated || 0]];
     const targets = [0.2]; // Mock historical churn rate
 
@@ -121,10 +121,11 @@ export class PredictiveAnalyticsService {
     ] : [];
 
     // Save
+    // Create model if needed (upsert with custom ID)
     const model = await prisma.predictionModel.upsert({
-      where: { type_version: { type: 'churn', version: 'v1.0' } },
+      where: { id: 'churn-v1-0' },
       update: { lastTrained: new Date(), accuracy: 0.72 },
-      create: { type: 'churn', version: 'v1.0', accuracy: 0.72, lastTrained: new Date(), isActive: true },
+      create: { id: 'churn-v1-0', type: 'churn', version: 'v1.0', accuracy: 0.72, lastTrained: new Date(), isActive: true },
     });
 
     const result = await prisma.predictionResult.create({

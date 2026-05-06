@@ -38,11 +38,16 @@ import FriendsListScreen from '../screens/FriendsListScreen';
 import FriendRequestsScreen from '../screens/FriendRequestsScreen';
 import AddFriendScreen from '../screens/AddFriendScreen';
 
+// Messaging screens (Epic 4 Story 4.3)
+import ConversationListScreen from '../screens/ConversationListScreen';
+import ChatScreen from '../screens/ChatScreen';
+
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
 const SessionsStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
 const TournamentsStack = createNativeStackNavigator();
+const MessagesStack = createNativeStackNavigator();
 
 // Stack navigator for Create Session tab
 function HomeStackNavigator() {
@@ -273,6 +278,30 @@ function TournamentsStackNavigator() {
   );
 }
 
+// Stack navigator for Messages tab (Epic 4 Story 4.3)
+function MessagesStackNavigator() {
+  return (
+    <MessagesStack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: '#007AFF' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+      }}
+    >
+      <MessagesStack.Screen
+        name="ConversationList"
+        component={ConversationListScreen}
+        options={{ title: 'Messages' }}
+      />
+      <MessagesStack.Screen
+        name="Chat"
+        component={ChatScreen}
+        options={{ title: 'Chat' }}
+      />
+    </MessagesStack.Navigator>
+  );
+}
+
 const MainTabNavigator = () => {
   return (
     <Tab.Navigator
@@ -285,6 +314,8 @@ const MainTabNavigator = () => {
             iconName = focused ? 'add-circle' : 'add-circle-outline';
           } else if (route.name === 'Sessions') {
             iconName = focused ? 'list' : 'list-outline';
+          } else if (route.name === 'MessagesTab') {
+            iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
           } else if (route.name === 'Tournaments') {
             iconName = focused ? 'trophy' : 'trophy-outline';
           } else if (route.name === 'ProfileTab') {
@@ -324,6 +355,14 @@ const MainTabNavigator = () => {
         options={{
           tabBarLabel: 'My Sessions',
           title: 'My Sessions'
+        }}
+      />
+      <Tab.Screen
+        name="MessagesTab"
+        component={MessagesStackNavigator}
+        options={{
+          tabBarLabel: 'Messages',
+          title: 'Messages'
         }}
       />
       <Tab.Screen

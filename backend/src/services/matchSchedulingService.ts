@@ -13,7 +13,7 @@ const prisma = new PrismaClient();
 // Temporary interface for MVP match with scheduling fields
 interface MvpMatchWithScheduling extends MvpMatch {
   scheduledAt?: Date;
-  duration?: number;
+  duration?: number | null;
   reminderSent?: boolean;
   calendarEventId?: string;
 }
@@ -162,11 +162,11 @@ export class MatchSchedulingService {
           title: existingMatch.title,
           scheduledAt: data.scheduledAt || existingMatch.scheduledAt,
           duration: data.duration || existingMatch.duration,
-          courtName: data.courtName || existingMatch.courtName,
-          player1Id: data.player1Id || existingMatch.player1Id,
-          player2Id: data.player2Id || existingMatch.player2Id,
-          player3Id: data.player3Id || existingMatch.player3Id,
-          player4Id: data.player4Id || existingMatch.player4Id,
+          courtName: data.courtName || existingMatch.courtName || undefined,
+          player1Id: (data.player1Id || existingMatch.player1Id) as string,
+          player2Id: (data.player2Id || existingMatch.player2Id) as string,
+          player3Id: data.player3Id || existingMatch.player3Id || undefined,
+          player4Id: data.player4Id || existingMatch.player4Id || undefined,
           matchType: data.matchType || existingMatch.matchType,
           createdBy: updatedBy
         };

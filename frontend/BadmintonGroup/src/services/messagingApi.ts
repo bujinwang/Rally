@@ -1,58 +1,74 @@
-import {
-  MessageThread,
-  Message,
-  MessageData,
-  ThreadData,
-  ThreadApiResponse,
-  MessageApiResponse,
-  ApiResponse,
-  CreateThreadForm,
-  SendMessageForm,
-  MessageType
-} from '../types/social';
+import { API_BASE_URL } from '../config/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+export interface MessageThread {
+  id: string;
+  participants: string[];
+  title?: string;
+  lastMessageAt: string;
+  isActive: boolean;
+  lastMessage?: {
+    content: string;
+    sentAt: string;
+    senderName: string;
+  };
+}
+
+export interface Message {
+  id: string;
+  threadId: string;
+  senderId: string;
+  content: string;
+  messageType: 'TEXT' | 'IMAGE' | 'SYSTEM' | 'CHALLENGE';
+  sentAt: string;
+  isRead: boolean;
+  readAt?: string;
+  sender: {
+    id: string;
+    name: string;
+  };
+}
+
+export interface ThreadDetails {
+  id: string;
+  participants: string[];
+  title?: string;
+  lastMessageAt: string;
+  messageCount: number;
+}
 
 class MessagingApiService {
-  private baseUrl = 'http://localhost:3000/api/messaging';
+  private baseUrl: string;
+
+  constructor() {
+    this.baseUrl = API_BASE_URL;
+  }
+
+  private async getAuthHeaders(): Promise<HeadersInit> {
+    const token = await AsyncStorage.getItem('accessToken');
+    return {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` })
+    };
+  }
 
   /**
    * Create a new message thread
    */
-  async createThread(data: CreateThreadForm): Promise<MessageThread> {
-    const response = await fetch(`${this.baseUrl}/threads`, {
+  async createThread(participants: string[], title?: string): Promise<MessageThread> {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/messaging/threads`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
+      headers,
+      body: JSON.stringify({ participants, title })
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to create thread');
+      throw new Error(error.error?.message || 'Failed to create thread');
     }
 
-    const result: ApiResponse<MessageThread> = await response.json();
-    return result.data;
-  }
-
-  /**
-   * Send a message
-   */
-  async sendMessage(data: SendMessageForm): Promise<Message> {
-    const response = await fetch(`${this.baseUrl}/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to send message');
-    }
-
-    const result: ApiResponse<Message> = await response.json();
+    const result = await response.json();
     return result.data;
   }
 
@@ -60,60 +76,118 @@ class MessagingApiService {
    * Get user's message threads
    */
   async getUserThreads(): Promise<MessageThread[]> {
-    const response = await fetch(`${this.baseUrl}/threads`);
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/messaging/threads`, {
+      headers
+    });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch threads');
+      throw new Error(error.error?.message || 'Failed to fetch threads');
     }
 
-    const result: ThreadApiResponse = await response.json();
+    const result = await response.json();
+    return result.data;
+  }
+
+  /**
+   * Get thread details
+   */
+  async getThreadDetails(threadId: string): Promise<ThreadDetails> {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/messaging/threads/${threadId}`, {
+      headers
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to fetch thread details');
+    }
+
+    const result = await response.json();
     return result.data;
   }
 
   /**
    * Get messages for a thread
    */
-  async getThreadMessages(threadId: string, limit: number = 50, offset: number = 0): Promise<Message[]> {
-    const response = await fetch(`${this.baseUrl}/threads/${threadId}/messages?limit=${limit}&offset=${offset}`);
+  async getThreadMessages(
+    threadId: string,
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<Message[]> {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(
+      `${this.baseUrl}/messaging/threads/${threadId}/messages?limit=${limit}&offset=${offset}`,
+      { headers }
+    );
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch messages');
+      throw new Error(error.error?.message || 'Failed to fetch messages');
     }
 
-    const result: MessageApiResponse = await response.json();
+    const result = await response.json();
     return result.data;
   }
 
   /**
-   * Mark messages as read in a thread
+   * Send a message (REST API - for fallback)
    */
-  async markMessagesAsRead(threadId: string): Promise<{ success: boolean; message: string }> {
-    const response = await fetch(`${this.baseUrl}/threads/${threadId}/read`, {
+  async sendMessage(
+    threadId: string,
+    content: string,
+    messageType: 'TEXT' | 'IMAGE' | 'SYSTEM' | 'CHALLENGE' = 'TEXT'
+  ): Promise<Message> {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/messaging/messages`, {
       method: 'POST',
+      headers,
+      body: JSON.stringify({ threadId, content, messageType })
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to mark messages as read');
+      throw new Error(error.error?.message || 'Failed to send message');
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
+  /**
+   * Mark messages as read
+   */
+  async markAsRead(threadId: string): Promise<{ success: boolean; message: string }> {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/messaging/threads/${threadId}/read`, {
+      method: 'POST',
+      headers
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to mark as read');
     }
 
     return await response.json();
   }
 
   /**
-   * Get unread messages count
+   * Get total unread message count
    */
   async getUnreadCount(): Promise<number> {
-    const response = await fetch(`${this.baseUrl}/unread`);
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/messaging/unread`, {
+      headers
+    });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch unread count');
+      throw new Error(error.error?.message || 'Failed to fetch unread count');
     }
 
-    const result: ApiResponse<{ count: number }> = await response.json();
+    const result = await response.json();
     return result.data.count;
   }
 
@@ -121,14 +195,17 @@ class MessagingApiService {
    * Get unread count for a specific thread
    */
   async getThreadUnreadCount(threadId: string): Promise<number> {
-    const response = await fetch(`${this.baseUrl}/threads/${threadId}/unread`);
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/messaging/threads/${threadId}/unread`, {
+      headers
+    });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch thread unread count');
+      throw new Error(error.error?.message || 'Failed to fetch thread unread count');
     }
 
-    const result: ApiResponse<{ count: number }> = await response.json();
+    const result = await response.json();
     return result.data.count;
   }
 
@@ -136,29 +213,33 @@ class MessagingApiService {
    * Delete a message
    */
   async deleteMessage(messageId: string): Promise<{ success: boolean; message: string }> {
-    const response = await fetch(`${this.baseUrl}/messages/${messageId}`, {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/messaging/messages/${messageId}`, {
       method: 'DELETE',
+      headers
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to delete message');
+      throw new Error(error.error?.message || 'Failed to delete message');
     }
 
     return await response.json();
   }
 
   /**
-   * Leave a message thread
+   * Leave a thread
    */
   async leaveThread(threadId: string): Promise<{ success: boolean; message: string }> {
-    const response = await fetch(`${this.baseUrl}/threads/${threadId}/leave`, {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/messaging/threads/${threadId}/leave`, {
       method: 'POST',
+      headers
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to leave thread');
+      throw new Error(error.error?.message || 'Failed to leave thread');
     }
 
     return await response.json();
@@ -167,100 +248,42 @@ class MessagingApiService {
   /**
    * Add participants to a thread
    */
-  async addParticipants(threadId: string, participants: string[]): Promise<{ success: boolean; message: string }> {
-    const response = await fetch(`${this.baseUrl}/threads/${threadId}/participants`, {
+  async addParticipants(
+    threadId: string,
+    participants: string[]
+  ): Promise<{ success: boolean; message: string }> {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${this.baseUrl}/messaging/threads/${threadId}/participants`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ participants }),
+      headers,
+      body: JSON.stringify({ participants })
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to add participants');
+      throw new Error(error.error?.message || 'Failed to add participants');
     }
 
     return await response.json();
   }
 
   /**
-   * Get thread details
-   */
-  async getThreadDetails(threadId: string): Promise<MessageThread> {
-    const response = await fetch(`${this.baseUrl}/threads/${threadId}`);
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch thread details');
-    }
-
-    const result: ApiResponse<MessageThread> = await response.json();
-    return result.data;
-  }
-
-  /**
    * Search messages in a thread
    */
   async searchMessages(threadId: string, query: string, limit: number = 20): Promise<Message[]> {
-    const response = await fetch(`${this.baseUrl}/threads/${threadId}/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(
+      `${this.baseUrl}/messaging/threads/${threadId}/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+      { headers }
+    );
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to search messages');
+      throw new Error(error.error?.message || 'Failed to search messages');
     }
 
-    const result: MessageApiResponse = await response.json();
+    const result = await response.json();
     return result.data;
-  }
-
-  /**
-   * Send a text message (convenience method)
-   */
-  async sendTextMessage(threadId: string, content: string): Promise<Message> {
-    return this.sendMessage({
-      threadId,
-      content,
-      messageType: MessageType.TEXT
-    });
-  }
-
-  /**
-   * Create a thread with another user (convenience method)
-   */
-  async createDirectThread(otherUserId: string, title?: string): Promise<MessageThread> {
-    return this.createThread({
-      participants: ['player-123', otherUserId], // Mock current user ID
-      title
-    });
-  }
-
-  /**
-   * Get or create a direct thread with another user
-   */
-  async getOrCreateDirectThread(otherUserId: string): Promise<MessageThread> {
-    // First, try to find existing direct thread
-    const threads = await this.getUserThreads();
-    const existingThread = threads.find(thread =>
-      thread.participants.length === 2 &&
-      thread.participants.includes('player-123') &&
-      thread.participants.includes(otherUserId)
-    );
-
-    if (existingThread) {
-      return existingThread;
-    }
-
-    // Create new thread if none exists
-    return this.createDirectThread(otherUserId);
-  }
-
-  /**
-   * Send a message to another user (creates thread if needed)
-   */
-  async sendMessageToUser(recipientId: string, content: string): Promise<Message> {
-    const thread = await this.getOrCreateDirectThread(recipientId);
-    return this.sendTextMessage(thread.id, content);
   }
 }
 

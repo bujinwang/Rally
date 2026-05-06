@@ -69,8 +69,35 @@ const getNearbySessions = async (latitude: number, longitude: number, radius: nu
 };
 
 export const setupSocket = (io: SocketServer): void => {
+  // Track online users
+  const onlineUsers = new Map<string, string>(); // userId -> socketId
+  const userSockets = new Map<string, Set<string>>(); // userId -> Set of socketIds (multiple devices)
+
   io.on('connection', (socket) => {
     console.log('🔌 User connected:', socket.id);
+
+    // User authentication and presence
+    socket.on('auth:identify', (data: { userId: string }) => {
+      const { userId } = data;
+      
+      // Track this socket for the user
+      if (!userSockets.has(userId)) {
+        userSockets.set(userId, new Set());
+      }
+      userSockets.get(userId)!.add(socket.id);
+      onlineUsers.set(socket.id, userId);
+
+      // Join user's personal room
+      socket.join(`user-${userId}`);
+      
+      console.log(`👤 User ${userId} authenticated on socket ${socket.id}`);
+
+      // Broadcast online status to friends
+      socket.broadcast.emit('presence:user-online', {
+        userId,
+        timestamp: new Date().toISOString()
+      });
+    });
 
     // Join session room
     socket.on('join-session', async (data: string | { shareCode: string; deviceId: string }) => {
@@ -229,9 +256,153 @@ export const setupSocket = (io: SocketServer): void => {
       }
     });
 
+    // ===== MESSAGING EVENTS =====
+    
+    // Join message thread room
+    socket.on('messaging:join-thread', (data: { threadId: string; userId: string }) => {
+      const { threadId, userId } = data;
+      socket.join(`thread-${threadId}`);
+      console.log(`💬 User ${userId} joined thread ${threadId}`);
+    });
+
+    // Leave message thread room
+    socket.on('messaging:leave-thread', (data: { threadId: string }) => {
+      const { threadId } = data;
+      socket.leave(`thread-${threadId}`);
+      console.log(`💬 User left thread ${threadId}`);
+    });
+
+    // Send message via Socket.io (real-time)
+    socket.on('messaging:send-message', async (data: {
+      threadId: string;
+      senderId: string;
+      content: string;
+      messageType?: string;
+    }) => {
+      const { threadId, senderId, content, messageType } = data;
+
+      try {
+        // Save message to database
+        const { messagingService } = await import('../services/messagingService');
+        const message = await messagingService.sendMessage({
+          threadId,
+          senderId,
+          content,
+          messageType: messageType || 'TEXT'
+        });
+
+        // Broadcast to all thread participants
+        io.to(`thread-${threadId}`).emit('messaging:new-message', {
+          message,
+          timestamp: new Date().toISOString()
+        });
+
+        console.log(`💬 Message sent in thread ${threadId}`);
+      } catch (error) {
+        console.error('Error sending message:', error);
+        socket.emit('messaging:error', {
+          message: 'Failed to send message',
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    });
+
+    // Typing indicators
+    socket.on('messaging:typing-start', (data: { threadId: string; userId: string; userName: string }) => {
+      const { threadId, userId, userName } = data;
+      
+      // Broadcast to others in the thread (not sender)
+      socket.to(`thread-${threadId}`).emit('messaging:user-typing', {
+        threadId,
+        userId,
+        userName,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    socket.on('messaging:typing-stop', (data: { threadId: string; userId: string }) => {
+      const { threadId, userId } = data;
+      
+      socket.to(`thread-${threadId}`).emit('messaging:user-stopped-typing', {
+        threadId,
+        userId,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    // Mark messages as read
+    socket.on('messaging:mark-read', async (data: { threadId: string; userId: string }) => {
+      const { threadId, userId } = data;
+
+      try {
+        const { messagingService } = await import('../services/messagingService');
+        await messagingService.markMessagesAsRead(threadId, userId);
+
+        // Notify other participants
+        socket.to(`thread-${threadId}`).emit('messaging:messages-read', {
+          threadId,
+          userId,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        console.error('Error marking messages as read:', error);
+      }
+    });
+
+    // Delete message
+    socket.on('messaging:delete-message', async (data: { messageId: string; threadId: string; userId: string }) => {
+      const { messageId, threadId, userId } = data;
+
+      try {
+        const { messagingService } = await import('../services/messagingService');
+        await messagingService.deleteMessage(messageId, userId);
+
+        // Notify thread participants
+        io.to(`thread-${threadId}`).emit('messaging:message-deleted', {
+          messageId,
+          threadId,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        console.error('Error deleting message:', error);
+        socket.emit('messaging:error', {
+          message: 'Failed to delete message',
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    });
+
+    // ===== END MESSAGING EVENTS =====
+
     // Handle disconnection
     socket.on('disconnect', () => {
       console.log('🔌 User disconnected:', socket.id);
+
+      // Get userId from this socket
+      const userId = onlineUsers.get(socket.id);
+      
+      if (userId) {
+        // Remove this socket from user's socket set
+        const sockets = userSockets.get(userId);
+        if (sockets) {
+          sockets.delete(socket.id);
+          
+          // If user has no more active sockets, they're offline
+          if (sockets.size === 0) {
+            userSockets.delete(userId);
+            
+            // Broadcast offline status
+            socket.broadcast.emit('presence:user-offline', {
+              userId,
+              timestamp: new Date().toISOString()
+            });
+            
+            console.log(`👤 User ${userId} went offline`);
+          }
+        }
+        
+        onlineUsers.delete(socket.id);
+      }
     });
 
     // Error handling
