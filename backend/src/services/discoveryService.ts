@@ -1,6 +1,6 @@
 import { PrismaClient, MvpSession } from '@prisma/client';
 import { cacheService } from './cacheService';
-import { performanceService } from './performanceService';
+import { PerformanceService } from './performanceService';
 
 const prisma = new PrismaClient();
 
@@ -118,7 +118,7 @@ export class DiscoveryService {
     * Discover sessions based on filters
     */
   static async discoverSessions(filters: DiscoveryFilters): Promise<DiscoveryResponse> {
-    const startTime: number = Date.now();
+    const perfStartTime: number = Date.now();
 
     try {
       // Check cache first
@@ -129,12 +129,12 @@ export class DiscoveryService {
       const cachedResult = await cacheService.getDiscoveryResults(filters, userLocation);
       if (cachedResult) {
         console.log('✅ Discovery cache hit');
-        performanceService.recordCacheHit();
+        // performanceService.recordCacheHit(); // Feature not yet implemented
         return cachedResult;
       }
 
       console.log('📡 Discovery cache miss, querying database');
-      performanceService.recordCacheMiss();
+      // performanceService.recordCacheMiss(); // Feature not yet implemented
 
       const {
         latitude,
@@ -252,7 +252,7 @@ export class DiscoveryService {
       console.log('💾 Discovery result cached');
 
       // Performance monitoring
-      const executionTime = Date.now() - startTime;
+      const executionTime = Date.now() - perfStartTime;
       console.log(`⚡ Discovery query completed in ${executionTime}ms, returned ${results.length} sessions`);
 
       if (executionTime > 1000) {

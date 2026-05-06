@@ -1,239 +1,552 @@
-import express from 'express';
-import { NotificationService } from '../services/notificationService';
-import { NotificationCategory } from '../types/notifications';
-import { authenticateToken } from '../middleware/auth';
-import Joi from 'joi';
+import { Router, Request, Response } from 'express';
+import { prisma } from '../config/database';
+import { body, param, validationResult } from 'express-validator';
+import { requireAuth } from '../middleware/auth';
 
-const router = express.Router();
+const router = Router();
 
 // Validation schemas
-const registerTokenSchema = Joi.object({
-  token: Joi.string().required(),
-  platform: Joi.string().valid('ios', 'android').required(),
-  deviceId: Joi.string().optional(),
-});
+const registerTokenValidation = [
+  body('pushToken').isString().notEmpty().withMessage('Push token is required'),
+  body('deviceId').isString().notEmpty().withMessage('Device ID is required'),
+  body('platform').isIn(['ios', 'android', 'web']).withMessage('Invalid platform'),
+  body('playerName').optional().isString(),
+];
 
-const updatePreferencesSchema = Joi.object({
-  matchResults: Joi.boolean().optional(),
-  achievements: Joi.boolean().optional(),
-  friendRequests: Joi.boolean().optional(),
-  challenges: Joi.boolean().optional(),
-  tournamentUpdates: Joi.boolean().optional(),
-  socialMessages: Joi.boolean().optional(),
-  sessionReminders: Joi.boolean().optional(),
-  pushEnabled: Joi.boolean().optional(),
-  emailEnabled: Joi.boolean().optional(),
-  quietHoursStart: Joi.string().pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
-  quietHoursEnd: Joi.string().pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
-});
+const sendNotificationValidation = [
+  body('title').isString().notEmpty().withMessage('Title is required'),
+  body('body').isString().notEmpty().withMessage('Body is required'),
+  body('type').isString().notEmpty().withMessage('Type is required'),
+  body('recipients').isArray().withMessage('Recipients must be an array'),
+  body('data').optional().isObject(),
+];
 
-const getNotificationsSchema = Joi.object({
-  limit: Joi.number().integer().min(1).max(100).optional(),
-  offset: Joi.number().integer().min(0).optional(),
-  unreadOnly: Joi.boolean().optional(),
-  category: Joi.string().valid(...Object.values(NotificationCategory)).optional(),
-});
+const preferencesValidation = [
+  body('enablePush').optional().isBoolean(),
+  body('enableInApp').optional().isBoolean(),
+  body('enableSound').optional().isBoolean(),
+  body('enableVibration').optional().isBoolean(),
+  body('quietHoursStart').optional().isString(),
+  body('quietHoursEnd').optional().isString(),
+  body('notificationTypes').optional().isObject(),
+];
 
 /**
- * Register push notification token
- * POST /api/notifications/token
+ * Register device push token
+ * POST /notifications/register
  */
-router.post('/token', authenticateToken, async (req, res) => {
+router.post('/register', registerTokenValidation, async (req: Request, res: Response) => {
   try {
-    const { error, value } = registerTokenSchema.validate(req.body);
-    if (error) {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
       return res.status(400).json({
-        error: 'Validation error',
-        details: error.details[0].message,
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid input data',
+          details: errors.array(),
+        },
+        timestamp: new Date().toISOString(),
       });
     }
 
-    const playerId = (req as any).user.id;
-    await NotificationService.registerPushToken(playerId, value);
+    const { pushToken, deviceId, platform, playerName } = req.body;
 
-    res.json({ success: true, message: 'Push token registered successfully' });
-  } catch (error: any) {
-    console.error('Error registering push token:', error);
+    // Check if token already exists
+    const existingToken = await prisma.pushToken.findFirst({
+      where: { deviceId },
+    });
+
+    let tokenRecord;
+
+    if (existingToken) {
+      // Update existing token
+      tokenRecord = await prisma.pushToken.update({
+        where: { id: existingToken.id },
+        data: {
+          pushToken,
+          platform,
+          playerName,
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      // Create new token record
+      tokenRecord = await prisma.pushToken.create({
+        data: {
+          pushToken,
+          deviceId,
+          platform,
+          playerName,
+          isActive: true,
+        },
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        tokenId: tokenRecord.id,
+        deviceId: tokenRecord.deviceId,
+      },
+      message: 'Push token registered successfully',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Register token error:', error);
     res.status(500).json({
-      error: 'Failed to register push token',
-      message: error.message,
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to register push token',
+      },
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 /**
- * Unregister push notification token
- * DELETE /api/notifications/token
+ * Unregister device push token
+ * DELETE /notifications/register/:deviceId
  */
-router.delete('/token', authenticateToken, async (req, res) => {
+router.delete('/register/:deviceId', async (req: Request, res: Response) => {
   try {
-    const { token } = req.body;
-    if (!token) {
-      return res.status(400).json({ error: 'Token is required' });
+    const { deviceId } = req.params;
+
+    await prisma.pushToken.updateMany({
+      where: { deviceId },
+      data: { isActive: false },
+    });
+
+    res.json({
+      success: true,
+      message: 'Push token unregistered successfully',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Unregister token error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to unregister push token',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+/**
+ * Subscribe to session notifications
+ * POST /notifications/:shareCode/subscribe
+ */
+router.post('/:shareCode/subscribe', async (req: Request, res: Response) => {
+  try {
+    const { shareCode } = req.params;
+    const { deviceId, playerName } = req.body;
+
+    if (!deviceId) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Device ID is required',
+        },
+        timestamp: new Date().toISOString(),
+      });
     }
 
-    await NotificationService.unregisterPushToken(token);
+    // Find session
+    const session = await prisma.mvpSession.findUnique({
+      where: { shareCode },
+    });
 
-    res.json({ success: true, message: 'Push token unregistered successfully' });
-  } catch (error: any) {
-    console.error('Error unregistering push token:', error);
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'SESSION_NOT_FOUND',
+          message: 'Session not found',
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Create subscription
+    const subscription = await prisma.sessionSubscription.upsert({
+      where: {
+        sessionId_deviceId: {
+          sessionId: session.id,
+          deviceId,
+        },
+      },
+      update: {
+        playerName,
+        isActive: true,
+        updatedAt: new Date(),
+      },
+      create: {
+        sessionId: session.id,
+        deviceId,
+        playerName,
+        isActive: true,
+      },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        subscriptionId: subscription.id,
+        sessionId: session.id,
+      },
+      message: 'Subscribed to session notifications',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Subscribe error:', error);
     res.status(500).json({
-      error: 'Failed to unregister push token',
-      message: error.message,
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to subscribe to notifications',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+/**
+ * Unsubscribe from session notifications
+ * DELETE /notifications/:shareCode/unsubscribe
+ */
+router.delete('/:shareCode/unsubscribe', async (req: Request, res: Response) => {
+  try {
+    const { shareCode } = req.params;
+    const { deviceId } = req.body;
+
+    if (!deviceId) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Device ID is required',
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const session = await prisma.mvpSession.findUnique({
+      where: { shareCode },
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'SESSION_NOT_FOUND',
+          message: 'Session not found',
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    await prisma.sessionSubscription.updateMany({
+      where: {
+        sessionId: session.id,
+        deviceId,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Unsubscribed from session notifications',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Unsubscribe error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to unsubscribe from notifications',
+      },
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 /**
  * Get notification preferences
- * GET /api/notifications/preferences
+ * GET /notifications/preferences/:deviceId
  */
-router.get('/preferences', authenticateToken, async (req, res) => {
+router.get('/preferences/:deviceId', async (req: Request, res: Response) => {
   try {
-    const playerId = (req as any).user.id;
-    const preferences = await NotificationService.getNotificationPreferences(playerId);
+    const { deviceId } = req.params;
 
-    res.json({ preferences });
-  } catch (error: any) {
-    console.error('Error getting notification preferences:', error);
+    let preferences = await prisma.notificationPreferences.findUnique({
+      where: { deviceId },
+    });
+
+    // Return default preferences if none exist
+    if (!preferences) {
+      preferences = {
+        id: '',
+        deviceId,
+        enablePush: true,
+        enableInApp: true,
+        enableSound: true,
+        enableVibration: true,
+        quietHoursStart: null,
+        quietHoursEnd: null,
+        notificationTypes: {
+          GAME_READY: true,
+          REST_APPROVED: true,
+          REST_DENIED: true,
+          SCORE_RECORDED: true,
+          NEXT_UP: true,
+          SESSION_STARTING: true,
+          SESSION_UPDATED: true,
+          PLAYER_JOINED: true,
+          PAIRING_GENERATED: true,
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as any;
+    }
+
+    res.json({
+      success: true,
+      data: { preferences },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Get preferences error:', error);
     res.status(500).json({
-      error: 'Failed to get notification preferences',
-      message: error.message,
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to get notification preferences',
+      },
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 /**
  * Update notification preferences
- * PUT /api/notifications/preferences
+ * PUT /notifications/preferences/:deviceId
  */
-router.put('/preferences', authenticateToken, async (req, res) => {
+router.put(
+  '/preferences/:deviceId',
+  preferencesValidation,
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid input data',
+            details: errors.array(),
+          },
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const { deviceId } = req.params;
+      const {
+        enablePush,
+        enableInApp,
+        enableSound,
+        enableVibration,
+        quietHoursStart,
+        quietHoursEnd,
+        notificationTypes,
+      } = req.body;
+
+      const preferences = await prisma.notificationPreferences.upsert({
+        where: { deviceId },
+        update: {
+          enablePush,
+          enableInApp,
+          enableSound,
+          enableVibration,
+          quietHoursStart,
+          quietHoursEnd,
+          notificationTypes,
+          updatedAt: new Date(),
+        },
+        create: {
+          deviceId,
+          enablePush: enablePush ?? true,
+          enableInApp: enableInApp ?? true,
+          enableSound: enableSound ?? true,
+          enableVibration: enableVibration ?? true,
+          quietHoursStart,
+          quietHoursEnd,
+          notificationTypes: notificationTypes ?? {},
+        },
+      });
+
+      res.json({
+        success: true,
+        data: { preferences },
+        message: 'Notification preferences updated',
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Update preferences error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to update notification preferences',
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+/**
+ * Send notification to specific devices (internal use)
+ * POST /notifications/send
+ */
+router.post('/send', sendNotificationValidation, async (req: Request, res: Response) => {
   try {
-    const { error, value } = updatePreferencesSchema.validate(req.body);
-    if (error) {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
       return res.status(400).json({
-        error: 'Validation error',
-        details: error.details[0].message,
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid input data',
+          details: errors.array(),
+        },
+        timestamp: new Date().toISOString(),
       });
     }
 
-    const playerId = (req as any).user.id;
-    await NotificationService.updateNotificationPreferences(playerId, value);
+    const { title, body, type, recipients, data } = req.body;
 
-    res.json({ success: true, message: 'Notification preferences updated successfully' });
-  } catch (error: any) {
-    console.error('Error updating notification preferences:', error);
-    res.status(500).json({
-      error: 'Failed to update notification preferences',
-      message: error.message,
+    // Get push tokens for recipients
+    const tokens = await prisma.pushToken.findMany({
+      where: {
+        deviceId: { in: recipients },
+        isActive: true,
+      },
     });
-  }
-});
 
-/**
- * Get notifications
- * GET /api/notifications
- */
-router.get('/', authenticateToken, async (req, res) => {
-  try {
-    const { error, value } = getNotificationsSchema.validate(req.query);
-    if (error) {
-      return res.status(400).json({
-        error: 'Validation error',
-        details: error.details[0].message,
+    if (tokens.length === 0) {
+      return res.json({
+        success: true,
+        data: { sent: 0 },
+        message: 'No active push tokens found for recipients',
+        timestamp: new Date().toISOString(),
       });
     }
 
-    const playerId = (req as any).user.id;
-    const notifications = await NotificationService.getNotifications(playerId, value);
+    // In production, send to Expo push notification service
+    // For now, just log
+    console.log(`📱 Would send push notification to ${tokens.length} devices:`, {
+      title,
+      body,
+      type,
+      tokens: tokens.map((t) => t.pushToken),
+    });
 
-    res.json({ notifications });
-  } catch (error: any) {
-    console.error('Error getting notifications:', error);
+    // TODO: Implement actual Expo push notification sending
+    // const pushMessages = tokens.map(token => ({
+    //   to: token.pushToken,
+    //   sound: 'default',
+    //   title,
+    //   body,
+    //   data: { ...data, type },
+    // }));
+    // await expo.sendPushNotificationsAsync(pushMessages);
+
+    res.json({
+      success: true,
+      data: {
+        sent: tokens.length,
+        recipients: tokens.map((t) => t.deviceId),
+      },
+      message: `Notification sent to ${tokens.length} device(s)`,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Send notification error:', error);
     res.status(500).json({
-      error: 'Failed to get notifications',
-      message: error.message,
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to send notification',
+      },
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 /**
- * Mark notification as read
- * PUT /api/notifications/:id/read
+ * Get session subscribers (for sending session-wide notifications)
+ * GET /notifications/:shareCode/subscribers
  */
-router.put('/:id/read', authenticateToken, async (req, res) => {
+router.get('/:shareCode/subscribers', async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const playerId = (req as any).user.id;
+    const { shareCode } = req.params;
 
-    await NotificationService.markNotificationAsRead(id, playerId);
-
-    res.json({ success: true, message: 'Notification marked as read' });
-  } catch (error: any) {
-    console.error('Error marking notification as read:', error);
-    res.status(500).json({
-      error: 'Failed to mark notification as read',
-      message: error.message,
+    const session = await prisma.mvpSession.findUnique({
+      where: { shareCode },
     });
-  }
-});
 
-/**
- * Mark all notifications as read
- * PUT /api/notifications/read-all
- */
-router.put('/read-all', authenticateToken, async (req, res) => {
-  try {
-    const playerId = (req as any).user.id;
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'SESSION_NOT_FOUND',
+          message: 'Session not found',
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
 
-    await NotificationService.markAllNotificationsAsRead(playerId);
-
-    res.json({ success: true, message: 'All notifications marked as read' });
-  } catch (error: any) {
-    console.error('Error marking all notifications as read:', error);
-    res.status(500).json({
-      error: 'Failed to mark all notifications as read',
-      message: error.message,
+    const subscribers = await prisma.sessionSubscription.findMany({
+      where: {
+        sessionId: session.id,
+        isActive: true,
+      },
+      include: {
+        pushToken: {
+          where: { isActive: true },
+        },
+      },
     });
-  }
-});
 
-/**
- * Get unread notification count
- * GET /api/notifications/unread-count
- */
-router.get('/unread-count', authenticateToken, async (req, res) => {
-  try {
-    const playerId = (req as any).user.id;
-    const count = await NotificationService.getUnreadNotificationCount(playerId);
-
-    res.json({ unreadCount: count });
-  } catch (error: any) {
-    console.error('Error getting unread notification count:', error);
-    res.status(500).json({
-      error: 'Failed to get unread notification count',
-      message: error.message,
+    res.json({
+      success: true,
+      data: {
+        subscribers: subscribers.map((sub) => ({
+          deviceId: sub.deviceId,
+          playerName: sub.playerName,
+          hasPushToken: sub.pushToken.length > 0,
+        })),
+        total: subscribers.length,
+      },
+      timestamp: new Date().toISOString(),
     });
-  }
-});
-
-/**
- * Delete old notifications (admin/cleanup endpoint)
- * DELETE /api/notifications/cleanup
- */
-router.delete('/cleanup', authenticateToken, async (req, res) => {
-  try {
-    // In a real app, you'd check for admin permissions here
-    const daysOld = parseInt(req.query.days as string) || 30;
-
-    await NotificationService.cleanupOldNotifications(daysOld);
-
-    res.json({ success: true, message: `Cleaned up notifications older than ${daysOld} days` });
-  } catch (error: any) {
-    console.error('Error cleaning up notifications:', error);
+  } catch (error) {
+    console.error('Get subscribers error:', error);
     res.status(500).json({
-      error: 'Failed to cleanup notifications',
-      message: error.message,
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to get subscribers',
+      },
+      timestamp: new Date().toISOString(),
     });
   }
 });

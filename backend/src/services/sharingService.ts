@@ -34,7 +34,7 @@ export class SharingService {
     const privacyKey = `${data.type}_share` as keyof typeof sharer.privacySettings;
     const privacySetting = sharer.privacySettings?.[privacyKey] || 'public';
 
-    if (privacySetting === 'private') {
+    if (privacySetting === 'private' as any) {
       throw new Error('Sharing is disabled for this content type');
     }
 

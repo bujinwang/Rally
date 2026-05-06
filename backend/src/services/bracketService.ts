@@ -9,7 +9,8 @@
  * - Mixed formats
  */
 
-import { TournamentType, TournamentPlayerStatus, TournamentRoundType, TournamentRoundStatus, TournamentMatchStatus } from './types/tournament';
+// Tournament types - using Prisma generated types instead of custom types
+import { TournamentType, TournamentPlayerStatus, TournamentRoundType, TournamentRoundStatus, TournamentMatchStatus } from '@prisma/client';
 
 interface TournamentPlayer {
   id: string;
@@ -420,7 +421,7 @@ export class BracketService {
           player1Id: player1.id,
           player2Id: player2.id,
           player1Name: player1.playerName,
-          player2Name: player2Name
+          player2Name: player2.playerName
         });
       }
     }
