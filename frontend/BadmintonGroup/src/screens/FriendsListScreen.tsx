@@ -92,10 +92,30 @@ export default function FriendsListScreen() {
     }
   };
 
-  const handleMessage = (friendId: string) => {
-    // Navigate to messaging screen (Story 4.3)
-    Alert.alert('Coming Soon', 'Messaging feature will be available in Story 4.3');
-    // navigation.navigate('Chat', { userId: friendId });
+  const handleMessage = async (friendId: string) => {
+    try {
+      // Create a thread if one doesn't exist, then navigate
+      const { messagingApi } = require('../services/messagingApi');
+      const threads = await messagingApi.getUserThreads();
+      const existingThread = threads.find((t: any) =>
+        t.participants?.includes(friendId) && t.participants?.length === 2
+      );
+
+      let threadId: string;
+      if (existingThread) {
+        threadId = existingThread.id;
+      } else {
+        const thread = await messagingApi.createThread([friendId]);
+        threadId = thread.id;
+      }
+
+      navigation.navigate('MessagesTab', {
+        screen: 'Chat',
+        params: { threadId }
+      } as never);
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to open chat');
+    }
   };
 
   const navigateToAddFriend = () => {
