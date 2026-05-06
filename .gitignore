@@ -1,4 +1,12 @@
+# Production secrets — NEVER commit these
+.env.production
+.env.secrets
+.env.*.local
+docker/nginx/ssl/*
+docker/backups/*
+
 backend/dist/server.d.ts
+
 backend/dist/server.d.ts.map
 backend/dist/server.js
 backend/dist/server.js.map
