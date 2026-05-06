@@ -6,12 +6,14 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { socialApi } from '../services/socialApi';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '../config/api';
 
 interface SocialLoginButtonsProps {
-  onLoginSuccess?: (connection: any) => void;
+  onLoginSuccess?: (data: { user: any; tokens: any; isNewUser: boolean }) => void;
   onLoginError?: (error: any) => void;
   style?: any;
   size?: 'small' | 'medium' | 'large';
@@ -37,65 +39,64 @@ export default function SocialLoginButtons({
       borderColor: '#dadce0',
     },
     {
-      id: 'facebook',
-      name: 'Facebook',
-      icon: 'logo-facebook',
+      id: 'wechat' as const,
+      name: 'WeChat',
+      icon: 'chatbubble-ellipses',
       color: '#ffffff',
-      bgColor: '#1877F2',
-      borderColor: '#1877F2',
-    },
-    {
-      id: 'twitter',
-      name: 'Twitter',
-      icon: 'logo-twitter',
-      color: '#ffffff',
-      bgColor: '#1DA1F2',
-      borderColor: '#1DA1F2',
+      bgColor: '#07C160',
+      borderColor: '#07C160',
     },
   ];
 
+  /**
+   * Start the OAuth flow for a provider
+   * Gets the authorization URL from backend, opens it, and handles the callback
+   */
   const handleSocialLogin = async (providerId: string) => {
     try {
       setConnectingProvider(providerId);
 
-      // In a real implementation, this would integrate with OAuth providers
-      // For now, we'll simulate the connection process
+      // Get the OAuth authorization URL from backend
+      const urlResponse = await fetch(`${API_BASE_URL}/oauth/${providerId}/url`);
+      const urlResult = await urlResponse.json();
+
+      if (!urlResult.success) {
+        throw new Error(urlResult.error?.message || 'Failed to get authorization URL');
+      }
+
+      const authUrl = urlResult.data.url;
+
+      // For mobile: use the mobile flow where the native SDK provides the token
+      // The actual native OAuth SDK integration depends on the platform:
+      // - Google: @react-native-google-signin/google-signin or expo-auth-session
+      // - WeChat: react-native-wechat-lib
+      // This implementation provides the standard web-based OAuth flow
+
+      if (Platform.OS === 'web') {
+        // Web: redirect to OAuth provider
+        window.location.href = authUrl;
+        return;
+      }
+
+      // For mobile, attempt the native SDK flow or show setup instructions
       Alert.alert(
-        'Social Login',
-        `Connect with ${providerId}?`,
+        `${providerId === 'google' ? 'Google' : 'WeChat'} Login`,
+        `To sign in with ${providerId}, the app will redirect you to the ${providerId} login page.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: 'Connect',
+            text: 'Continue',
             onPress: async () => {
               try {
-                // Simulate OAuth flow - in real app, this would redirect to OAuth provider
-                const mockProviderData = {
-                  accessToken: 'mock_token_' + Date.now(),
-                  refreshToken: 'mock_refresh_' + Date.now(),
-                  expiresAt: new Date(Date.now() + 3600000), // 1 hour from now
-                  profile: {
-                    id: 'mock_' + providerId + '_id',
-                    name: 'Mock User',
-                    email: `user@${providerId}.com`,
-                  },
-                };
-
-                const response = await socialApi.connectSocialAccount({
-                  provider: providerId as any,
-                  providerId: mockProviderData.profile.id,
-                  providerData: mockProviderData,
-                });
-
-                if (!response.success) {
-                  throw new Error(response.error?.message || 'Failed to connect account');
-                }
-
-                Alert.alert('Success', `Connected to ${providerId}!`);
-                onLoginSuccess?.(response.data);
+                // For native mobile, use Linking to open the auth URL
+                const { Linking } = require('react-native');
+                await Linking.openURL(authUrl);
               } catch (error: any) {
-                console.error('Social login error:', error);
-                Alert.alert('Connection Failed', error.message || 'Unable to connect account');
+                console.error('Error opening auth URL:', error);
+                Alert.alert(
+                  'OAuth Unavailable',
+                  `${providerId} login requires native SDK integration. Please use email login or contact support.`
+                );
                 onLoginError?.(error);
               }
             },
@@ -103,8 +104,54 @@ export default function SocialLoginButtons({
         ]
       );
     } catch (error: any) {
-      console.error('Social login setup error:', error);
-      Alert.alert('Error', 'Unable to start social login');
+      console.error('Social login error:', error);
+      Alert.alert('Login Failed', error.message || 'Unable to start social login');
+      onLoginError?.(error);
+    } finally {
+      setConnectingProvider(null);
+    }
+  };
+
+  /**
+   * Handle OAuth mobile token submission
+   * Called after native SDK returns tokens — sends them to backend for JWT exchange
+   */
+  const handleMobileOAuth = async (
+    provider: 'google' | 'wechat',
+    data: { providerId: string; name?: string; email?: string; avatarUrl?: string; accessToken?: string }
+  ) => {
+    try {
+      setConnectingProvider(provider);
+
+      const response = await fetch(`${API_BASE_URL}/oauth/${provider}/mobile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error?.message || 'OAuth login failed');
+      }
+
+      // Store tokens
+      const { user, tokens, isNewUser } = result.data;
+      await AsyncStorage.setItem('accessToken', tokens.accessToken);
+      await AsyncStorage.setItem('refreshToken', tokens.refreshToken);
+      await AsyncStorage.setItem('userId', user.id);
+      await AsyncStorage.setItem('userName', user.name);
+
+      Alert.alert(
+        isNewUser ? 'Welcome!' : 'Welcome Back!',
+        `Successfully signed in as ${user.name}`,
+        [{ text: 'OK' }]
+      );
+
+      onLoginSuccess?.({ user, tokens, isNewUser });
+    } catch (error: any) {
+      console.error('Mobile OAuth error:', error);
+      Alert.alert('Login Failed', error.message || 'Unable to complete social login');
       onLoginError?.(error);
     } finally {
       setConnectingProvider(null);
@@ -124,23 +171,17 @@ export default function SocialLoginButtons({
 
   const getIconSize = () => {
     switch (size) {
-      case 'small':
-        return 18;
-      case 'large':
-        return 24;
-      default:
-        return 20;
+      case 'small': return 18;
+      case 'large': return 24;
+      default: return 20;
     }
   };
 
   const getTextSize = () => {
     switch (size) {
-      case 'small':
-        return 14;
-      case 'large':
-        return 18;
-      default:
-        return 16;
+      case 'small': return 14;
+      case 'large': return 18;
+      default: return 16;
     }
   };
 
@@ -159,22 +200,29 @@ export default function SocialLoginButtons({
               borderColor: provider.borderColor,
             },
           ]}
+          activeOpacity={0.7}
         >
           {connectingProvider === provider.id ? (
-            <ActivityIndicator size="small" color={provider.color} />
+            <ActivityIndicator
+              size="small"
+              color={provider.id === 'wechat' ? '#fff' : provider.color}
+            />
           ) : (
             <>
               <Ionicons
                 name={provider.icon as any}
                 size={getIconSize()}
-                color={provider.color}
+                color={provider.id === 'wechat' ? '#fff' : provider.color}
                 style={styles.icon}
               />
               {showLabels && (
                 <Text
                   style={[
                     styles.text,
-                    { color: provider.color, fontSize: getTextSize() },
+                    {
+                      color: provider.id === 'wechat' ? '#fff' : provider.color,
+                      fontSize: getTextSize(),
+                    },
                   ]}
                 >
                   {provider.name}

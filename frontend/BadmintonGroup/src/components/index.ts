@@ -39,3 +39,8 @@ export { ConversationCard } from './ConversationCard';
 export { MessageBubble } from './MessageBubble';
 export { TypingIndicator } from './TypingIndicator';
 export { MessageInput } from './MessageInput';
+
+// Community Discovery Screens (Epic 4 Story 4.4)
+export { default as CommunityLeaderboardScreen } from '../screens/CommunityLeaderboardScreen';
+export { default as VenueDirectoryScreen } from '../screens/VenueDirectoryScreen';
+export { default as PlayerSearchScreen } from '../screens/PlayerSearchScreen';

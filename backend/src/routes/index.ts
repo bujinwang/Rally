@@ -32,6 +32,8 @@ import matchSchedulingRoutes from './matchScheduling';
 // Payment routes disabled (requires Stripe dependency)
 // import paymentRoutes from './payments';
 import sharingRoutes from './sharing';
+import communityRoutes from './community';
+import oauthRoutes from './oauth';
 
 const router = Router();
 
@@ -105,6 +107,10 @@ router.use('/match-scheduling', matchSchedulingRoutes);
 // router.use('/payments', paymentRoutes);
 console.log('  - /sharing');
 router.use('/sharing', sharingRoutes);
+console.log('  - /community');
+router.use('/community', communityRoutes);
+console.log('  - /oauth');
+router.use('/oauth', oauthRoutes);
 console.log('✅ All routes registered successfully');
 
 export const setupRoutes = (): Router => {
