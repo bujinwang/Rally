@@ -10,7 +10,6 @@ import {
   Alert
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:3001/api/v1';
 
@@ -54,16 +53,14 @@ export const LeaderboardScreen = () => {
         setLoading(true);
       }
 
-      const response = await axios.get(
-        `${API_BASE_URL}/scoring/${shareCode}/leaderboard`,
-        {
-          params: { sortBy }
-        }
+      const response = await fetch(
+        `${API_BASE_URL}/scoring/${shareCode}/leaderboard?sortBy=${sortBy}`
       );
+      const data = await response.json();
 
-      if (response.data.success) {
-        setLeaderboard(response.data.data.leaderboard);
-        setSessionName(response.data.data.sessionName);
+      if (data.success) {
+        setLeaderboard(data.data.leaderboard);
+        setSessionName(data.data.sessionName);
       }
     } catch (error) {
       console.error('Fetch leaderboard error:', error);
