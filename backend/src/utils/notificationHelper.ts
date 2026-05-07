@@ -22,7 +22,7 @@ export async function notifySessionSubscribers(
         isActive: true,
       },
       include: {
-        pushToken: {
+        pushTokens: {
           where: { isActive: true },
         },
       },
@@ -35,8 +35,8 @@ export async function notifySessionSubscribers(
 
     // Get device IDs with active push tokens
     const deviceIds = subscriptions
-      .filter((sub) => sub.pushToken.length > 0)
-      .map((sub) => sub.deviceId);
+      .filter((sub: any) => sub.pushTokens.length > 0)
+      .map((sub: any) => sub.deviceId);
 
     if (deviceIds.length === 0) {
       console.log('No push tokens found for session subscribers');
@@ -77,7 +77,7 @@ export async function notifyDevice(
   notification: NotificationPayload
 ): Promise<boolean> {
   try {
-    const pushToken = await prisma.pushToken.findUnique({
+    const pushToken = await prisma.pushToken.findFirst({
       where: { deviceId, isActive: true },
     });
 

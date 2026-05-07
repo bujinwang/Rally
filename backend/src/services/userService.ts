@@ -89,9 +89,12 @@ export class UserService {
     });
 
     const profile: UserProfile = {
-      ...user,
-      email: isOwnProfile ? user.email : undefined,
-      phone: isOwnProfile ? user.phone : undefined,
+      id: user.id,
+      name: user.name,
+      email: isOwnProfile ? (user.email ?? undefined) : undefined,
+      phone: isOwnProfile ? (user.phone ?? undefined) : undefined,
+      avatarUrl: user.avatarUrl ?? undefined,
+      role: user.role,
       stats: {
         totalSessions: user._count.ownedSessions + user._count.sessionPlayers,
         sessionsHosted: user._count.ownedSessions,
