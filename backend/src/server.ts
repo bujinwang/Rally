@@ -22,15 +22,17 @@ const app = express();
 const server = createServer(app);
 
 
-// Security middleware with CSP configuration for web session routes
+// Security middleware with CSP configuration
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"], // Allow inline scripts for web session interface
-      scriptSrcAttr: ["'unsafe-inline'"], // Allow inline event handlers (onclick, etc.)
-      styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles
-      imgSrc: ["'self'", "data:"], // Allow data URIs for images
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "ws:", "wss:"],
+      fontSrc: ["'self'", "data:"],
     },
   },
 }));
@@ -79,6 +81,26 @@ console.log('✅ API routes configured at /api/v1');
 console.log('🌐 Setting up web session routes...');
 app.use('/join', webSessionRoutes);
 console.log('✅ Web session routes configured at /join');
+
+// Serve Expo web build (SPA)
+const webBuildPath = path.join(__dirname, '../../frontend/BadmintonGroup/dist/web');
+app.use(express.static(webBuildPath, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    }
+  }
+}));
+// SPA fallback — serve index.html for all non-API, non-join routes
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/join') || req.path.startsWith('/uploads') || req.path === '/health') {
+    return next();
+  }
+  res.sendFile(path.join(webBuildPath, 'index.html'), (err) => {
+    if (err) next();
+  });
+});
+console.log(`📁 Web app served from ${webBuildPath}`);
 
 // Health check for route verification
 app.get('/api/v1/health', (req, res) => {

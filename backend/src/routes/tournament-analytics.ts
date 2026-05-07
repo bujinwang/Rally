@@ -28,7 +28,7 @@ router.get(
         where: {
           id: tournamentId,
           OR: [
-            { organizerName: 'temp-user' }, // TODO: Get from req.user when auth is properly set up
+            { organizer: 'temp-user' }, // TODO: Get from req.user when auth is properly set up
             { visibility: 'PUBLIC' },
           ],
         },
