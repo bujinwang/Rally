@@ -1,3 +1,6 @@
+# Build outputs
+frontend/BadmintonGroup/dist/
+
 # Production secrets — NEVER commit these
 .env.production
 .env.secrets
