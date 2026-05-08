@@ -128,7 +128,7 @@ export default function LiveGameScreen() {
   const [selectedPlayerForRemoval, setSelectedPlayerForRemoval] = useState<Player | null>(null);
 
   // Game settings
-  const [gameFormat, setGameFormat] = useState<'best_of_3' | 'single_set' | 'first_to_21'>('best_of_3');
+  const [gameFormat, setGameFormat] = useState<'best_of_3' | 'single_set' | 'first_to_21'>('first_to_21');
   const [pointsToWin, setPointsToWin] = useState(21);
   const [winByTwo, setWinByTwo] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<number>(0);
@@ -728,18 +728,13 @@ export default function LiveGameScreen() {
       );
       
       // Validate scores before saving
+      if (game.team1.score === 0 && game.team2.score === 0) {
+        Alert.alert('Invalid Score', 'No score recorded. Use +/- to track points.');
+        return;
+      }
+      
       if (game.team1.score === game.team2.score) {
         Alert.alert('Invalid Score', 'Game cannot end in a tie. Please update the scores.');
-        return;
-      }
-      
-      if (game.team1.score < 0 || game.team1.score > 2 || game.team2.score < 0 || game.team2.score > 2) {
-        Alert.alert('Invalid Score', 'Scores must be between 0 and 2.');
-        return;
-      }
-      
-      if (game.team1.score === 0 && game.team2.score === 0) {
-        Alert.alert('Invalid Score', 'At least one team must have a score greater than 0.');
         return;
       }
       
