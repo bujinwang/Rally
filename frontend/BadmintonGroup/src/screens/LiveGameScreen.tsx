@@ -129,7 +129,7 @@ export default function LiveGameScreen() {
   const [selectedPlayerForRemoval, setSelectedPlayerForRemoval] = useState<Player | null>(null);
 
   // Game settings
-  const [gameFormat, setGameFormat] = useState<'best_of_3' | 'single_set' | 'first_to_21'>('first_to_21');
+  const [gameFormat, setGameFormat] = useState<'best_of_3' | 'single_set' | 'first_to_21'>('best_of_3');
   const [pointsToWin, setPointsToWin] = useState(21);
   const [winByTwo, setWinByTwo] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<number>(0);
@@ -800,14 +800,22 @@ export default function LiveGameScreen() {
       console.log('✅ Game created successfully:', createData);
       
       // Step 2: Update the score to complete the game (this updates player statistics)
+      // For best_of_3: count sets won. For single set: use point scores
+      let finalScore1 = game.team1.score;
+      let finalScore2 = game.team2.score;
+      if (gameFormat === 'best_of_3') {
+        finalScore1 = game.sets.filter(s => s.winnerTeam === 1).length;
+        finalScore2 = game.sets.filter(s => s.winnerTeam === 2).length;
+      }
+      
       const scoreResponse = await fetch(`${API_BASE_URL}/mvp-sessions/${route.params.shareCode}/games/${gameId}/score`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          team1FinalScore: game.team1.score,
-          team2FinalScore: game.team2.score,
+          team1FinalScore: finalScore1,
+          team2FinalScore: finalScore2,
           ownerDeviceId: sessionData?.ownerDeviceId || deviceId
         }),
       });

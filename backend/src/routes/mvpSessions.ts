@@ -3863,4 +3863,77 @@ router.delete('/:shareCode/leave-by-device', async (req, res) => {
   }
 });
 
+// Get cross-session player statistics by name
+router.get('/player-stats/:playerName', async (req, res) => {
+  try {
+    const { playerName } = req.params;
+
+    const players = await prisma.mvpPlayer.findMany({
+      where: { name: playerName },
+      select: {
+        gamesPlayed: true,
+        wins: true,
+        losses: true,
+        winRate: true,
+        matchesPlayed: true,
+        matchWins: true,
+        matchLosses: true,
+        sessionsParticipated: true,
+        currentStreak: true,
+        bestStreak: true,
+        partnershipStats: true,
+      }
+    });
+
+    if (players.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'PLAYER_NOT_FOUND', message: 'No stats found for this player' }
+      });
+    }
+
+    // Aggregate across all sessions
+    const total = players.reduce((acc, p) => ({
+      gamesPlayed: acc.gamesPlayed + p.gamesPlayed,
+      wins: acc.wins + p.wins,
+      losses: acc.losses + p.losses,
+      matchesPlayed: acc.matchesPlayed + p.matchesPlayed,
+      matchWins: acc.matchWins + p.matchWins,
+      matchLosses: acc.matchLosses + p.matchLosses,
+      sessionsParticipated: acc.sessionsParticipated + p.sessionsParticipated,
+      bestStreak: Math.max(acc.bestStreak, p.bestStreak),
+    }), { gamesPlayed: 0, wins: 0, losses: 0, matchesPlayed: 0, matchWins: 0, matchLosses: 0, sessionsParticipated: 0, bestStreak: 0 });
+
+    // Collect all partnership data
+    const allPartners: Record<string, { wins: number, losses: number }> = {};
+    players.forEach(p => {
+      if (p.partnershipStats) {
+        const stats = p.partnershipStats as Record<string, { wins: number, losses: number }>;
+        Object.entries(stats).forEach(([partner, data]) => {
+          if (!allPartners[partner]) allPartners[partner] = { wins: 0, losses: 0 };
+          allPartners[partner].wins += data.wins || 0;
+          allPartners[partner].losses += data.losses || 0;
+        });
+      }
+    });
+    const favoritePartners = Object.entries(allPartners)
+      .sort((a, b) => (b[1].wins + b[1].losses) - (a[1].wins + a[1].losses))
+      .slice(0, 3)
+      .map(([name]) => name);
+
+    res.json({
+      success: true,
+      data: {
+        name: playerName,
+        ...total,
+        winRate: total.gamesPlayed > 0 ? total.wins / total.gamesPlayed : 0,
+        favoritePartners,
+      }
+    });
+  } catch (error) {
+    console.error('Player stats error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch player stats' } });
+  }
+});
+
 export default router;
