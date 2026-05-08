@@ -288,7 +288,7 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
 
     const session = await prisma.mvpSession.create({
       data: {
-        name: sessionData.name,
+        name: sessionData.name || `${sessionData.organizerName}'s Session - ${new Date(sessionData.dateTime).toLocaleDateString()}`,
         scheduledAt: new Date(sessionData.dateTime),
         location: sessionData.location,
         maxPlayers: sessionData.maxPlayers || 20, // Use the value from frontend, default to 20
@@ -306,8 +306,8 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
     await prisma.mvpPlayer.create({
       data: {
         sessionId: session.id,
-        name: sessionData.ownerName,
-        deviceId: sessionData.ownerDeviceId,
+        name: sessionData.organizerName,
+        deviceId: sessionData.ownerDeviceId || null,
         status: 'ACTIVE',
         role: 'ORGANIZER'
       }
