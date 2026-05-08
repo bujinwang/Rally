@@ -145,12 +145,11 @@ export class CommunityService {
     // Get players who are currently in ACTIVE sessions
     const players = await prisma.mvpPlayer.findMany({
       where: {
-        sessions: {
-          some: {
-            session: {
-              status: 'ACTIVE'
-            }
-          }
+        sessionId: {
+          in: (await prisma.mvpSession.findMany({
+            where: { status: 'ACTIVE' },
+            select: { id: true }
+          })).map(s => s.id)
         }
       },
       select: {

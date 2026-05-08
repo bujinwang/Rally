@@ -13,7 +13,7 @@ const prisma = new PrismaClient();
 // Temporary interface for MVP match with scheduling fields
 interface MvpMatchWithScheduling extends MvpMatch {
   scheduledAt?: Date;
-  duration?: number | null;
+  duration: number | null;
   reminderSent?: boolean;
   calendarEventId?: string;
 }

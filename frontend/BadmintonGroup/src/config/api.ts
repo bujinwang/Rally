@@ -1,7 +1,7 @@
 // API Configuration
 export const API_BASE_URL = __DEV__ 
   ? 'http://localhost:3001/api/v1' 
-  : 'https://your-production-api.com/api';
+  : 'http://localhost:3001/api/v1';
 
 // API timeout in milliseconds
 export const API_TIMEOUT = 10000;

@@ -126,9 +126,7 @@ router.post(
         team1Player2: match.team1Player2,
         team2Player1: match.team2Player1,
         team2Player2: match.team2Player2,
-        winnerTeam,
-        team1Score,
-        team2Score
+        winnerTeam
       });
 
       // Audit log

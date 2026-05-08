@@ -17,18 +17,10 @@ import {
   NotificationType,
   NotificationPriority,
   ReportType,
+  MaintenanceType,
+  MaintenancePriority,
 } from '../types/equipment';
-
-// Temporary in-memory storage until Prisma client is generated
-const equipmentStore: Equipment[] = [];
-const reservationStore: EquipmentReservation[] = [];
-const maintenanceStore: EquipmentMaintenance[] = [];
-const notificationStore: EquipmentNotification[] = [];
-
-// Helper function to generate IDs
-function generateId(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
+import { prisma } from '../config/database';
 
 export class EquipmentService {
   /**
@@ -36,16 +28,14 @@ export class EquipmentService {
    */
   static async createEquipment(data: Omit<Equipment, 'id' | 'createdAt' | 'updatedAt'>): Promise<Equipment> {
     try {
-      const equipment: Equipment = {
-        id: `eq_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        ...data,
-        availableQuantity: data.quantity, // Initially all items are available
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      const equipment = await prisma.equipment.create({
+        data: {
+          ...data,
+          availableQuantity: data.quantity, // Initially all items are available
+        },
+      });
 
-      equipmentStore.push(equipment);
-      return equipment;
+      return equipment as unknown as Equipment;
     } catch (error) {
       console.error('Error creating equipment:', error);
       throw new Error('Failed to create equipment');
@@ -57,19 +47,31 @@ export class EquipmentService {
    */
   static async getEquipmentById(id: string): Promise<Equipment | null> {
     try {
-      const equipment = equipmentStore.find(eq => eq.id === id);
+      const equipment = await prisma.equipment.findUnique({
+        where: { id },
+        include: {
+          reservations: {
+            where: {
+              status: {
+                in: [ReservationStatus.PENDING, ReservationStatus.APPROVED, ReservationStatus.ACTIVE]
+              }
+            },
+            orderBy: { reservedAt: 'desc' }
+          },
+          maintenance: {
+            where: {
+              status: {
+                in: [MaintenanceStatus.SCHEDULED, MaintenanceStatus.IN_PROGRESS]
+              }
+            },
+            orderBy: { scheduledDate: 'desc' }
+          }
+        }
+      });
+
       if (!equipment) return null;
 
-      // Add related data
-      const reservations = reservationStore
-        .filter(res => res.equipmentId === id && ['PENDING', 'APPROVED', 'ACTIVE'].includes(res.status))
-        .sort((a, b) => b.reservedAt.getTime() - a.reservedAt.getTime());
-
-      const maintenance = maintenanceStore
-        .filter(maint => maint.equipmentId === id && ['SCHEDULED', 'IN_PROGRESS'].includes(maint.status))
-        .sort((a, b) => (b.scheduledDate?.getTime() || 0) - (a.scheduledDate?.getTime() || 0));
-
-      return equipment;
+      return equipment as unknown as Equipment;
     } catch (error) {
       console.error('Error fetching equipment:', error);
       throw new Error('Failed to fetch equipment');
@@ -116,7 +118,7 @@ export class EquipmentService {
       // Available only filter
       if (filters.availableOnly) {
         where.availableQuantity = { gt: 0 };
-        where.status = 'AVAILABLE';
+        where.status = EquipmentStatus.AVAILABLE;
       }
 
       // Maintenance filter
@@ -155,7 +157,7 @@ export class EquipmentService {
         include: {
           reservations: {
             where: {
-              status: { in: ['PENDING', 'APPROVED', 'ACTIVE'] }
+              status: { in: [ReservationStatus.PENDING, ReservationStatus.APPROVED, ReservationStatus.ACTIVE] }
             },
             orderBy: { reservedAt: 'desc' }
           }
@@ -163,7 +165,7 @@ export class EquipmentService {
         orderBy: { createdAt: 'desc' }
       });
 
-      return equipment as Equipment[];
+      return equipment as unknown as Equipment[];
     } catch (error) {
       console.error('Error searching equipment:', error);
       throw new Error('Failed to search equipment');
@@ -199,7 +201,7 @@ export class EquipmentService {
       const activeReservations = await prisma.equipmentReservation.count({
         where: {
           equipmentId: id,
-          status: { in: ['PENDING', 'APPROVED', 'ACTIVE'] }
+          status: { in: [ReservationStatus.PENDING, ReservationStatus.APPROVED, ReservationStatus.ACTIVE] }
         }
       });
 
@@ -250,7 +252,7 @@ export class EquipmentService {
           reservedUntil: request.reservedUntil,
           purpose: request.purpose,
           notes: request.notes,
-          status: 'PENDING', // Requires approval
+          status: ReservationStatus.PENDING, // Requires approval
         },
       });
 
@@ -261,6 +263,7 @@ export class EquipmentService {
       await this.createNotification({
         userId: userId, // Notify the requester
         equipmentId: request.equipmentId,
+        reservationId: reservation.id,
         type: NotificationType.RESERVATION_APPROVED, // Will be updated based on approval
         title: 'Reservation Request Submitted',
         message: `Your reservation request for ${equipment.name} has been submitted and is pending approval.`,
@@ -269,7 +272,7 @@ export class EquipmentService {
         actionRequired: false,
       });
 
-      return reservation as EquipmentReservation;
+      return reservation as unknown as EquipmentReservation;
     } catch (error) {
       console.error('Error creating reservation:', error);
       throw error;
@@ -282,7 +285,7 @@ export class EquipmentService {
   static async processReservation(reservationId: string, approved: boolean, approvedBy: string): Promise<EquipmentReservation> {
     try {
       const reservation = await prisma.equipmentReservation.findUnique({
-        where: { reservationId },
+        where: { id: reservationId },
         include: { equipment: true }
       });
 
@@ -290,7 +293,7 @@ export class EquipmentService {
         throw new Error('Reservation not found');
       }
 
-      const newStatus = approved ? 'APPROVED' : 'CANCELLED';
+      const newStatus = approved ? ReservationStatus.APPROVED : ReservationStatus.CANCELLED;
 
       const updatedReservation = await prisma.equipmentReservation.update({
         where: { id: reservationId },
@@ -306,7 +309,7 @@ export class EquipmentService {
       await this.updateEquipmentAvailableQuantity(reservation.equipmentId);
 
       // Create notification
-      const notificationType = approved ? 'RESERVATION_APPROVED' : 'RESERVATION_REJECTED';
+      const notificationType = approved ? NotificationType.RESERVATION_APPROVED : NotificationType.RESERVATION_REJECTED;
       const title = approved ? 'Reservation Approved' : 'Reservation Rejected';
       const message = approved
         ? `Your reservation for ${reservation.equipment.name} has been approved.`
@@ -319,10 +322,12 @@ export class EquipmentService {
         type: notificationType,
         title,
         message,
-        priority: approved ? 'MEDIUM' : 'HIGH',
+        priority: approved ? NotificationPriority.MEDIUM : NotificationPriority.HIGH,
+        read: false,
+        actionRequired: false,
       });
 
-      return updatedReservation as EquipmentReservation;
+      return updatedReservation as unknown as EquipmentReservation;
     } catch (error) {
       console.error('Error processing reservation:', error);
       throw error;
@@ -343,14 +348,14 @@ export class EquipmentService {
         throw new Error('Reservation not found');
       }
 
-      if (reservation.status !== 'APPROVED') {
+      if (reservation.status !== ReservationStatus.APPROVED) {
         throw new Error('Only approved reservations can be checked out');
       }
 
       const updatedReservation = await prisma.equipmentReservation.update({
         where: { id: reservationId },
         data: {
-          status: 'ACTIVE',
+          status: ReservationStatus.ACTIVE,
           updatedAt: new Date(),
         },
       });
@@ -358,7 +363,7 @@ export class EquipmentService {
       // Update equipment status
       await this.updateEquipmentStatus(reservation.equipmentId);
 
-      return updatedReservation as EquipmentReservation;
+      return updatedReservation as unknown as EquipmentReservation;
     } catch (error) {
       console.error('Error checking out equipment:', error);
       throw error;
@@ -379,14 +384,14 @@ export class EquipmentService {
         throw new Error('Reservation not found');
       }
 
-      if (reservation.status !== 'ACTIVE') {
+      if (reservation.status !== ReservationStatus.ACTIVE) {
         throw new Error('Only active reservations can be returned');
       }
 
       const updatedReservation = await prisma.equipmentReservation.update({
         where: { id: request.reservationId },
         data: {
-          status: 'RETURNED',
+          status: ReservationStatus.RETURNED,
           returnedAt: new Date(),
           returnCondition: request.returnCondition,
           returnNotes: request.returnNotes,
@@ -395,10 +400,10 @@ export class EquipmentService {
       });
 
       // Update equipment condition if damaged
-      if (request.returnCondition === 'DAMAGED' || request.returnCondition === 'POOR') {
+      if (request.returnCondition === EquipmentCondition.DAMAGED || request.returnCondition === EquipmentCondition.POOR) {
         await this.updateEquipment(reservation.equipmentId, {
           condition: request.returnCondition,
-          status: 'MAINTENANCE',
+          status: EquipmentStatus.MAINTENANCE,
         });
       }
 
@@ -411,13 +416,15 @@ export class EquipmentService {
         userId: reservation.userId,
         equipmentId: reservation.equipmentId,
         reservationId: reservation.id,
-        type: 'EQUIPMENT_RETURN_REMINDER',
+        type: NotificationType.EQUIPMENT_RETURN_REMINDER,
         title: 'Equipment Returned',
         message: `Your equipment ${reservation.equipment.name} has been returned successfully.`,
-        priority: 'LOW',
+        priority: NotificationPriority.LOW,
+        read: false,
+        actionRequired: false,
       });
 
-      return updatedReservation as EquipmentReservation;
+      return updatedReservation as unknown as EquipmentReservation;
     } catch (error) {
       console.error('Error returning equipment:', error);
       throw error;
@@ -437,19 +444,19 @@ export class EquipmentService {
       const reservations = await prisma.equipmentReservation.findMany({
         where: {
           equipmentId,
-          status: { in: ['PENDING', 'APPROVED', 'ACTIVE'] }
+          status: { in: [ReservationStatus.PENDING, ReservationStatus.APPROVED, ReservationStatus.ACTIVE] }
         }
       });
 
-      const reservedQuantity = reservations.reduce((sum, res) => sum + res.quantity, 0);
+      const reservedQuantity = reservations.reduce((sum: number, res) => sum + res.quantity, 0);
       const checkedOutQuantity = reservations
-        .filter(res => res.status === 'ACTIVE')
-        .reduce((sum, res) => sum + res.quantity, 0);
+        .filter(res => res.status === ReservationStatus.ACTIVE)
+        .reduce((sum: number, res) => sum + res.quantity, 0);
 
       const maintenanceCount = await prisma.equipmentMaintenance.count({
         where: {
           equipmentId,
-          status: { in: ['SCHEDULED', 'IN_PROGRESS'] }
+          status: { in: [MaintenanceStatus.SCHEDULED, MaintenanceStatus.IN_PROGRESS] }
         }
       });
 
@@ -485,7 +492,7 @@ export class EquipmentService {
             gte: startDate,
             lte: endDate,
           },
-          status: { in: ['RETURNED', 'ACTIVE'] }
+          status: { in: [ReservationStatus.RETURNED, ReservationStatus.ACTIVE] }
         },
         include: {
           equipment: true,
@@ -493,7 +500,7 @@ export class EquipmentService {
       });
 
       const totalReservations = reservations.length;
-      const totalUsageHours = reservations.reduce((sum, res) => {
+      const totalUsageHours = reservations.reduce((sum: number, res) => {
         const duration = res.returnedAt
           ? (res.returnedAt.getTime() - res.reservedAt.getTime()) / (1000 * 60 * 60)
           : (new Date().getTime() - res.reservedAt.getTime()) / (1000 * 60 * 60);
@@ -535,10 +542,13 @@ export class EquipmentService {
     maintenanceData: Omit<EquipmentMaintenance, 'id' | 'equipmentId' | 'createdAt' | 'updatedAt'>
   ): Promise<EquipmentMaintenance> {
     try {
+      // Remove any relation fields that might be in the maintenanceData
+      const { equipment, ...scalarData } = maintenanceData as any;
+
       const maintenance = await prisma.equipmentMaintenance.create({
         data: {
           equipmentId,
-          ...maintenanceData,
+          ...scalarData,
         },
       });
 
@@ -553,13 +563,15 @@ export class EquipmentService {
       await this.createNotification({
         userId: maintenanceData.performedBy || 'system',
         equipmentId,
-        type: 'MAINTENANCE_DUE',
+        type: NotificationType.MAINTENANCE_DUE,
         title: 'Maintenance Scheduled',
         message: `Maintenance scheduled for equipment: ${maintenance.description}`,
-        priority: 'MEDIUM',
+        priority: NotificationPriority.MEDIUM,
+        read: false,
+        actionRequired: false,
       });
 
-      return maintenance as EquipmentMaintenance;
+      return maintenance as unknown as EquipmentMaintenance;
     } catch (error) {
       console.error('Error creating maintenance:', error);
       throw error;
@@ -580,7 +592,7 @@ export class EquipmentService {
         updatedAt: new Date(),
       };
 
-      if (status === 'COMPLETED') {
+      if (status === MaintenanceStatus.COMPLETED) {
         updateData.completedDate = new Date();
         if (completedBy) {
           updateData.performedBy = completedBy;
@@ -593,14 +605,14 @@ export class EquipmentService {
       });
 
       // Update equipment status if maintenance is completed
-      if (status === 'COMPLETED') {
+      if (status === MaintenanceStatus.COMPLETED) {
         await this.updateEquipment(maintenance.equipmentId, {
           requiresMaintenance: false,
-          status: 'AVAILABLE',
+          status: EquipmentStatus.AVAILABLE,
         });
       }
 
-      return maintenance as EquipmentMaintenance;
+      return maintenance as unknown as EquipmentMaintenance;
     } catch (error) {
       console.error('Error updating maintenance status:', error);
       throw error;
@@ -612,11 +624,18 @@ export class EquipmentService {
    */
   static async createNotification(notification: Omit<EquipmentNotification, 'id' | 'createdAt'>): Promise<EquipmentNotification> {
     try {
+      // Remove any relation fields that might be in the notification data
+      const { reservation, equipmentMaintenance, ...scalarData } = notification as any;
+
       const newNotification = await prisma.equipmentNotification.create({
-        data: notification,
+        data: {
+          ...scalarData,
+          read: notification.read ?? false,
+          actionRequired: notification.actionRequired ?? false,
+        },
       });
 
-      return newNotification as EquipmentNotification;
+      return newNotification as unknown as EquipmentNotification;
     } catch (error) {
       console.error('Error creating notification:', error);
       throw error;
@@ -645,7 +664,7 @@ export class EquipmentService {
         orderBy: { createdAt: 'desc' }
       });
 
-      return notifications as EquipmentNotification[];
+      return notifications as unknown as EquipmentNotification[];
     } catch (error) {
       console.error('Error fetching notifications:', error);
       throw error;
@@ -677,7 +696,7 @@ export class EquipmentService {
       const conflicts = await prisma.equipmentReservation.findMany({
         where: {
           equipmentId,
-          status: { in: ['PENDING', 'APPROVED', 'ACTIVE'] },
+          status: { in: [ReservationStatus.PENDING, ReservationStatus.APPROVED, ReservationStatus.ACTIVE] },
           reservedUntil: { gte: new Date() }, // Only future reservations
           OR: [
             {
@@ -688,7 +707,7 @@ export class EquipmentService {
         }
       });
 
-      return conflicts as EquipmentReservation[];
+      return conflicts as unknown as EquipmentReservation[];
     } catch (error) {
       console.error('Error checking reservation conflicts:', error);
       throw error;
@@ -697,19 +716,31 @@ export class EquipmentService {
 
   private static async updateEquipmentAvailableQuantity(equipmentId: string): Promise<void> {
     try {
-      const equipment = await this.getEquipmentById(equipmentId);
+      const equipment = await prisma.equipment.findUnique({ where: { id: equipmentId } });
       if (!equipment) return;
 
-      const activeReservations = await prisma.equipmentReservation.count({
+      const activeReservationsCount = await prisma.equipmentReservation.count({
         where: {
           equipmentId,
-          status: { in: ['PENDING', 'APPROVED', 'ACTIVE'] }
+          status: { in: [ReservationStatus.PENDING, ReservationStatus.APPROVED, ReservationStatus.ACTIVE] }
         }
       });
 
-      const availableQuantity = Math.max(0, equipment.quantity - activeReservations);
+      // Sum of quantities in active reservations
+      const activeReservations = await prisma.equipmentReservation.findMany({
+        where: {
+          equipmentId,
+          status: { in: [ReservationStatus.PENDING, ReservationStatus.APPROVED, ReservationStatus.ACTIVE] }
+        }
+      });
+      const reservedQuantity = activeReservations.reduce((sum: number, res) => sum + res.quantity, 0);
 
-      await this.updateEquipment(equipmentId, { availableQuantity });
+      const availableQuantity = Math.max(0, equipment.quantity - reservedQuantity);
+
+      await prisma.equipment.update({
+        where: { id: equipmentId },
+        data: { availableQuantity }
+      });
     } catch (error) {
       console.error('Error updating equipment available quantity:', error);
       throw error;
@@ -718,29 +749,32 @@ export class EquipmentService {
 
   private static async updateEquipmentStatus(equipmentId: string): Promise<void> {
     try {
-      const equipment = await this.getEquipmentById(equipmentId);
+      const equipment = await prisma.equipment.findUnique({ where: { id: equipmentId } });
       if (!equipment) return;
 
-      let newStatus: EquipmentStatus = 'AVAILABLE';
+      let newStatus: EquipmentStatus = EquipmentStatus.AVAILABLE;
 
       // Check if equipment is under maintenance
       const activeMaintenance = await prisma.equipmentMaintenance.count({
         where: {
           equipmentId,
-          status: { in: ['SCHEDULED', 'IN_PROGRESS'] }
+          status: { in: [MaintenanceStatus.SCHEDULED, MaintenanceStatus.IN_PROGRESS] }
         }
       });
 
       if (activeMaintenance > 0) {
-        newStatus = 'MAINTENANCE';
+        newStatus = EquipmentStatus.MAINTENANCE;
       } else if (equipment.availableQuantity === 0) {
-        newStatus = 'CHECKED_OUT';
+        newStatus = EquipmentStatus.CHECKED_OUT;
       } else if (equipment.availableQuantity < equipment.quantity) {
-        newStatus = 'RESERVED';
+        newStatus = EquipmentStatus.RESERVED;
       }
 
-      if (newStatus !== equipment.status) {
-        await this.updateEquipment(equipmentId, { status: newStatus });
+      if (newStatus !== (equipment.status as unknown as EquipmentStatus)) {
+        await prisma.equipment.update({
+          where: { id: equipmentId },
+          data: { status: newStatus }
+        });
       }
     } catch (error) {
       console.error('Error updating equipment status:', error);

@@ -117,7 +117,10 @@ export class OAuthService {
       throw new Error('Failed to exchange Google authorization code');
     }
 
-    const tokenData = await tokenResponse.json();
+    const tokenData = (await tokenResponse.json()) as {
+      access_token: string;
+      refresh_token?: string;
+    };
 
     // Get user info
     const userInfoResponse = await fetch(config.userInfoUrl, {
@@ -128,7 +131,12 @@ export class OAuthService {
       throw new Error('Failed to fetch Google user info');
     }
 
-    const userInfo = await userInfoResponse.json();
+    const userInfo = (await userInfoResponse.json()) as {
+      sub: string;
+      name?: string;
+      email?: string;
+      picture?: string;
+    };
 
     const profile: OAuthUserProfile = {
       provider: 'google',
@@ -160,7 +168,7 @@ export class OAuthService {
     // Exchange code for access token
     const tokenUrl = `${config.tokenUrl}?appid=${config.clientId}&secret=${config.clientSecret}&code=${code}&grant_type=authorization_code`;
     const tokenResponse = await fetch(tokenUrl);
-    const tokenData = await tokenResponse.json();
+    const tokenData = (await tokenResponse.json()) as any;
 
     if (tokenData.errcode) {
       console.error('WeChat token exchange failed:', tokenData);
@@ -170,7 +178,7 @@ export class OAuthService {
     // Get user info
     const userInfoUrl = `${config.userInfoUrl}?access_token=${tokenData.access_token}&openid=${tokenData.openid}&lang=en`;
     const userInfoResponse = await fetch(userInfoUrl);
-    const userInfo = await userInfoResponse.json();
+    const userInfo = (await userInfoResponse.json()) as any;
 
     if (userInfo.errcode) {
       console.error('WeChat user info failed:', userInfo);
@@ -214,7 +222,7 @@ export class OAuthService {
       include: { user: true },
     });
 
-    if (existingConnection) {
+    if (existingConnection && existingConnection.user) {
       // Existing user — update profile data if changed
       await prisma.socialConnection.update({
         where: { id: existingConnection.id },
@@ -225,12 +233,12 @@ export class OAuthService {
       });
 
       const jwtTokens = JWTUtils.generateTokens({
-        userId: existingConnection.userId,
+        userId: existingConnection.userId!,
         email: existingConnection.user.email || '',
         role: existingConnection.user.role,
       });
 
-      await JWTUtils.storeRefreshToken(existingConnection.userId, jwtTokens.refreshToken);
+      await JWTUtils.storeRefreshToken(existingConnection.userId!, jwtTokens.refreshToken);
 
       return {
         user: {

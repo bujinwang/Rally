@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { JWTUtils } from '../utils/jwt';
 import { prisma } from '../config/database';
 
-interface AuthRequest extends Request {
+export interface AuthRequest extends Request {
   user?: {
     id: string;
     email: string | null;

@@ -151,14 +151,13 @@ function getRoundName(roundNum: number, format: string): string {
 export async function checkTournamentPermission(userId: string, tournamentId: string, action: string) {
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
-    // organizer field not in schema, using organizerName
   });
 
   if (!tournament) {
     return false;
   }
 
-  if (tournament.organizerName !== userId) {
+  if (tournament.organizer !== userId) {
     throw new Error('Unauthorized: Only organizers can perform this action');
   }
 
