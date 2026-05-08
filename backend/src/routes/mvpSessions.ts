@@ -643,6 +643,18 @@ router.post('/join/:shareCode', joinSessionValidation, async (req: Request, res:
           timestamp: new Date().toISOString()
         });
         console.log(`📡 Socket.IO: Emitted session update for ${shareCode} - player "${name}" joined`);
+        // Send notification to all existing players about the new player
+        io.to(`session-${shareCode}`).emit('session-notification', {
+          type: 'player_joined',
+          title: '🙋 New Player!',
+          body: `${name} just joined the session`,
+          data: {
+            playerName: name,
+            sessionTime: updatedSession.scheduledAt,
+            location: updatedSession.location,
+          },
+          timestamp: new Date().toISOString()
+        });
       }
     } catch (error) {
       console.error('Failed to emit Socket.IO session update:', error);
@@ -1789,6 +1801,14 @@ router.put('/:shareCode/games/:gameId/score', requireOrganizer('modify_pairings'
           ? `${game.team1Player1} & ${game.team1Player2}` 
           : `${game.team2Player1} & ${game.team2Player2}`;
         console.log(`📡 Socket.IO: Game completed for ${shareCode} - ${winners} beat opponents ${team1FinalScore}-${team2FinalScore}`);
+        // Notify players about next game
+        io.to(`session-${shareCode}`).emit('session-notification', {
+          type: 'game_completed',
+          title: '🏸 Game Over!',
+          body: `${winners} won ${team1FinalScore}-${team2FinalScore}. Next game starting soon!`,
+          data: { winnerTeam, score: `${team1FinalScore}-${team2FinalScore}` },
+          timestamp: new Date().toISOString()
+        });
       }
     } catch (error) {
       console.warn('Failed to emit socket update:', error instanceof Error ? error.message : 'Unknown error');

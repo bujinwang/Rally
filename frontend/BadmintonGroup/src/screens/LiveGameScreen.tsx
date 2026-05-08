@@ -131,6 +131,7 @@ export default function LiveGameScreen() {
   const [isOwner, setIsOwner] = useState(false);
   const [showPlayerManagement, setShowPlayerManagement] = useState(false);
   const [selectedPlayerForRemoval, setSelectedPlayerForRemoval] = useState<Player | null>(null);
+  const [notificationCount, setNotificationCount] = useState(0);
   const [showCustomTeams, setShowCustomTeams] = useState(false);
   const [customTeamSelection, setCustomTeamSelection] = useState<Player[]>([]);
 
@@ -210,10 +211,21 @@ export default function LiveGameScreen() {
     const handleUpdate = () => {
       fetchSessionData();
     };
+    const handleNotification = (data: any) => {
+      setNotificationCount(c => c + 1);
+      if (data.type === 'player_joined') {
+        Alert.alert(data.title, data.body);
+      } else if (data.type === 'game_completed') {
+        fetchSessionData();
+        Alert.alert(data.title, data.body);
+      }
+    };
     socketService.on('mvp-session-updated', handleUpdate);
+    socketService.on('session-notification', handleNotification);
 
     return () => {
       socketService.off('mvp-session-updated', handleUpdate);
+      socketService.off('session-notification', handleNotification);
       socketService.leaveSession(route.params.shareCode);
     };
   }, [route.params?.shareCode, deviceId]);
@@ -2226,6 +2238,17 @@ export default function LiveGameScreen() {
           <Text style={styles.sessionTitle}>{sessionData.name}</Text>
           <TouchableOpacity style={styles.shareButton} onPress={copyShareLink}>
             <Ionicons name="share-outline" size={20} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.shareButton} 
+            onPress={() => { setNotificationCount(0); Alert.alert('Notifications', 'Real-time notifications for player joins and game updates.'); }}
+          >
+            <Ionicons name="notifications-outline" size={20} color="#fff" />
+            {notificationCount > 0 && (
+              <View style={{ position: 'absolute', top: -4, right: -4, backgroundColor: '#f44336', borderRadius: 10, width: 18, height: 18, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{notificationCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
         <Text style={styles.sessionSubtitle}>
