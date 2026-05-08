@@ -2035,13 +2035,51 @@ export default function LiveGameScreen() {
 
   const copyShareLink = async () => {
     if (!route.params?.shareCode) return;
-    const link = `${window.location.origin}/join/${route.params.shareCode}`;
-    try {
-      await Clipboard.setStringAsync(link);
-      Alert.alert('Link Copied!', 'Share this link with friends to join the session.');
-    } catch {
-      Alert.alert('Share Link', link);
-    }
+    const shareCode = route.params.shareCode;
+    const link = `${window.location.origin}/join/${shareCode}`;
+    const cardLink = `${window.location.origin}/s/${shareCode}`;
+    
+    Alert.alert(
+      'Share Game Plan',
+      'Share the game plan with your group:',
+      [
+        {
+          text: '📋 Copy Link',
+          onPress: async () => {
+            try {
+              await Clipboard.setStringAsync(link);
+              Alert.alert('Link Copied!', 'Share this link with friends to join.');
+            } catch {
+              Alert.alert('Share Link', link);
+            }
+          }
+        },
+        {
+          text: '💬 WhatsApp',
+          onPress: () => {
+            const msg = encodeURIComponent(`🏸 Game Plan: ${sessionData?.name || 'Badminton'}\n\nJoin here: ${cardLink}`);
+            window.open(`https://wa.me/?text=${msg}`, '_blank');
+          }
+        },
+        {
+          text: '💚 WeChat',
+          onPress: () => {
+            Alert.alert(
+              'Share to WeChat',
+              `Copy this link and paste into WeChat:\n\n${cardLink}\n\nOr share the card page directly.`,
+              [
+                { text: 'Copy Link', onPress: async () => {
+                  try { await Clipboard.setStringAsync(cardLink); Alert.alert('Copied!', 'Paste into WeChat to share.'); }
+                  catch { Alert.alert('Share Link', cardLink); }
+                }},
+                { text: 'Cancel', style: 'cancel' }
+              ]
+            );
+          }
+        },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
   };
 
   if (loading) {
