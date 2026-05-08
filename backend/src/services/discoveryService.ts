@@ -31,6 +31,9 @@ export interface DiscoveryResult {
   courtType?: string;
   organizerName: string;
   visibility: string;
+  clubAffiliation?: string;
+  dropInFee?: number;
+  invitationRequired: boolean;
   relevanceScore: number;
 }
 
@@ -241,6 +244,9 @@ export class DiscoveryService {
           courtType: session.courtType || undefined,
           organizerName: session.ownerName,
           visibility: session.visibility || 'public',
+          clubAffiliation: (session as any).clubAffiliation || undefined,
+          dropInFee: (session as any).dropInFee || undefined,
+          invitationRequired: (session as any).invitationRequired || false,
           relevanceScore
         });
       }
@@ -322,6 +328,9 @@ export class DiscoveryService {
         courtType: (session as any).courtType || undefined,
         organizerName: session.ownerName,
         visibility: (session as any).visibility || 'public',
+        clubAffiliation: (session as any).clubAffiliation || undefined,
+        dropInFee: (session as any).dropInFee || undefined,
+        invitationRequired: (session as any).invitationRequired || false,
         relevanceScore: 100 // Full relevance for direct lookup
       };
 
@@ -406,6 +415,9 @@ export class DiscoveryService {
         courtType: session.courtType || undefined,
         organizerName: session.ownerName,
         visibility: session.visibility || 'public',
+          clubAffiliation: (session as any).clubAffiliation || undefined,
+          dropInFee: (session as any).dropInFee || undefined,
+          invitationRequired: (session as any).invitationRequired || false,
         relevanceScore: 90 // High relevance for popular sessions
       }));
 
@@ -476,6 +488,9 @@ export class DiscoveryService {
               courtType: session.courtType || undefined,
               organizerName: session.ownerName,
               visibility: session.visibility || 'public',
+          clubAffiliation: (session as any).clubAffiliation || undefined,
+          dropInFee: (session as any).dropInFee || undefined,
+          invitationRequired: (session as any).invitationRequired || false,
               relevanceScore: Math.max(0, 100 - (distance / radius) * 50) // Distance-based relevance
             });
           }

@@ -27,6 +27,9 @@ export interface DiscoveryResult {
   courtType?: string;
   organizerName: string;
   visibility: string;
+  clubAffiliation?: string;
+  dropInFee?: number;
+  invitationRequired: boolean;
   relevanceScore: number;
 }
 
