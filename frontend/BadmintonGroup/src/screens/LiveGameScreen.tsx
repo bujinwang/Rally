@@ -2173,7 +2173,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 10,
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
   },
   errorContainer: {
@@ -2197,7 +2197,7 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
   sessionHeader: {
@@ -2212,7 +2212,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   sessionSubtitle: {
-    fontSize: 16,
+    fontSize: 18,
     color: 'rgba(255, 255, 255, 0.8)',
   },
   actionButtonsContainer: {
@@ -2234,7 +2234,7 @@ const styles = StyleSheet.create({
   },
   settingsButtonText: {
     color: '#007AFF',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     marginLeft: 8,
   },
@@ -2251,7 +2251,7 @@ const styles = StyleSheet.create({
   },
   managePlayersButtonText: {
     color: '#f44336',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     marginLeft: 8,
   },
@@ -2268,12 +2268,12 @@ const styles = StyleSheet.create({
   },
   leaveSessionButtonText: {
     color: '#f44336',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     marginLeft: 8,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 16,
@@ -2334,13 +2334,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   teamLabel: {
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '600',
     color: '#666',
     marginBottom: 4,
   },
   playerNames: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#333',
     fontWeight: '500',
   },
@@ -2350,18 +2350,18 @@ const styles = StyleSheet.create({
   },
   scoreButton: {
     backgroundColor: '#007AFF',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     justifyContent: 'center',
     alignItems: 'center',
   },
   score: {
-    fontSize: 32,
+    fontSize: 48,
     fontWeight: 'bold',
     color: '#333',
     marginHorizontal: 20,
-    minWidth: 50,
+    minWidth: 70,
     textAlign: 'center',
   },
   vsDivider: {
@@ -2369,12 +2369,12 @@ const styles = StyleSheet.create({
     marginVertical: 8,
   },
   vsText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#666',
   },
   setInfo: {
-    fontSize: 14,
+    fontSize: 17,
     color: '#999',
     marginTop: 2,
   },
@@ -2387,25 +2387,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#4CAF50',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 10,
   },
   actionButtonText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '600',
     marginLeft: 4,
   },
   availableContainer: {},
   queueTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
     marginBottom: 12,
   },
   emptyQueue: {
-    fontSize: 14,
+    fontSize: 17,
     color: '#999',
     fontStyle: 'italic',
     textAlign: 'center',
@@ -2418,14 +2418,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 14,
     paddingHorizontal: 12,
     backgroundColor: '#f8f9fa',
-    borderRadius: 6,
+    borderRadius: 10,
     marginBottom: 4,
   },
   queuePlayerName: {
-    fontSize: 14,
+    fontSize: 17,
     color: '#333',
   },
   removeQueueButton: {
@@ -2439,9 +2439,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f0f8ff',
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     paddingVertical: 10,
-    borderRadius: 6,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#007AFF',
     flex: 1,
@@ -2449,7 +2449,7 @@ const styles = StyleSheet.create({
   },
   addPlayerButtonText: {
     color: '#007AFF',
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '600',
     marginLeft: 4,
   },
@@ -2457,9 +2457,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#4CAF50',
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     paddingVertical: 10,
-    borderRadius: 6,
+    borderRadius: 10,
     flex: 1,
     marginLeft: 8,
   },
@@ -2468,7 +2468,7 @@ const styles = StyleSheet.create({
   },
   startGameButtonText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '600',
     marginLeft: 4,
   },
@@ -2485,7 +2485,7 @@ const styles = StyleSheet.create({
     width: '48%',
     backgroundColor: '#fff',
     borderRadius: 8,
-    padding: 12,
+    padding: 16,
     marginBottom: 12,
     alignItems: 'center',
     shadowColor: '#000',
@@ -2507,7 +2507,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   playerStatusName: {
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '600',
     color: '#333',
     flex: 1,
@@ -2571,13 +2571,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   playerSelectorName: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
     marginBottom: 4,
   },
   playerSelectorStats: {
-    fontSize: 14,
+    fontSize: 17,
     color: '#666',
   },
   separator: {
@@ -2597,20 +2597,20 @@ const styles = StyleSheet.create({
     borderBottomColor: '#f0f0f0',
   },
   settingLabel: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '500',
     color: '#333',
     flex: 1,
   },
   settingButton: {
     backgroundColor: '#007AFF',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
     borderRadius: 8,
   },
   settingButtonText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '500',
   },
   // Court Settings Modal Styles
@@ -2626,7 +2626,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#f0f0f0',
   },
   courtSettingLabel: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '500',
     color: '#333',
     flex: 1,
@@ -2654,7 +2654,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   courtNamesHeader: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
     marginTop: 20,
@@ -2663,11 +2663,11 @@ const styles = StyleSheet.create({
   courtNameItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 14,
     gap: 10,
   },
   courtNameLabel: {
-    fontSize: 14,
+    fontSize: 17,
     color: '#666',
     width: 60,
   },
@@ -2677,8 +2677,8 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 14,
+    paddingVertical: 14,
+    fontSize: 17,
   },
   courtSettingsActions: {
     flexDirection: 'row',
@@ -2696,7 +2696,7 @@ const styles = StyleSheet.create({
   },
   modalCancelButtonText: {
     color: '#666',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '500',
   },
   // Additional Modal Styles
@@ -2727,7 +2727,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   timerValue: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
     minWidth: 70,
@@ -2743,8 +2743,8 @@ const styles = StyleSheet.create({
   },
   toggleButton: {
     backgroundColor: '#e9ecef',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#dee2e6',
@@ -2788,7 +2788,7 @@ const styles = StyleSheet.create({
   },
   scoringTypeButtonText: {
     color: '#6c757d',
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '500',
   },
   scoringTypeButtonTextActive: {
@@ -2800,7 +2800,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   playerManagementDescription: {
-    fontSize: 14,
+    fontSize: 17,
     color: '#666',
     marginBottom: 16,
     paddingHorizontal: 4,
@@ -2820,7 +2820,7 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   playerManagementName: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
     marginBottom: 4,
@@ -2848,8 +2848,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#f44336',
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
+    paddingVertical: 14,
+    borderRadius: 10,
     gap: 4,
   },
   removePlayerButtonDisabled: {
@@ -2858,7 +2858,7 @@ const styles = StyleSheet.create({
   },
   removePlayerButtonText: {
     color: '#f44336',
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '500',
   },
   removePlayerButtonTextDisabled: {
@@ -2920,7 +2920,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   gameHistoryTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
   },
@@ -2945,7 +2945,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   gameHistoryPlayers: {
-    fontSize: 14,
+    fontSize: 17,
     color: '#333',
     textAlign: 'center',
     marginBottom: 8,
@@ -2959,7 +2959,7 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
   },
   gameHistoryVs: {
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: 'bold',
     color: '#666',
     marginHorizontal: 16,
@@ -2967,11 +2967,11 @@ const styles = StyleSheet.create({
   gameHistoryWinner: {
     backgroundColor: '#f0f8f0',
     borderRadius: 8,
-    paddingVertical: 8,
+    paddingVertical: 14,
     alignItems: 'center',
   },
   gameHistoryWinnerText: {
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '600',
     color: '#4CAF50',
   },
@@ -2984,7 +2984,7 @@ const styles = StyleSheet.create({
   },
   modalActionButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
 
@@ -3010,7 +3010,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     borderRadius: 8,
     flex: 1,
     justifyContent: 'center',
@@ -3018,7 +3018,7 @@ const styles = StyleSheet.create({
   },
   primaryGameActionText: {
     color: 'white',
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '600',
   },
   iconGameButton: {
@@ -3034,7 +3034,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   playerModeText: {
-    fontSize: 14,
+    fontSize: 17,
     color: '#666',
     fontWeight: '500',
   },
@@ -3048,14 +3048,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#e8f5e9',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
     borderRadius: 8,
     marginTop: 8,
   },
   fairPlaySuggestText: {
     color: '#28a745',
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '600',
     marginLeft: 4,
   },
@@ -3063,7 +3063,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 14,
     paddingHorizontal: 4,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
@@ -3082,7 +3082,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#e8f5e9',
     paddingHorizontal: 8,
     paddingVertical: 6,
-    borderRadius: 6,
+    borderRadius: 10,
     marginLeft: 8,
   },
   refreshQueueText: {
@@ -3103,7 +3103,7 @@ const styles = StyleSheet.create({
   autoStartNotice: {
     backgroundColor: '#e8f5e9',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 14,
     borderRadius: 8,
     marginLeft: 8,
     flex: 1,
