@@ -14,6 +14,7 @@ import {
 import { useRoute, useNavigation, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
+import { useTranslation } from '../i18n/LanguageContext';
 import * as Clipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEVICE_ID_KEY } from '../config/api';
@@ -138,6 +139,7 @@ export default function LiveGameScreen() {
   const [lastRefresh, setLastRefresh] = useState<number>(0);
   const [isEditingCourtSettings, setIsEditingCourtSettings] = useState(false);
   const { colors, isDark, toggleTheme } = useTheme();
+  const { t, locale, setLocale, availableLocales } = useTranslation();
 
   // Enhanced queue functionality
   const enhancedQueue = useEnhancedQueue(selectedCourt);
@@ -1150,7 +1152,7 @@ export default function LiveGameScreen() {
                 onPress={() => finishGame(court.id)}
               >
                 <Ionicons name="checkmark" size={16} color="#fff" />
-                <Text style={styles.actionButtonText}>Finish Game</Text>
+                <Text style={styles.actionButtonText}>{t.game.finish}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -2113,14 +2115,14 @@ export default function LiveGameScreen() {
 
       {/* Courts */}
       <View style={styles.courtsSection}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Courts</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>{t.game.courts}</Text>
         {sessionData.courts.map(court => renderCourt(court))}
       </View>
 
       {/* Game History */}
       {sessionData.gameHistory.length > 0 && (
         <View style={styles.gameHistorySection}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Game History ({sessionData.gameHistory.length})</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t.game.gameHistory} ({sessionData.gameHistory.length})</Text>
           {sessionData.gameHistory
             .filter(game => game && game.team1 && game.team2 && game.team1.player1 && game.team1.player2 && game.team2.player1 && game.team2.player2)
             .map((game, index) => (
