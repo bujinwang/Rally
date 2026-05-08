@@ -86,7 +86,7 @@ router.get('/admin', (_req: Request, res: Response) => {
   <title>BadmintonGroup — Admin Dashboard</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #333; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #333; } @media (prefers-color-scheme: dark) { body { background: #121212; color: #e0e0e0; } .stat-card, .section table, .header { } }
     .header { background: linear-gradient(135deg, #1a237e, #0d47a1); color: #fff; padding: 24px 32px; display: flex; justify-content: space-between; align-items: center; }
     .header h1 { font-size: 24px; font-weight: 700; }
     .header a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 14px; }
@@ -107,6 +107,20 @@ router.get('/admin', (_req: Request, res: Response) => {
     .badge-cancelled { background: #fce4ec; color: #c62828; }
     .refresh { color: #888; font-size: 12px; text-align: right; padding: 8px 32px; }
     .loading { text-align: center; padding: 40px; color: #888; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #121212; color: #e0e0e0; }
+      .header { background: linear-gradient(135deg, #0d1b2a, #1a237e); }
+      .stat-card { background: #1e1e1e; }
+      .stat-card .label { color: #888; }
+      .stat-card .value { color: #64b5f6; }
+      .stat-card.active .value { color: #66bb6a; }
+      .section h2 { color: #e0e0e0; }
+      table { background: #1e1e1e; }
+      th { background: #252525; color: #aaa; }
+      td { border-color: #333; color: #ddd; }
+      tr:hover { background: #2a2a2a; }
+      .refresh { color: #666; }
+    }
   </style>
 </head>
 <body>

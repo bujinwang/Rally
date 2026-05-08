@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../theme/ThemeContext';
 import * as Clipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEVICE_ID_KEY } from '../config/api';
@@ -135,6 +136,7 @@ export default function LiveGameScreen() {
   const [winByTwo, setWinByTwo] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<number>(0);
   const [isEditingCourtSettings, setIsEditingCourtSettings] = useState(false);
+  const { colors, isDark, toggleTheme } = useTheme();
 
   // Enhanced queue functionality
   const enhancedQueue = useEnhancedQueue(selectedCourt);
@@ -1017,7 +1019,7 @@ export default function LiveGameScreen() {
   };
 
   const renderCourt = (court: Court) => (
-    <View key={court.id} style={styles.courtCard}>
+    <View key={court.id} style={[styles.courtCard, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
       <View style={styles.courtHeader}>
         <Text style={styles.courtName}>{court.name}</Text>
         <View style={[styles.courtStatus, court.currentGame ? styles.activeStatus : styles.availableStatus]}>
@@ -2001,9 +2003,9 @@ export default function LiveGameScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Loading game session...</Text>
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading game session...</Text>
       </View>
     );
   }
@@ -2023,7 +2025,7 @@ export default function LiveGameScreen() {
   return (
     <ScrollView style={styles.container}>
       {/* Session Header */}
-      <View style={styles.sessionHeader}>
+      <View style={[styles.sessionHeader, { backgroundColor: colors.headerBg }]}>
         <View style={styles.sessionTitleRow}>
           <Text style={styles.sessionTitle}>{sessionData.name}</Text>
           <TouchableOpacity style={styles.shareButton} onPress={copyShareLink}>
@@ -2070,18 +2072,18 @@ export default function LiveGameScreen() {
 
       {/* Courts */}
       <View style={styles.courtsSection}>
-        <Text style={styles.sectionTitle}>Courts</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Courts</Text>
         {sessionData.courts.map(court => renderCourt(court))}
       </View>
 
       {/* Game History */}
       {sessionData.gameHistory.length > 0 && (
         <View style={styles.gameHistorySection}>
-          <Text style={styles.sectionTitle}>Game History ({sessionData.gameHistory.length})</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Game History ({sessionData.gameHistory.length})</Text>
           {sessionData.gameHistory
             .filter(game => game && game.team1 && game.team2 && game.team1.player1 && game.team1.player2 && game.team2.player1 && game.team2.player2)
             .map((game, index) => (
-            <View key={game.id || index} style={styles.gameHistoryCard}>
+            <View key={game.id || index} style={[styles.gameHistoryCard, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
               <View style={styles.gameHistoryHeader}>
                 <Text style={styles.gameHistoryTitle}>Game {index + 1}</Text>
                 <Text style={styles.gameHistoryTime}>
