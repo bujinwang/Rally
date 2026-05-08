@@ -92,23 +92,42 @@ export default function PlayerProfileScreen() {
   };
 
   const fetchOwnProfile = async (deviceId: string | null) => {
-    if (!deviceId) {
-      // Mock profile for demo purposes
-      setProfile(createMockProfile('You', deviceId || 'current-device'));
-      setLoading(false);
-      return;
-    }
-
     try {
-      // TODO: Replace with actual API call when backend is ready
-      // const response = await fetch(`${API_BASE_URL}/mvp-players/${deviceId}/profile`);
-      // const result = await response.json();
+      const playerName = route.params?.playerName || 'You';
+      const response = await fetch(`${API_BASE_URL}/mvp-sessions/player-stats/${encodeURIComponent(playerName)}`);
+      const result = await response.json();
       
-      // For now, create mock profile
-      setProfile(createMockProfile('You', deviceId));
+      if (result.success) {
+        const data = result.data;
+        setProfile({
+          id: deviceId || 'current-device',
+          name: playerName,
+          deviceId: deviceId || 'current-device',
+          skillLevel: 'Intermediate',
+          joinedDate: new Date().toISOString(),
+          stats: {
+            totalGames: data.gamesPlayed || 0,
+            winRate: data.winRate || 0,
+            favoritePartners: data.favoritePartners || [],
+            averageGamesPerSession: data.sessionsParticipated > 0 ? data.gamesPlayed / data.sessionsParticipated : 0,
+            totalSessions: data.sessionsParticipated || 0,
+            currentStreak: 0,
+          },
+          recentActivity: [],
+          preferences: {
+            preferredPlayingTimes: ['Evening'],
+            favoriteLocations: [],
+            playingStyle: 'Balanced' as const,
+            availableDays: ['Weekends'],
+          },
+          achievements: [],
+        });
+      } else {
+        setProfile(createMockProfile(playerName, deviceId || 'current-device'));
+      }
     } catch (error) {
       console.error('Error fetching own profile:', error);
-      setProfile(createMockProfile('You', deviceId));
+      setProfile(createMockProfile('You', deviceId || 'current-device'));
     } finally {
       setLoading(false);
     }
@@ -122,8 +141,38 @@ export default function PlayerProfileScreen() {
     }
 
     try {
-      // TODO: Replace with actual API call when backend is ready
-      setProfile(createMockProfile('Player', playerId));
+      const playerName = route.params?.playerName || 'Player';
+      const response = await fetch(`${API_BASE_URL}/mvp-sessions/player-stats/${encodeURIComponent(playerName)}`);
+      const result = await response.json();
+      
+      if (result.success) {
+        const data = result.data;
+        setProfile({
+          id: playerId,
+          name: playerName,
+          deviceId: playerId,
+          skillLevel: 'Intermediate',
+          joinedDate: new Date().toISOString(),
+          stats: {
+            totalGames: data.gamesPlayed || 0,
+            winRate: data.winRate || 0,
+            favoritePartners: data.favoritePartners || [],
+            averageGamesPerSession: data.sessionsParticipated > 0 ? data.gamesPlayed / data.sessionsParticipated : 0,
+            totalSessions: data.sessionsParticipated || 0,
+            currentStreak: 0,
+          },
+          recentActivity: [],
+          preferences: {
+            preferredPlayingTimes: ['Evening'],
+            favoriteLocations: [],
+            playingStyle: 'Balanced' as const,
+            availableDays: ['Weekends'],
+          },
+          achievements: [],
+        });
+      } else {
+        setProfile(createMockProfile(playerName, playerId));
+      }
     } catch (error) {
       console.error('Error fetching player profile:', error);
       Alert.alert('Error', 'Failed to load player profile');

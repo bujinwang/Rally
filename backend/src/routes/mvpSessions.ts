@@ -3098,122 +3098,6 @@ router.put('/:shareCode/players/:playerId/status', requireOrganizerOrSelf('updat
   }
 });
 
-// Remove player from session (organizer only) - DUPLICATE: This is a duplicate of line 1382
-// Consider removing this after verifying frontend uses the correct endpoint
-router.delete('/:shareCode/players/:playerId', requireOrganizer('remove_players'), async (req, res) => {
-  try {
-    const { shareCode, playerId } = req.params;
-    const { ownerDeviceId } = req.body;
-
-    const session = await prisma.mvpSession.findUnique({
-      where: { shareCode },
-      include: {
-        players: true,
-        games: {
-          where: { status: 'IN_PROGRESS' },
-          include: {
-            match: true
-          }
-        }
-      }
-    });
-
-    if (!session) {
-      return res.status(404).json({
-        success: false,
-        error: {
-          code: 'SESSION_NOT_FOUND',
-          message: 'Session not found'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Check if the requester is the owner
-    if (session.ownerDeviceId !== ownerDeviceId) {
-      return res.status(403).json({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Only the session owner can remove players'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    const player = session.players.find(p => p.id === playerId);
-    if (!player) {
-      return res.status(404).json({
-        success: false,
-        error: {
-          code: 'PLAYER_NOT_FOUND',
-          message: 'Player not found in session'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Check if player is currently in an active game
-    const isInActiveGame = session.games.some(game => 
-      game.team1Player1 === player.name ||
-      game.team1Player2 === player.name ||
-      game.team2Player1 === player.name ||
-      game.team2Player2 === player.name
-    );
-
-    if (isInActiveGame) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'PLAYER_IN_ACTIVE_GAME',
-          message: 'Cannot remove player while they are playing in an active game'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Remove the player
-    await prisma.mvpPlayer.delete({
-      where: { id: playerId }
-    });
-
-    res.json({
-      success: true,
-      message: 'Player removed from session successfully',
-      timestamp: new Date().toISOString()
-    });
-
-    // Emit Socket.IO event for real-time update
-    try {
-      const updatedSession = await prisma.mvpSession.findUnique({
-        where: { shareCode },
-        include: { players: { orderBy: { joinedAt: 'asc' } } }
-      });
-
-      if (updatedSession) {
-        io.to(`session-${shareCode}`).emit('mvp-session-updated', {
-          session: updatedSession,
-          timestamp: new Date().toISOString()
-        });
-        console.log(`📡 Socket.IO: Emitted player removal for ${shareCode}`);
-      }
-    } catch (error) {
-      console.error('Failed to emit Socket.IO player removal:', error);
-    }
-  } catch (error) {
-    console.error('Remove player error:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to remove player from session'
-      },
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Get player's own status by deviceId
 router.get('/:shareCode/players/me/:deviceId', async (req, res) => {
   try {
     const { shareCode, deviceId } = req.params;
@@ -3277,8 +3161,6 @@ router.get('/:shareCode/players/me/:deviceId', async (req, res) => {
   }
 });
 
-// Create/Save completed game - DUPLICATE: This is a duplicate of line 1587
-// Consider removing this after verifying frontend uses the correct endpoint  
 router.post('/:shareCode/games', requireOrganizer('generate_pairings'), async (req, res) => {
   try {
     const { shareCode } = req.params;
