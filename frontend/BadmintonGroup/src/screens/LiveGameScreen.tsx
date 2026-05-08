@@ -765,7 +765,8 @@ export default function LiveGameScreen() {
           team1Player1: game.team1.player1.name,
           team1Player2: game.team1.player2.name,
           team2Player1: game.team2.player1.name,
-          team2Player2: game.team2.player2.name
+          team2Player2: game.team2.player2.name,
+          ownerDeviceId: sessionData?.ownerDeviceId || deviceId
         }),
       });
 
@@ -792,7 +793,8 @@ export default function LiveGameScreen() {
         },
         body: JSON.stringify({
           team1FinalScore: game.team1.score,
-          team2FinalScore: game.team2.score
+          team2FinalScore: game.team2.score,
+          ownerDeviceId: sessionData?.ownerDeviceId || deviceId
         }),
       });
 
@@ -833,10 +835,10 @@ export default function LiveGameScreen() {
           }, 5000);
         }
       } else {
-        const errorText = await response.text();
+        const errorText = await scoreResponse.text();
         console.error('❌ Game save failed:', {
-          status: response.status,
-          statusText: response.statusText,
+          status: scoreResponse.status,
+          statusText: scoreResponse.statusText,
           errorResponse: errorText
         });
         
@@ -844,7 +846,7 @@ export default function LiveGameScreen() {
           const errorData = JSON.parse(errorText);
           Alert.alert('Error', errorData.error?.message || 'Failed to save game');
         } catch {
-          Alert.alert('Error', `Failed to save game. Status: ${response.status}`);
+          Alert.alert('Error', `Failed to save game. Status: ${scoreResponse.status}`);
         }
       }
     } catch (error) {
