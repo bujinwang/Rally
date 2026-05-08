@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEVICE_ID_KEY } from '../config/api';
 import sessionApi from '../services/sessionApi';
+import socketService from '../services/socketService';
 import { 
   EnhancedQueueItem, 
   UpNextBanner, 
@@ -180,6 +181,24 @@ export default function LiveGameScreen() {
   useEffect(() => {
     initializeScreen();
   }, [route.params]);
+  // Setup real-time Socket.io connection
+  useEffect(() => {
+    if (!route.params?.shareCode) return;
+    socketService.enable();
+    socketService.connect();
+    socketService.joinSession(route.params.shareCode, deviceId);
+
+    const handleUpdate = () => {
+      fetchSessionData();
+    };
+    socketService.on('mvp-session-updated', handleUpdate);
+
+    return () => {
+      socketService.off('mvp-session-updated', handleUpdate);
+      socketService.leaveSession(route.params.shareCode);
+    };
+  }, [route.params?.shareCode, deviceId]);
+
 
   // Refresh data when screen comes into focus (with cooldown to prevent rate limiting)
   useFocusEffect(
