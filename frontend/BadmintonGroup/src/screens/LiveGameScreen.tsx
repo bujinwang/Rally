@@ -35,6 +35,7 @@ interface Player {
   gamesPlayed: number;
   wins: number;
   losses: number;
+  skillLevel?: number;
 }
 
 interface GameTeam {
@@ -253,7 +254,8 @@ export default function LiveGameScreen() {
           status: player.status,
           gamesPlayed: player.gamesPlayed || 0,
           wins: player.wins || 0,
-          losses: player.losses || 0
+          losses: player.losses || 0,
+          skillLevel: player.skillLevel || undefined
         })),
         courts: generateCourtsFromSession(session),
         gameHistory: (session.games || [])
@@ -905,16 +907,47 @@ export default function LiveGameScreen() {
     }
     
     // Enhanced Fair Play algorithm: prioritize players with fewer games
-    const suggestedPlayers = activePlayers
-      .sort((a, b) => {
-        // Primary: fewer games played
-        if (a.gamesPlayed !== b.gamesPlayed) {
-          return a.gamesPlayed - b.gamesPlayed;
-        }
-        // Secondary: joined earlier  
-        return new Date(a.joinedAt || 0).getTime() - new Date(b.joinedAt || 0).getTime();
-      })
-      .slice(0, 4); // Take top 4 for the queue
+    // Skill-tier aware Fair Play: group by skill tier, then by games played
+    const getTier = (p: Player) => {
+      if (!p.skillLevel) return 99; // No preference = wildcard (can match any)
+      if (p.skillLevel <= 3) return 0;
+      if (p.skillLevel <= 6) return 1;
+      return 2;
+    };
+    
+    // Try to find 4 players in the same tier first
+    let suggestedPlayers: Player[] = [];
+    for (const tier of [0, 1, 2]) {
+      const tierPlayers = activePlayers.filter(p => getTier(p) === tier);
+      if (tierPlayers.length >= 4) {
+        suggestedPlayers = tierPlayers
+          .sort((a, b) => a.gamesPlayed - b.gamesPlayed)
+          .slice(0, 4);
+        break;
+      }
+    }
+    
+    // Fallback: mix adjacent tiers with max 1 tier gap
+    if (suggestedPlayers.length < 4) {
+      suggestedPlayers = activePlayers
+        .filter(p => {
+          if (getTier(p) === 99) return true; // No preference players can match any
+          const tiers = activePlayers.map(getTier).filter(t => t !== 99);
+          if (tiers.length === 0) return true;
+          const maxTier = Math.max(...tiers);
+          const minTier = Math.min(...tiers);
+          return maxTier - minTier <= 1; // Max 1 tier gap
+        })
+        .sort((a, b) => a.gamesPlayed - b.gamesPlayed)
+        .slice(0, 4);
+    }
+    
+    // Final fallback: any 4 players
+    if (suggestedPlayers.length < 4) {
+      suggestedPlayers = activePlayers
+        .sort((a, b) => a.gamesPlayed - b.gamesPlayed)
+        .slice(0, 4);
+    }
     
     console.log('✅ Selected players:', suggestedPlayers.map(p => ({ name: p.name, gamesPlayed: p.gamesPlayed })));
     
@@ -944,6 +977,14 @@ export default function LiveGameScreen() {
   };
 
   // Auto-start game from queue
+  // Get skill tier label and color
+  const getSkillInfo = (level?: number) => {
+    if (!level) return { label: '', color: '#ccc', tier: 99 };
+    if (level <= 3) return { label: '🟢', color: '#4CAF50', tier: 0 };
+    if (level <= 6) return { label: '🟡', color: '#FF9800', tier: 1 };
+    return { label: '🔴', color: '#f44336', tier: 2 };
+  };
+
   const autoStartGame = (courtId: string) => {
     const court = sessionData?.courts.find(c => c.id === courtId);
     if (!court || court.queue.length < 4) return;
@@ -2100,7 +2141,7 @@ export default function LiveGameScreen() {
                 <View style={styles.gameHistoryTeam}>
                   <Text style={styles.gameHistoryTeamLabel}>Team 1</Text>
                   <Text style={styles.gameHistoryPlayers}>
-                    {game.team1.player1.name} & {game.team1.player2.name}
+                    {getSkillInfo(game.team1.player1.skillLevel).label} {game.team1.player1.name} & {getSkillInfo(game.team1.player2.skillLevel).label} {game.team1.player2.name}
                   </Text>
                   <Text style={[
                     styles.gameHistoryScore,
@@ -2115,7 +2156,7 @@ export default function LiveGameScreen() {
                 <View style={styles.gameHistoryTeam}>
                   <Text style={styles.gameHistoryTeamLabel}>Team 2</Text>
                   <Text style={styles.gameHistoryPlayers}>
-                    {game.team2.player1.name} & {game.team2.player2.name}
+                    {getSkillInfo(game.team2.player1.skillLevel).label} {game.team2.player1.name} & {getSkillInfo(game.team2.player2.skillLevel).label} {game.team2.player2.name}
                   </Text>
                   <Text style={[
                     styles.gameHistoryScore,
