@@ -110,6 +110,7 @@ router.get('/:shareCode', async (req, res) => {
             deviceId: true,
             status: true,
             joinedAt: true,
+            skillLevel: true,
             gamesPlayed: true,
             wins: true,
             losses: true,
@@ -178,6 +179,7 @@ router.get('/:shareCode', async (req, res) => {
         name: player.name,
         deviceId: player.deviceId,
         status: player.status,
+        skillLevel: player.skillLevel,
         joinedAt: player.joinedAt,
         gamesPlayed: player.gamesPlayed,
         wins: player.wins,
@@ -347,6 +349,7 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
               id: player.id,
               name: player.name,
               status: player.status,
+        skillLevel: player.skillLevel,
               joinedAt: player.joinedAt
             })) || [],
             createdAt: session.createdAt
@@ -378,6 +381,7 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
             id: player.id,
             name: player.name,
             status: player.status,
+        skillLevel: player.skillLevel,
             gamesPlayed: player.gamesPlayed,
             wins: player.wins,
             losses: player.losses,
@@ -482,6 +486,7 @@ router.get('/join/:shareCode', async (req, res) => {
             name: player.name,
             deviceId: player.deviceId,
             status: player.status,
+        skillLevel: player.skillLevel,
             gamesPlayed: player.gamesPlayed,
             wins: player.wins,
             losses: player.losses,
@@ -608,6 +613,7 @@ router.post('/join/:shareCode', joinSessionValidation, async (req: Request, res:
           id: player.id,
           name: player.name,
           status: player.status,
+        skillLevel: player.skillLevel,
           joinedAt: player.joinedAt
         }
       },
@@ -807,6 +813,7 @@ router.post('/claim', claimSessionValidation, async (req: Request, res: Response
         id: player.id,
         name: player.name,
         status: player.status,
+        skillLevel: player.skillLevel,
         gamesPlayed: player.gamesPlayed,
         wins: player.wins,
         losses: player.losses,
@@ -866,6 +873,7 @@ router.put('/players/:playerId/status', requireOrganizerOrSelf('update_player_st
           id: player.id,
           name: player.name,
           status: player.status,
+        skillLevel: player.skillLevel,
           updatedAt: new Date().toISOString()
         }
       },
@@ -920,6 +928,7 @@ router.get('/my-sessions/:deviceId', async (req, res) => {
         id: player.id,
         name: player.name,
         status: player.status,
+        skillLevel: player.skillLevel,
         gamesPlayed: player.gamesPlayed,
         wins: player.wins,
         losses: player.losses,
@@ -1065,7 +1074,8 @@ router.put('/:shareCode', rateLimiters.sensitive, requireOrganizer('edit_session
                 name: true,
                 deviceId: true,
                 status: true,
-                gamesPlayed: true,
+                skillLevel: true,
+            gamesPlayed: true,
                 wins: true,
                 losses: true,
                 joinedAt: true
@@ -1105,6 +1115,7 @@ router.put('/:shareCode', rateLimiters.sensitive, requireOrganizer('edit_session
                 name: player.name,
                 deviceId: player.deviceId,
                 status: player.status,
+        skillLevel: player.skillLevel,
                 gamesPlayed: player.gamesPlayed,
                 wins: player.wins,
                 losses: player.losses,
@@ -1143,6 +1154,7 @@ router.put('/:shareCode', rateLimiters.sensitive, requireOrganizer('edit_session
             id: player.id,
             name: player.name,
             status: player.status,
+        skillLevel: player.skillLevel,
             gamesPlayed: player.gamesPlayed,
             wins: player.wins,
             losses: player.losses,
@@ -1568,6 +1580,7 @@ router.post('/:shareCode/add-player', rateLimiters.api, requireOrganizer('add_pl
           id: player.id,
           name: player.name,
           status: player.status,
+        skillLevel: player.skillLevel,
           joinedAt: player.joinedAt
         }
       },
@@ -1749,7 +1762,8 @@ router.put('/:shareCode/games/:gameId/score', requireOrganizer('modify_pairings'
               name: true,
               status: true,
               joinedAt: true,
-              gamesPlayed: true,
+              skillLevel: true,
+            gamesPlayed: true,
               wins: true,
               losses: true
             }
@@ -1875,7 +1889,8 @@ router.put('/:shareCode/games/:gameId/teams', requireOrganizer('modify_pairings'
               name: true,
               status: true,
               joinedAt: true,
-              gamesPlayed: true,
+              skillLevel: true,
+            gamesPlayed: true,
               wins: true,
               losses: true
             }
@@ -1943,6 +1958,7 @@ router.get('/:shareCode/rotation', async (req, res) => {
             name: true,
             deviceId: true,
             status: true,
+            skillLevel: true,
             gamesPlayed: true,
             wins: true,
             losses: true,
@@ -2374,7 +2390,8 @@ router.put('/:shareCode/matches/:matchId/games/:gameId/score', requireOrganizer(
               name: true,
               status: true,
               joinedAt: true,
-              gamesPlayed: true,
+              skillLevel: true,
+            gamesPlayed: true,
               wins: true,
               losses: true
             }
@@ -2933,6 +2950,7 @@ router.get('/:shareCode/players/me/:deviceId', async (req, res) => {
           id: player.id,
           name: player.name,
           status: player.status,
+        skillLevel: player.skillLevel,
           joinedAt: player.joinedAt,
           gamesPlayed: player.gamesPlayed,
           wins: player.wins,
@@ -3143,6 +3161,7 @@ router.get('/:shareCode/players/me/:deviceId', async (req, res) => {
           id: player.id,
           name: player.name,
           status: player.status,
+        skillLevel: player.skillLevel,
           gamesPlayed: player.gamesPlayed,
           wins: player.wins,
           losses: player.losses
@@ -3349,6 +3368,7 @@ router.put('/:shareCode/courts', rateLimiters.api, requireOrganizer('edit_sessio
                 name: player.name,
                 deviceId: player.deviceId,
                 status: player.status,
+        skillLevel: player.skillLevel,
                 gamesPlayed: player.gamesPlayed,
                 wins: player.wins,
                 losses: player.losses,
@@ -3381,6 +3401,7 @@ router.put('/:shareCode/courts', rateLimiters.api, requireOrganizer('edit_sessio
                 id: player.id,
                 name: player.name,
                 status: player.status,
+        skillLevel: player.skillLevel,
                 joinedAt: player.joinedAt
               })),
               createdAt: updatedSession.createdAt
@@ -3755,7 +3776,8 @@ router.get('/player-stats/:playerName', async (req, res) => {
     const players = await prisma.mvpPlayer.findMany({
       where: { name: playerName },
       select: {
-        gamesPlayed: true,
+        skillLevel: true,
+            gamesPlayed: true,
         wins: true,
         losses: true,
         winRate: true,
