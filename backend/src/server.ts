@@ -14,6 +14,7 @@ import { setupSocket } from './config/socket';
 import { setupRoutes } from './routes';
 import { errorHandler } from './middleware/errorHandler';
 import webSessionRoutes from './routes/webSession';
+import adminRoutes from './routes/admin';
 
 // Load environment variables
 dotenv.config();
@@ -80,6 +81,7 @@ console.log('✅ API routes configured at /api/v1');
 // Web session routes (for direct HTML access)
 console.log('🌐 Setting up web session routes...');
 app.use('/join', webSessionRoutes);
+app.use(adminRoutes);
 console.log('✅ Web session routes configured at /join');
 
 // Serve Expo web build (SPA)
