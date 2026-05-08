@@ -233,7 +233,10 @@ const createSessionValidation = [
   body('location').optional().isLength({ max: 255 }),
   body('maxPlayers').optional().isInt({ min: 2, max: 20 }).withMessage('Max players must be between 2 and 20'),
   body('organizerName').isLength({ min: 2, max: 30 }).withMessage('Organizer name is required'),
-  body('ownerDeviceId').optional().isLength({ min: 3, max: 255 }).withMessage('Device identifier must be 3-255 characters')
+  body('ownerDeviceId').optional().isLength({ min: 3, max: 255 }).withMessage('Device identifier must be 3-255 characters'),
+  body('clubAffiliation').optional().isLength({ max: 100 }).withMessage('Club name must be under 100 characters'),
+  body('dropInFee').optional().isFloat({ min: 0 }).withMessage('Drop-in fee must be a positive number'),
+  body('invitationRequired').optional().isBoolean().withMessage('Invitation required must be true/false')
 ];
 
 const joinSessionValidation = [
@@ -299,6 +302,9 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
         shareCode,
         status: 'ACTIVE',
         ownerDeviceId: sessionData.ownerDeviceId || null,
+        clubAffiliation: sessionData.clubAffiliation || null,
+        dropInFee: sessionData.dropInFee || null,
+        invitationRequired: sessionData.invitationRequired || false,
         organizerSecretHash: organizerCodeHash,
         organizerSecretUpdatedAt: secretTimestamp,
         ownershipClaimedAt: sessionData.ownerDeviceId ? secretTimestamp : null

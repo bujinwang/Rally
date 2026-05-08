@@ -28,7 +28,12 @@ model MvpSession {
   latitude          Float? // GPS latitude for location-based discovery
   longitude         Float? // GPS longitude for location-based discovery
   courtType         String? // indoor, outdoor, mixed
-  visibility        String  @default("public") // public, private
+  visibility        String  @default("public") // public, private, club
+
+  // Club / Private Session Settings
+  clubAffiliation    String? // Club name for private club sessions
+  dropInFee          Float? // Drop-in fee for non-members (separate from session cost)
+  invitationRequired Boolean @default(false) // Whether member invitation is needed
   maxDuration       Int? // Maximum session duration in minutes
   isRecurring       Boolean @default(false) // Whether session repeats
   recurrencePattern String? // Recurrence pattern (daily, weekly, etc.)
