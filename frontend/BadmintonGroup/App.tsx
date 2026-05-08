@@ -1,14 +1,22 @@
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { ThemeProvider } from 'react-native-elements';
+import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
-import { badmintonTheme } from './src/theme/theme';
+
+function ThemedApp() {
+  const { isDark } = useTheme();
+  return (
+    <>
+      <StatusBar style={isDark ? 'light' : 'auto'} />
+      <AppNavigator />
+    </>
+  );
+}
 
 export default function App() {
   return (
-    <ThemeProvider theme={badmintonTheme}>
-      <StatusBar style="auto" />
-      <AppNavigator />
+    <ThemeProvider>
+      <ThemedApp />
     </ThemeProvider>
   );
 }
