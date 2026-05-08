@@ -131,6 +131,8 @@ export default function LiveGameScreen() {
   const [isOwner, setIsOwner] = useState(false);
   const [showPlayerManagement, setShowPlayerManagement] = useState(false);
   const [selectedPlayerForRemoval, setSelectedPlayerForRemoval] = useState<Player | null>(null);
+  const [showCustomTeams, setShowCustomTeams] = useState(false);
+  const [customTeamSelection, setCustomTeamSelection] = useState<Player[]>([]);
 
   // Game settings
   const [gameFormat, setGameFormat] = useState<'best_of_3' | 'single_set' | 'first_to_21'>('best_of_3');
@@ -157,7 +159,18 @@ export default function LiveGameScreen() {
           console.log(`🎯 Auto-populating empty queue for ${court.name} with ${activePlayersCount} active players`);
           // Small delay to allow UI to update, then populate
           setTimeout(() => {
-            autoPopulateQueue(court.id, true); // Silent auto-population
+            autoPopulateQueue(court.id, true);
+        }}
+        {/* Custom Teams button */}
+        {isOwner && (
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: '#FF9800', marginTop: 8, paddingVertical: 10 }]}
+            onPress={() => { setSelectedCourt(court); setShowCustomTeams(true); }}
+          >
+            <Ionicons name="people" size={16} color="#fff" />
+            <Text style={styles.actionButtonText}>Custom Teams 🤝</Text>
+          </TouchableOpacity>
+        )}
           }, 500);
         } else {
           console.log(`⏳ Waiting for more players on ${court.name}: ${activePlayersCount}/4 active`);
@@ -294,7 +307,18 @@ export default function LiveGameScreen() {
       setTimeout(() => {
         transformedData.courts.forEach(court => {
           if (!court.currentGame && court.queue.length === 0) {
-            autoPopulateQueue(court.id, true); // Silent auto-population
+            autoPopulateQueue(court.id, true);
+        }}
+        {/* Custom Teams button */}
+        {isOwner && (
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: '#FF9800', marginTop: 8, paddingVertical: 10 }]}
+            onPress={() => { setSelectedCourt(court); setShowCustomTeams(true); }}
+          >
+            <Ionicons name="people" size={16} color="#fff" />
+            <Text style={styles.actionButtonText}>Custom Teams 🤝</Text>
+          </TouchableOpacity>
+        )}
           }
         });
       }, 2000); // Wait 2 seconds after data loads
@@ -985,6 +1009,29 @@ export default function LiveGameScreen() {
     if (level <= 3) return { label: '🟢', color: '#4CAF50', tier: 0 };
     if (level <= 6) return { label: '🟡', color: '#FF9800', tier: 1 };
     return { label: '🔴', color: '#f44336', tier: 2 };
+  };
+
+  // Start a custom team game (manual selection, no skill matching)
+  const startCustomGame = (courtId: string, players: Player[]) => {
+    if (players.length !== 4) return;
+    const [p1, p2, p3, p4] = players;
+    const court = sessionData?.courts.find(c => c.id === courtId);
+    if (!court) return;
+
+    const newGame: Game = {
+      id: Date.now().toString(),
+      team1: { player1: p1, player2: p2, score: 0 },
+      team2: { player1: p3, player2: p4, score: 0 },
+      status: 'IN_PROGRESS',
+      currentSet: 1,
+      sets: [{ setNumber: 1, team1Score: 0, team2Score: 0, isCompleted: false }],
+      startTime: new Date().toISOString()
+    };
+
+    const updatedCourt = { ...court, currentGame: newGame, queue: [] };
+    updateCourtInSession(updatedCourt);
+    setShowCustomTeams(false);
+    setCustomTeamSelection([]);
   };
 
   const autoStartGame = (courtId: string) => {
@@ -1990,6 +2037,74 @@ export default function LiveGameScreen() {
     </Modal>
   );
 
+  // Custom Teams picker — manual team selection ignoring skill matching
+  const renderCustomTeamsModal = () => (
+    <Modal visible={showCustomTeams} animationType="slide" transparent>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Custom Teams 🤝</Text>
+            <TouchableOpacity style={styles.modalCloseButton} onPress={() => { setShowCustomTeams(false); setCustomTeamSelection([]); }}>
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+          <Text style={{ padding: 12, fontSize: 13, color: '#888' }}>
+            Select 4 players — first 2 are Team 1, last 2 are Team 2. Skill matching is ignored.
+          </Text>
+          <FlatList
+            data={sessionData?.players.filter(p => p.status === 'ACTIVE')}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => {
+              const isSelected = customTeamSelection.some(s => s.id === item.id);
+              return (
+                <TouchableOpacity
+                  style={[styles.playerSelectorItem, isSelected && { backgroundColor: '#E3F2FD' }]}
+                  onPress={() => {
+                    if (isSelected) {
+                      setCustomTeamSelection(prev => prev.filter(s => s.id !== item.id));
+                    } else if (customTeamSelection.length < 4) {
+                      setCustomTeamSelection(prev => [...prev, item]);
+                    }
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View>
+                      <Text style={styles.playerSelectorName}>
+                        {isSelected ? `✅ ${item.name}` : item.name}
+                      </Text>
+                      <Text style={styles.playerSelectorStats}>
+                        Games: {item.gamesPlayed} | W: {item.wins} | L: {item.losses}
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <Text style={{ fontSize: 12, color: '#2196F3', fontWeight: '600' }}>
+                        Team {customTeamSelection.findIndex(s => s.id === item.id) < 2 ? '1' : '2'}
+                      </Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+          {customTeamSelection.length === 4 && (
+            <View style={{ padding: 16 }}>
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: '#4CAF50', paddingVertical: 14 }]}
+                onPress={() => { if (selectedCourt) startCustomGame(selectedCourt.id, customTeamSelection); }}
+              >
+                <Ionicons name="play" size={18} color="#fff" />
+                <Text style={styles.actionButtonText}>
+                  Start: {customTeamSelection[0].name} & {customTeamSelection[1].name} vs {customTeamSelection[2].name} & {customTeamSelection[3].name}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+
   const renderPlayerSelector = () => (
     <Modal visible={showPlayerSelector} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
@@ -2282,6 +2397,7 @@ export default function LiveGameScreen() {
       {renderRotationSettings()}
       {renderScoringSettings()}
       {renderPlayerManagement()}
+      {renderCustomTeamsModal()}
       {renderPlayerSelector()}
     </ScrollView>
   );
