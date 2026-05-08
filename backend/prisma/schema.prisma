@@ -54,6 +54,7 @@ model MvpSession {
 
   // Relations
   players        MvpPlayer[]
+  subscriptions  SessionSubscription[]
   games          MvpGame[]
   matches        MvpMatch[]
   scoringMatches Match[]
@@ -163,6 +164,7 @@ model MvpPlayer {
 
   // Player stats
   joinedAt             DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
   status               MvpPlayerStatus @default(ACTIVE)
   gamesPlayed          Int             @default(0)
   sessionsParticipated Int             @default(0)
@@ -224,7 +226,7 @@ model MvpPlayer {
 
   // Push Notification Relations
   notifications           Notification[]
-  notificationPreferences NotificationPreference?
+  notificationPreferences NotificationPreferences?
   pushTokens              PushToken[]
 
   // Analytics Relations
@@ -577,6 +579,7 @@ model User {
   ownedSessions  Session[]        @relation("SessionOwner")
   sessionPlayers SessionPlayer[]
   AnalyticsEvent AnalyticsEvent[]
+  socialConnections SocialConnection[]
 
   @@map("users")
 }
@@ -684,7 +687,7 @@ model Tournament {
   status TournamentStatus @default(REGISTRATION_OPEN)
 
   // Organizer
-  organizerName  String
+  organizer      String
   organizerEmail String?
   organizerPhone String?
 
@@ -1300,18 +1303,23 @@ model Share {
 
 model SocialConnection {
   id           String    @id @default(cuid())
-  playerId     String
+  userId       String?
+  playerId     String?
   provider     String // "google", "facebook", "twitter"
   providerId   String // OAuth provider's user ID
   providerData Json? // Additional data from OAuth provider
+  accessToken  String?
   connectedAt  DateTime  @default(now())
   lastUsedAt   DateTime?
 
   // Relations
-  player MvpPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  user   User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  player MvpPlayer? @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   // Performance indexes
+  @@unique([userId, provider])
   @@unique([playerId, provider])
+  @@unique([provider, providerId])
   @@index([provider])
   @@index([providerId])
   @@index([connectedAt])
@@ -1355,6 +1363,21 @@ enum MessageType {
   CHALLENGE // Challenge invitation
 }
 
+model SessionSubscription {
+  id        String   @id @default(cuid())
+  sessionId String
+  deviceId  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session   MvpSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  pushTokens PushToken[] @relation("DeviceTokens")
+
+  @@unique([sessionId, deviceId])
+  @@map("session_subscriptions")
+}
+
 // Push Notifications Models
 model Notification {
   id       String @id @default(cuid())
@@ -1389,9 +1412,10 @@ model Notification {
   @@map("notifications")
 }
 
-model NotificationPreference {
+model NotificationPreferences {
   id       String @id @default(cuid())
-  playerId String @unique // Reference to MvpPlayer
+  playerId String? @unique // Reference to MvpPlayer
+  deviceId String? @unique // For device-based preferences
 
   // Notification preferences by category
   matchResults      Boolean @default(true) // Match win/loss notifications
@@ -1404,6 +1428,8 @@ model NotificationPreference {
 
   // Global settings
   pushEnabled     Boolean @default(true) // Master push notification toggle
+  enablePush      Boolean @default(true) // Legacy support for notificationHelper
+  notificationTypes Json? // For dynamic notification types
   emailEnabled    Boolean @default(false) // Email notifications (future)
   quietHoursStart String? // Quiet hours start time (HH:MM)
   quietHoursEnd   String? // Quiet hours end time (HH:MM)
@@ -1413,7 +1439,7 @@ model NotificationPreference {
   updatedAt DateTime @updatedAt
 
   // Relations
-  player MvpPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  player MvpPlayer? @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@map("notification_preferences")
 }
@@ -1437,8 +1463,10 @@ model PushToken {
 
   // Relations
   player MvpPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  sessionSubscriptions SessionSubscription[] @relation("DeviceTokens")
 
   // Performance indexes
+  @@unique([deviceId, isActive])
   @@index([playerId])
   @@index([token])
   @@index([isActive])
@@ -2639,6 +2667,7 @@ model PredictionModel {
 
   results PredictionResult[]
 
+  @@unique([type, version], name: "type_version")
   @@index([type])
   @@index([version])
   @@index([isActive])

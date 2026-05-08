@@ -1,9 +1,10 @@
-import { Router } from 'express';
+import { Router, Request } from 'express';
 import { prisma } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
 import { upload, deleteFile } from '../utils/fileUpload';
 import { validate } from '../utils/validation';
 import Joi from 'joi';
+import { AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -35,7 +36,7 @@ const updateSettingsSchema = Joi.object({
 });
 
 // Get user profile
-router.get('/users/:userId/profile', authenticateToken, async (req, res) => {
+router.get('/users/:userId/profile', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const { userId } = req.params;
     const currentUserId = req.user?.id;
@@ -107,8 +108,12 @@ router.get('/users/:userId/profile', authenticateToken, async (req, res) => {
 
     // Hide sensitive info if not own profile
     if (!isOwnProfile) {
-      delete profile.email;
-      delete profile.phone;
+      const { email, phone, ...publicProfile } = profile;
+      return res.json({
+        success: true,
+        data: { profile: publicProfile },
+        timestamp: new Date().toISOString()
+      });
     }
 
     res.json({
@@ -130,7 +135,7 @@ router.get('/users/:userId/profile', authenticateToken, async (req, res) => {
 });
 
 // Update user profile
-router.put('/users/:userId/profile', authenticateToken, validate(updateProfileSchema), async (req, res) => {
+router.put('/users/:userId/profile', authenticateToken, validate(updateProfileSchema), async (req: AuthRequest, res, next) => {
   try {
     const { userId } = req.params;
     const currentUserId = req.user?.id;
@@ -189,7 +194,7 @@ router.put('/users/:userId/profile', authenticateToken, validate(updateProfileSc
 });
 
 // Upload user avatar
-router.post('/users/:userId/avatar', authenticateToken, upload.single('avatar'), async (req, res) => {
+router.post('/users/:userId/avatar', authenticateToken, upload.single('avatar'), async (req: AuthRequest, res, next) => {
   try {
     const { userId } = req.params;
     const currentUserId = req.user?.id;
@@ -263,7 +268,7 @@ router.post('/users/:userId/avatar', authenticateToken, upload.single('avatar'),
 });
 
 // Delete user avatar
-router.delete('/users/:userId/avatar', authenticateToken, async (req, res) => {
+router.delete('/users/:userId/avatar', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const { userId } = req.params;
     const currentUserId = req.user?.id;
@@ -325,7 +330,7 @@ router.delete('/users/:userId/avatar', authenticateToken, async (req, res) => {
 });
 
 // Get user settings
-router.get('/users/:userId/settings', authenticateToken, async (req, res) => {
+router.get('/users/:userId/settings', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const { userId } = req.params;
     const currentUserId = req.user?.id;
@@ -380,7 +385,7 @@ router.get('/users/:userId/settings', authenticateToken, async (req, res) => {
 });
 
 // Update user settings
-router.put('/users/:userId/settings', authenticateToken, validate(updateSettingsSchema), async (req, res) => {
+router.put('/users/:userId/settings', authenticateToken, validate(updateSettingsSchema), async (req: AuthRequest, res, next) => {
   try {
     const { userId } = req.params;
     const currentUserId = req.user?.id;

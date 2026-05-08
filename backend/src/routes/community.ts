@@ -25,10 +25,13 @@ const venueQuerySchema = Joi.object({
 router.get('/leaderboard', validate(leaderboardQuerySchema), async (req: Request, res: Response) => {
   try {
     const { sortBy, limit, offset } = req.query;
+    const validSortBy = ['winRate', 'matchWinRate', 'wins', 'gamesPlayed'].includes(sortBy as string) 
+      ? sortBy as 'winRate' | 'matchWinRate' | 'wins' | 'gamesPlayed' 
+      : 'winRate';
 
     const [leaderboard, totalCount] = await Promise.all([
       CommunityService.getCommunityLeaderboard(
-        sortBy as string,
+        validSortBy,
         Number(limit),
         Number(offset)
       ),

@@ -68,7 +68,7 @@ export class PredictiveAnalyticsService {
 
     // Save model and result
     const model = await prisma.predictionModel.upsert({
-      where: { type_version: { type: 'demand', version: 'v1.0' } },
+      where: { version: 'v1.0' },
       update: { lastTrained: new Date(), accuracy: 0.78 },
       create: {
         type: 'demand',
@@ -149,9 +149,9 @@ export class PredictiveAnalyticsService {
     // Group sessions by month for last 24 months
     const monthlySessions = await prisma.$queryRaw`
       SELECT 
-        DATE_TRUNC('month', scheduledAt) as month,
+        DATE_TRUNC('month', "scheduledAt") as month,
         COUNT(*) as session_count
-      FROM "Session" 
+      FROM "sessions" 
       WHERE status = 'COMPLETED' 
       GROUP BY month 
       ORDER BY month DESC 

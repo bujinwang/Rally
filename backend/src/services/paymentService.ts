@@ -197,14 +197,15 @@ export class PaymentService {
       // Find the payment intent to get the charge ID
       const paymentIntent = await this.stripe.paymentIntents.retrieve(request.paymentIntentId);
 
-      if (!paymentIntent.charges.data.length) {
+      const charges = (paymentIntent as any).charges;
+      if (!charges || !charges.data.length) {
         return {
           success: false,
           error: 'No charge found for this payment intent',
         };
       }
 
-      const chargeId = paymentIntent.charges.data[0].id;
+      const chargeId = charges.data[0].id;
 
       const refund = await this.stripe.refunds.create({
         charge: chargeId,
