@@ -76,6 +76,16 @@ const SessionFilters: React.FC<SessionFiltersProps> = ({
             </Text>
           </TouchableOpacity>
 
+          {/* Location Search (always available, no GPS needed) */}
+          <TouchableOpacity
+            style={[styles.quickFilter, filters.location && styles.quickFilterActive]}
+            onPress={() => setShowFilters(true)}
+          >
+            <Text style={[styles.quickFilterText, filters.location && styles.quickFilterTextActive]}>
+              🔍 {filters.location || 'Search Location'}
+            </Text>
+          </TouchableOpacity>
+
           {/* Skill Level Quick Filters */}
           {skillLevels.map(skill => (
             <TouchableOpacity
@@ -128,6 +138,20 @@ const SessionFilters: React.FC<SessionFiltersProps> = ({
           </View>
 
           <ScrollView style={styles.modalContent}>
+            {/* Location Search */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterLabel}>🏙️ Search by Location</Text>
+              <TextInput
+                style={[styles.numberInput, { width: '100%' }]}
+                placeholder="City, area, or venue name"
+                value={tempFilters.location || ''}
+                onChangeText={(text) => updateTempFilter('location', text || undefined)}
+              />
+              <Text style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
+                Works without GPS — matches session venue names and addresses
+              </Text>
+            </View>
+
             {/* Skill Level */}
             <View style={styles.filterSection}>
               <Text style={styles.filterLabel}>Skill Level</Text>

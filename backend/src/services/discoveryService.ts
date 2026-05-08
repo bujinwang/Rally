@@ -8,6 +8,7 @@ export interface DiscoveryFilters {
   latitude?: number;
   longitude?: number;
   radius?: number; // in kilometers
+  location?: string; // Text-based location search
   startTime?: Date;
   endTime?: Date;
   skillLevel?: string;
@@ -179,6 +180,16 @@ export class DiscoveryService {
       // Court type filtering
       if (courtType) {
         where.courtType = courtType;
+      }
+
+      // Location text search — matches venue name, address, or location field
+      if (filters.location) {
+        const searchTerm = filters.location;
+        where.OR = [
+          { location: { contains: searchTerm } },
+          { venueName: { contains: searchTerm } },
+          { venueAddress: { contains: searchTerm } },
+        ];
       }
 
       // Get sessions with player count
