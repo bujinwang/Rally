@@ -49,7 +49,10 @@ export const createPermissionError = (requiredRole: PlayerRole, userRole: Player
 
 // Check if a role has permission for an action
 export const hasPermission = (role: PlayerRole, action: PermissionAction): boolean => {
-  const permissionKey = `can${action.charAt(0).toUpperCase()}${action.slice(1).replace(/_/g, '')}` as keyof typeof PERMISSION_MATRIX.ORGANIZER;
+  // Convert snake_case action to PascalCase permission key
+  // e.g. "generate_pairings" → "canGeneratePairings"
+  const pascalParts = action.split('_').map(part => part.charAt(0).toUpperCase() + part.slice(1));
+  const permissionKey = `can${pascalParts.join('')}` as keyof typeof PERMISSION_MATRIX.ORGANIZER;
   return PERMISSION_MATRIX[role][permissionKey] as boolean;
 };
 
