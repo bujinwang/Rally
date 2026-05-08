@@ -237,7 +237,8 @@ const createSessionValidation = [
 const joinSessionValidation = [
   param('shareCode').isLength({ min: 1 }).withMessage('Share code is required'),
   body('name').isLength({ min: 1, max: 100 }).withMessage('Player name is required'),
-  body('deviceId').optional().isLength({ max: 255 })
+  body('deviceId').optional().isLength({ max: 255 }),
+  body('skillLevel').optional().isInt({ min: 1, max: 10 }).withMessage('Skill level must be 1-10')
 ];
 
 const claimSessionValidation = [
@@ -536,7 +537,7 @@ router.post('/join/:shareCode', joinSessionValidation, async (req: Request, res:
     }
 
     const { shareCode } = req.params;
-    const { name, deviceId } = req.body;
+    const { name, deviceId, skillLevel } = req.body;
 
     const session = await prisma.mvpSession.findUnique({
       where: { shareCode },
@@ -595,6 +596,7 @@ router.post('/join/:shareCode', joinSessionValidation, async (req: Request, res:
         sessionId: session.id,
         name,
         deviceId,
+        skillLevel: skillLevel || null,
         status: 'ACTIVE'
       }
     });

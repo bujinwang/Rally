@@ -540,6 +540,22 @@ function generateSessionHTML(session: any, existingPlayer: any, deviceId: string
               <input type="text" id="player-name" placeholder="Enter your name" 
                      style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px;">
             </div>
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; margin-bottom: 4px; font-size: 13px; color: #666;">Skill Level</label>
+              <select id="player-skill" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; background: #fff;">
+                <option value="">No preference</option>
+                <option value="1">1 — Beginner</option>
+                <option value="2">2</option>
+                <option value="3">3 — Casual</option>
+                <option value="4">4</option>
+                <option value="5">5 — Intermediate</option>
+                <option value="6">6</option>
+                <option value="7">7 — Strong</option>
+                <option value="8">8</option>
+                <option value="9">9 — Advanced</option>
+                <option value="10">10 — Expert</option>
+              </select>
+            </div>
             <button class="button button-primary" onclick="joinSession()" id="join-btn">
               Join Session
             </button>
