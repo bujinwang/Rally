@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEVICE_ID_KEY } from '../config/api';
 import sessionApi from '../services/sessionApi';
@@ -1987,6 +1988,17 @@ export default function LiveGameScreen() {
     </Modal>
   );
 
+  const copyShareLink = async () => {
+    if (!route.params?.shareCode) return;
+    const link = `${window.location.origin}/join/${route.params.shareCode}`;
+    try {
+      await Clipboard.setStringAsync(link);
+      Alert.alert('Link Copied!', 'Share this link with friends to join the session.');
+    } catch {
+      Alert.alert('Share Link', link);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -2012,7 +2024,12 @@ export default function LiveGameScreen() {
     <ScrollView style={styles.container}>
       {/* Session Header */}
       <View style={styles.sessionHeader}>
-        <Text style={styles.sessionTitle}>{sessionData.name}</Text>
+        <View style={styles.sessionTitleRow}>
+          <Text style={styles.sessionTitle}>{sessionData.name}</Text>
+          <TouchableOpacity style={styles.shareButton} onPress={copyShareLink}>
+            <Ionicons name="share-outline" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
         <Text style={styles.sessionSubtitle}>
           {sessionData.players.length} Players • Courts: {courtSettings.courtCount}
         </Text>
@@ -2232,11 +2249,23 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 60,
   },
+  sessionTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   sessionTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 4,
+    flex: 1,
+  },
+  shareButton: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 10,
+    padding: 10,
+    marginLeft: 8,
   },
   sessionSubtitle: {
     fontSize: 18,
