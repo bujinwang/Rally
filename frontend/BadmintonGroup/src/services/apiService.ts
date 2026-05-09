@@ -30,7 +30,15 @@ export class ApiService {
     const url = `${this.baseURL}${endpoint}`;
 
     // Check network connectivity
-    const isOnline = true; // TODO: Implement actual network check
+    let isOnline = true;
+    try {
+      const NetInfo = require('@react-native-community/netinfo').default;
+      const state = await NetInfo.fetch();
+      isOnline = state.isConnected ?? true;
+    } catch {
+      // NetInfo not available, assume online
+      isOnline = true;
+    }
 
     if (!isOnline && enableOffline) {
       // Queue operation for offline sync

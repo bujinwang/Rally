@@ -580,6 +580,12 @@ model User {
   phone     String?
   avatarUrl String?
 
+  // Profile fields
+  bio                String?
+  location           String?
+  skillLevel         String?
+  preferredPlayStyle String?
+
   // Authentication
   passwordHash String?
   deviceId     String?
@@ -594,8 +600,35 @@ model User {
   sessionPlayers SessionPlayer[]
   AnalyticsEvent AnalyticsEvent[]
   socialConnections SocialConnection[]
+  userSettings   UserSettings?
 
+  @@index([userId])
   @@map("users")
+}
+
+model UserSettings {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Privacy settings
+  profileVisibility String   @default("public") // public, friends, private
+  showEmail         Boolean  @default(false)
+  showPhone         Boolean  @default(false)
+  showStats         Boolean  @default(true)
+  showLocation      Boolean  @default(true)
+
+  // Notification settings
+  friendRequests    Boolean  @default(true)
+  messages          Boolean  @default(true)
+  sessionInvites    Boolean  @default(true)
+  matchResults      Boolean  @default(true)
+  achievements      Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_settings")
 }
 
 // Sessions (Badminton Games/Sessions)

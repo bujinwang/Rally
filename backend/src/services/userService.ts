@@ -117,8 +117,11 @@ export class UserService {
       where: { id: userId },
       data: {
         name: data.name,
-        phone: data.phone
-        // TODO: Add bio, location, skillLevel, preferredPlayStyle fields to User model
+        phone: data.phone,
+        bio: data.bio,
+        location: data.location,
+        skillLevel: data.skillLevel,
+        preferredPlayStyle: data.preferredPlayStyle
       }
     });
 
@@ -172,46 +175,108 @@ export class UserService {
 
   /**
    * Get user settings
-   * TODO: Implement UserSettings model
    */
   static async getUserSettings(userId: string): Promise<UserSettings> {
-    // For now, return default settings
-    // In the future, fetch from UserSettings table
+    const userSettings = await prisma.userSettings.findUnique({
+      where: { userId }
+    });
+
+    if (!userSettings) {
+      // Create default settings if none exist
+      const created = await prisma.userSettings.create({
+        data: { userId }
+      });
+      return {
+        privacySettings: {
+          profileVisibility: created.profileVisibility as 'public' | 'friends' | 'private',
+          showEmail: created.showEmail,
+          showPhone: created.showPhone,
+          showStats: created.showStats,
+          showLocation: created.showLocation
+        },
+        notificationSettings: {
+          friendRequests: created.friendRequests,
+          messages: created.messages,
+          sessionInvites: created.sessionInvites,
+          matchResults: created.matchResults,
+          achievements: created.achievements
+        }
+      };
+    }
+
     return {
       privacySettings: {
-        profileVisibility: 'public',
-        showEmail: false,
-        showPhone: false,
-        showStats: true,
-        showLocation: true
+        profileVisibility: userSettings.profileVisibility as 'public' | 'friends' | 'private',
+        showEmail: userSettings.showEmail,
+        showPhone: userSettings.showPhone,
+        showStats: userSettings.showStats,
+        showLocation: userSettings.showLocation
       },
       notificationSettings: {
-        friendRequests: true,
-        messages: true,
-        sessionInvites: true,
-        matchResults: true,
-        achievements: true
+        friendRequests: userSettings.friendRequests,
+        messages: userSettings.messages,
+        sessionInvites: userSettings.sessionInvites,
+        matchResults: userSettings.matchResults,
+        achievements: userSettings.achievements
       }
     };
   }
 
   /**
    * Update user settings
-   * TODO: Implement UserSettings model
    */
   static async updateUserSettings(userId: string, settings: Partial<UserSettings>): Promise<UserSettings> {
-    // For now, just return the settings
-    // In the future, save to UserSettings table
-    const currentSettings = await this.getUserSettings(userId);
-    
+    const saved = await prisma.userSettings.upsert({
+      where: { userId },
+      create: {
+        userId,
+        ...(settings.privacySettings ? {
+          profileVisibility: settings.privacySettings.profileVisibility,
+          showEmail: settings.privacySettings.showEmail,
+          showPhone: settings.privacySettings.showPhone,
+          showStats: settings.privacySettings.showStats,
+          showLocation: settings.privacySettings.showLocation
+        } : {}),
+        ...(settings.notificationSettings ? {
+          friendRequests: settings.notificationSettings.friendRequests,
+          messages: settings.notificationSettings.messages,
+          sessionInvites: settings.notificationSettings.sessionInvites,
+          matchResults: settings.notificationSettings.matchResults,
+          achievements: settings.notificationSettings.achievements
+        } : {})
+      },
+      update: {
+        ...(settings.privacySettings ? {
+          profileVisibility: settings.privacySettings.profileVisibility,
+          showEmail: settings.privacySettings.showEmail,
+          showPhone: settings.privacySettings.showPhone,
+          showStats: settings.privacySettings.showStats,
+          showLocation: settings.privacySettings.showLocation
+        } : {}),
+        ...(settings.notificationSettings ? {
+          friendRequests: settings.notificationSettings.friendRequests,
+          messages: settings.notificationSettings.messages,
+          sessionInvites: settings.notificationSettings.sessionInvites,
+          matchResults: settings.notificationSettings.matchResults,
+          achievements: settings.notificationSettings.achievements
+        } : {})
+      }
+    });
+
     return {
       privacySettings: {
-        ...currentSettings.privacySettings,
-        ...settings.privacySettings
+        profileVisibility: saved.profileVisibility as 'public' | 'friends' | 'private',
+        showEmail: saved.showEmail,
+        showPhone: saved.showPhone,
+        showStats: saved.showStats,
+        showLocation: saved.showLocation
       },
       notificationSettings: {
-        ...currentSettings.notificationSettings,
-        ...settings.notificationSettings
+        friendRequests: saved.friendRequests,
+        messages: saved.messages,
+        sessionInvites: saved.sessionInvites,
+        matchResults: saved.matchResults,
+        achievements: saved.achievements
       }
     };
   }

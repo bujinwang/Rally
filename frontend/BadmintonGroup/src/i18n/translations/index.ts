@@ -1,7 +1,7 @@
-import en from './translations/en';
-import fr from './translations/fr';
-import ko from './translations/ko';
-import tl from './translations/tl';
+import en from './en';
+import fr from './fr';
+import ko from './ko';
+import tl from './tl';
 
 export type Translation = typeof en;
 export type Locale = 'en' | 'fr' | 'ko' | 'tl';

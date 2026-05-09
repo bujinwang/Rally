@@ -118,43 +118,56 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
-// Create new session (no authentication required)
-router.post('/', validate(createSessionSchema), async (req: Request, res) => {
+// Create new session (requires authentication)
+router.post('/', authenticateToken, validate(createSessionSchema), async (req: AuthRequest, res) => {
   try {
     const sessionData = req.body;
     let shareCode = generateShareCode();
 
-    // TODO: Implement unique code generation when Session model supports shareCode
-    // while (await prisma.session.findUnique({ where: { shareCode } })) {
-    //   shareCode = generateShareCode();
-    // }
+    // Generate unique share code
+    while (await prisma.session.findUnique({ where: { shareCode } })) {
+      shareCode = generateShareCode();
+    }
 
-    // TODO: Session model needs ownerId (requires authentication)
-    // This route is for future authenticated version
-    throw new Error('Session creation requires authentication. Use /api/v1/mvp-sessions for MVP version.');
-    
-    // const session = await prisma.session.create({
-    //   data: {
-    //     name: sessionData.name,
-    //     scheduledAt: new Date(sessionData.dateTime),
-    //     location: sessionData.location,
-    //     maxPlayers: sessionData.maxPlayers || 20,
-    //     ownerId: 'USER_ID_REQUIRED', // Requires authentication
-    //     status: 'ACTIVE'
-    //   }
-    // });
+    const ownerId = req.user?.id;
+    if (!ownerId) {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
 
-    // Auto-join the organizer as first player (requires userId)
-    // await prisma.sessionPlayer.create({
-    //   data: {
-    //     sessionId: session.id,
-    //     userId: 'USER_ID_REQUIRED', // SessionPlayer doesn't have 'name' field
-    //     status: 'ACTIVE'
-    //   }
-    // });
+    const session = await prisma.session.create({
+      data: {
+        name: sessionData.name,
+        scheduledAt: new Date(sessionData.dateTime),
+        location: sessionData.location,
+        maxPlayers: sessionData.maxPlayers || 20,
+        ownerId: ownerId,
+        shareCode,
+        status: 'ACTIVE'
+      }
+    });
 
-    // This endpoint requires authentication - not implemented in MVP
-    // Use /api/v1/mvp-sessions instead
+    // Auto-join the organizer as first player
+    await prisma.sessionPlayer.create({
+      data: {
+        sessionId: session.id,
+        userId: ownerId,
+        status: 'ACTIVE'
+      }
+    });
+
+    res.status(201).json({
+      success: true,
+      data: { session },
+      message: 'Session created successfully',
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
     console.error('Create session error:', error);
     res.status(500).json({

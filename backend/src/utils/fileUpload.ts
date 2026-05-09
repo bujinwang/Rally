@@ -77,12 +77,27 @@ export async function validateImageDimensions(
   filePath: string,
   options: { minWidth?: number; minHeight?: number; maxWidth?: number; maxHeight?: number }
 ): Promise<{ valid: boolean; error?: string }> {
-  // TODO: Implement using sharp library if needed
-  // import sharp from 'sharp';
-  // const metadata = await sharp(filePath).metadata();
-  // Check dimensions against options
-  
-  return { valid: true };
+  try {
+    const sharp = require('sharp');
+    const metadata = await sharp(filePath).metadata();
+
+    if (options.minWidth && (metadata.width || 0) < options.minWidth) {
+      return { valid: false, error: `Image width must be at least ${options.minWidth}px` };
+    }
+    if (options.minHeight && (metadata.height || 0) < options.minHeight) {
+      return { valid: false, error: `Image height must be at least ${options.minHeight}px` };
+    }
+    if (options.maxWidth && (metadata.width || 0) > options.maxWidth) {
+      return { valid: false, error: `Image width must be at most ${options.maxWidth}px` };
+    }
+    if (options.maxHeight && (metadata.height || 0) > options.maxHeight) {
+      return { valid: false, error: `Image height must be at most ${options.maxHeight}px` };
+    }
+
+    return { valid: true };
+  } catch (error) {
+    return { valid: false, error: 'Failed to read image metadata' };
+  }
 }
 
 // Resize image (optional advanced feature)
@@ -92,9 +107,8 @@ export async function resizeImage(
   width: number,
   height: number
 ): Promise<void> {
-  // TODO: Implement using sharp library if needed
-  // import sharp from 'sharp';
-  // await sharp(inputPath)
-  //   .resize(width, height, { fit: 'cover' })
-  //   .toFile(outputPath);
+  const sharp = require('sharp');
+  await sharp(inputPath)
+    .resize(width, height, { fit: 'cover' })
+    .toFile(outputPath);
 }
