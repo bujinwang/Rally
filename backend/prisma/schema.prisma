@@ -35,6 +35,10 @@ model MvpSession {
   clubAffiliation    String? // Club name for private club sessions
   dropInFee          Float? // Drop-in fee for non-members (separate from session cost)
   invitationRequired Boolean @default(false) // Whether member invitation is needed
+
+  // Deposit / No-show Prevention
+  depositRequired Boolean @default(false) // Whether deposit is required to join
+  depositAmount    Float? // Deposit amount (e.g., $5)
   maxDuration       Int? // Maximum session duration in minutes
   isRecurring       Boolean @default(false) // Whether session repeats
   recurrencePattern String? // Recurrence pattern (daily, weekly, etc.)
@@ -264,6 +268,10 @@ model MvpPlayer {
 
   // Engagement and Prediction Preferences
   engagementPreferences Json? // {"opt_in_analytics": true, "share_predictions": false, "nps_surveys": true}
+
+  // Deposit & No-show Tracking
+  depositPaid Boolean @default(false) // Whether deposit has been paid
+  noShow      Boolean @default(false) // Whether player was a no-show
   TournamentFeedback    TournamentFeedback[]
 
   @@unique([sessionId, name]) // Prevent duplicate names in same session
