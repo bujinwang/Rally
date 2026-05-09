@@ -64,6 +64,7 @@ router.get('/', async (req: Request, res: Response) => {
       cost: session.cost,
       description: session.description,
       ownerName: session.ownerName,
+      sport: session.sport || 'badminton',
       status: session.status,
       playerCount: session.players?.length || 0,
       players: session.players || [],
@@ -171,6 +172,7 @@ router.get('/:shareCode', async (req, res) => {
       cost: session.cost,
       description: session.description,
       ownerName: session.ownerName,
+      sport: session.sport || 'badminton',
       ownerDeviceId: session.ownerDeviceId,
       status: session.status,
       playerCount: session.players?.length || 0,
@@ -351,6 +353,7 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
             cost: session.cost,
             description: session.description,
             ownerName: session.ownerName,
+      sport: session.sport || 'badminton',
             status: session.status,
             playerCount: sessionWithPlayers?.players.length || 1,
             players: sessionWithPlayers?.players.map(player => ({
@@ -382,6 +385,7 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
           location: session.location,
           maxPlayers: session.maxPlayers,
           status: session.status,
+          sport: session.sport || 'badminton',
           organizerName: session.ownerName,
           ownerDeviceId: session.ownerDeviceId,
           playerCount: sessionWithPlayers?.players.length || 1,
@@ -487,6 +491,7 @@ router.get('/join/:shareCode', async (req, res) => {
           courtCount: session.courtCount, // Include courtCount
           status: session.status,
           ownerName: session.ownerName,
+      sport: session.sport || 'badminton',
           ownerDeviceId: session.ownerDeviceId,
           playerCount: session.players.length,
           players: session.players.map(player => ({
@@ -943,6 +948,7 @@ router.get('/my-sessions/:deviceId', async (req, res) => {
       maxPlayers: session.maxPlayers,
       status: session.status,
       ownerName: session.ownerName,
+      sport: session.sport || 'badminton',
       playerCount: session.players.length,
       players: session.players.map(player => ({
         id: player.id,
