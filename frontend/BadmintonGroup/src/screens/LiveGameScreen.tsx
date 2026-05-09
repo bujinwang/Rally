@@ -161,17 +161,6 @@ export default function LiveGameScreen() {
           // Small delay to allow UI to update, then populate
           setTimeout(() => {
             autoPopulateQueue(court.id, true);
-        }}
-        {/* Custom Teams button */}
-        {isOwner && (
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: '#FF9800', marginTop: 8, paddingVertical: 10 }]}
-            onPress={() => { setSelectedCourt(court); setShowCustomTeams(true); }}
-          >
-            <Ionicons name="people" size={16} color="#fff" />
-            <Text style={styles.actionButtonText}>Custom Teams 🤝</Text>
-          </TouchableOpacity>
-        )}
           }, 500);
         } else {
           console.log(`⏳ Waiting for more players on ${court.name}: ${activePlayersCount}/4 active`);
@@ -320,18 +309,8 @@ export default function LiveGameScreen() {
         transformedData.courts.forEach(court => {
           if (!court.currentGame && court.queue.length === 0) {
             autoPopulateQueue(court.id, true);
-        }}
-        {/* Custom Teams button */}
-        {isOwner && (
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: '#FF9800', marginTop: 8, paddingVertical: 10 }]}
-            onPress={() => { setSelectedCourt(court); setShowCustomTeams(true); }}
-          >
-            <Ionicons name="people" size={16} color="#fff" />
-            <Text style={styles.actionButtonText}>Custom Teams 🤝</Text>
-          </TouchableOpacity>
-        )}
           }
+        }
         });
       }, 2000); // Wait 2 seconds after data loads
       
@@ -1213,6 +1192,16 @@ export default function LiveGameScreen() {
                 <Ionicons name="checkmark" size={16} color="#fff" />
                 <Text style={styles.actionButtonText}>{t.game.finish}</Text>
               </TouchableOpacity>
+              {/* Custom Teams button — manual team selection */}
+              {isOwner && (
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: '#FF9800' }]}
+                  onPress={() => { setSelectedCourt(court); setShowCustomTeams(true); }}
+                >
+                  <Ionicons name="people" size={16} color="#fff" />
+                  <Text style={styles.actionButtonText}>Custom Teams 🤝</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
