@@ -31,6 +31,8 @@ export interface DiscoveryResult {
   dropInFee?: number;
   invitationRequired: boolean;
   sport?: string;
+  depositRequired: boolean;
+  depositAmount?: number;
   relevanceScore: number;
 }
 

@@ -35,6 +35,8 @@ export interface DiscoveryResult {
   dropInFee?: number;
   invitationRequired: boolean;
   sport?: string;
+  depositRequired: boolean;
+  depositAmount?: number;
   relevanceScore: number;
 }
 
@@ -248,6 +250,8 @@ export class DiscoveryService {
           clubAffiliation: (session as any).clubAffiliation || undefined,
           dropInFee: (session as any).dropInFee || undefined,
           invitationRequired: (session as any).invitationRequired || false,
+          depositRequired: (session as any).depositRequired || false,
+          depositAmount: (session as any).depositAmount || undefined,
           relevanceScore
         });
       }
@@ -332,6 +336,8 @@ export class DiscoveryService {
         clubAffiliation: (session as any).clubAffiliation || undefined,
         dropInFee: (session as any).dropInFee || undefined,
         invitationRequired: (session as any).invitationRequired || false,
+          depositRequired: (session as any).depositRequired || false,
+          depositAmount: (session as any).depositAmount || undefined,
         relevanceScore: 100 // Full relevance for direct lookup
       };
 
@@ -419,6 +425,8 @@ export class DiscoveryService {
           clubAffiliation: (session as any).clubAffiliation || undefined,
           dropInFee: (session as any).dropInFee || undefined,
           invitationRequired: (session as any).invitationRequired || false,
+          depositRequired: (session as any).depositRequired || false,
+          depositAmount: (session as any).depositAmount || undefined,
         relevanceScore: 90 // High relevance for popular sessions
       }));
 
@@ -492,6 +500,8 @@ export class DiscoveryService {
           clubAffiliation: (session as any).clubAffiliation || undefined,
           dropInFee: (session as any).dropInFee || undefined,
           invitationRequired: (session as any).invitationRequired || false,
+          depositRequired: (session as any).depositRequired || false,
+          depositAmount: (session as any).depositAmount || undefined,
               relevanceScore: Math.max(0, 100 - (distance / radius) * 50) // Distance-based relevance
             });
           }

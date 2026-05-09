@@ -239,7 +239,9 @@ const createSessionValidation = [
   body('clubAffiliation').optional().isLength({ max: 100 }).withMessage('Club name must be under 100 characters'),
   body('dropInFee').optional().isFloat({ min: 0 }).withMessage('Drop-in fee must be a positive number'),
   body('invitationRequired').optional().isBoolean().withMessage('Invitation required must be true/false'),
-  body('sport').optional().isIn(['badminton','pickleball','tennis','table_tennis','volleyball']).withMessage('Invalid sport')
+  body('sport').optional().isIn(['badminton','pickleball','tennis','table_tennis','volleyball']).withMessage('Invalid sport'),
+  body('depositRequired').optional().isBoolean().withMessage('Deposit required must be true/false'),
+  body('depositAmount').optional().isFloat({ min: 0 }).withMessage('Deposit amount must be positive')
 ];
 
 const joinSessionValidation = [
@@ -309,6 +311,8 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
         dropInFee: sessionData.dropInFee || null,
         invitationRequired: sessionData.invitationRequired || false,
         sport: sessionData.sport || 'badminton',
+        depositRequired: sessionData.depositRequired || false,
+        depositAmount: sessionData.depositAmount || null,
         organizerSecretHash: organizerCodeHash,
         organizerSecretUpdatedAt: secretTimestamp,
         ownershipClaimedAt: sessionData.ownerDeviceId ? secretTimestamp : null
@@ -3873,6 +3877,30 @@ router.get('/player-stats/:playerName', async (req, res) => {
   } catch (error) {
     console.error('Player stats error:', error);
     res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch player stats' } });
+  }
+});
+
+// Mark player deposit as paid
+router.put('/:shareCode/players/:playerId/deposit', requireOrganizer('manage_players'), async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const { depositPaid } = req.body;
+    await prisma.mvpPlayer.update({ where: { id: playerId }, data: { depositPaid: !!depositPaid } });
+    res.json({ success: true, message: 'Deposit status updated', timestamp: new Date().toISOString() });
+  } catch (error) {
+    res.status(500).json({ success: false, error: { message: 'Failed to update deposit' } });
+  }
+});
+
+// Mark player attendance (showed up / no-show)
+router.put('/:shareCode/players/:playerId/attendance', requireOrganizer('manage_players'), async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const { noShow } = req.body;
+    await prisma.mvpPlayer.update({ where: { id: playerId }, data: { noShow: !!noShow } });
+    res.json({ success: true, message: 'Attendance updated', timestamp: new Date().toISOString() });
+  } catch (error) {
+    res.status(500).json({ success: false, error: { message: 'Failed to update attendance' } });
   }
 });
 
