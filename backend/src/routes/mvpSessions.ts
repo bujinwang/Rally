@@ -236,7 +236,8 @@ const createSessionValidation = [
   body('ownerDeviceId').optional().isLength({ min: 3, max: 255 }).withMessage('Device identifier must be 3-255 characters'),
   body('clubAffiliation').optional().isLength({ max: 100 }).withMessage('Club name must be under 100 characters'),
   body('dropInFee').optional().isFloat({ min: 0 }).withMessage('Drop-in fee must be a positive number'),
-  body('invitationRequired').optional().isBoolean().withMessage('Invitation required must be true/false')
+  body('invitationRequired').optional().isBoolean().withMessage('Invitation required must be true/false'),
+  body('sport').optional().isIn(['badminton','pickleball','tennis','table_tennis','volleyball']).withMessage('Invalid sport')
 ];
 
 const joinSessionValidation = [
@@ -305,6 +306,7 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
         clubAffiliation: sessionData.clubAffiliation || null,
         dropInFee: sessionData.dropInFee || null,
         invitationRequired: sessionData.invitationRequired || false,
+        sport: sessionData.sport || 'badminton',
         organizerSecretHash: organizerCodeHash,
         organizerSecretUpdatedAt: secretTimestamp,
         ownershipClaimedAt: sessionData.ownerDeviceId ? secretTimestamp : null

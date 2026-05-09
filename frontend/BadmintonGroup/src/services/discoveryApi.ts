@@ -30,6 +30,7 @@ export interface DiscoveryResult {
   clubAffiliation?: string;
   dropInFee?: number;
   invitationRequired: boolean;
+  sport?: string;
   relevanceScore: number;
 }
 
