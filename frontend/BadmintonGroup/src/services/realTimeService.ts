@@ -1,16 +1,18 @@
 import { store } from '../store';
 import socketService from './socketService';
 import { mvpApiService } from './mvpApiService';
-import { 
-  startAutoRefresh, 
-  stopAutoRefresh, 
-  sessionUpdated, 
+import {
+  startAutoRefresh,
+  stopAutoRefresh,
+  sessionUpdated,
   updateError,
   addOptimisticUpdate,
   socketConnected,
   socketDisconnected,
   socketReconnecting,
 } from '../store/slices/realTimeSlice';
+import { setCurrentSession } from '../store/slices/sessionSlice';
+import { setPlayers } from '../store/slices/playerSlice';
 import { MvpSession, MvpPlayer } from './mvpApiService';
 
 export interface RealTimeServiceConfig {
@@ -279,17 +281,32 @@ class RealTimeService {
           source: 'polling'
         }));
 
-        // TODO: This is where we'd update the actual session and player data
-        // For now, we'll trigger a custom event that components can listen to
-        try {
-          const { DeviceEventEmitter } = require('react-native');
-          DeviceEventEmitter.emit('sessionDataUpdated', {
-            session,
-            sessionId
-          });
-        } catch (error) {
-          // Fallback for testing environments
-          console.log('DeviceEventEmitter not available:', error.message);
+        // Update Redux store with fresh session and player data
+        store.dispatch(setCurrentSession({
+          id: session.id,
+          name: session.name,
+          scheduledAt: session.scheduledAt,
+          location: session.location,
+          maxPlayers: session.maxPlayers,
+          skillLevel: session.skillLevel,
+          cost: session.cost,
+          status: session.status,
+          owner: session.owner,
+          playerCount: session.players?.length || 0,
+          isOwner: false
+        }));
+
+        if (session.players) {
+          store.dispatch(setPlayers(session.players.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            email: p.email,
+            status: p.status,
+            gamesPlayed: p.gamesPlayed || 0,
+            wins: p.wins || 0,
+            losses: p.losses || 0,
+            joinedAt: p.joinedAt
+          }))));
         }
       }
     } catch (error) {

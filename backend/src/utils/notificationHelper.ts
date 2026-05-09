@@ -1,3 +1,4 @@
+import { Expo } from 'expo-server-sdk';
 import { prisma } from '../config/database';
 
 export interface NotificationPayload {
@@ -43,24 +44,37 @@ export async function notifySessionSubscribers(
       return 0;
     }
 
-    // In production, you would send to Expo Push Notification service here
-    console.log(`📱 Would send notification to ${deviceIds.length} devices:`, {
-      title: notification.title,
-      body: notification.body,
-      type: notification.type,
-      deviceIds,
-    });
+    // Send push notifications via Expo
+    const expo = new Expo();
+    const pushTokens: string[] = [];
 
-    // TODO: Implement actual push notification sending
-    // const expo = new Expo();
-    // const messages = deviceIds.map(deviceId => ({
-    //   to: pushTokens[deviceId],
-    //   sound: 'default',
-    //   title: notification.title,
-    //   body: notification.body,
-    //   data: { ...notification.data, type: notification.type },
-    // }));
-    // await expo.sendPushNotificationsAsync(messages);
+    for (const sub of subscriptions) {
+      for (const token of (sub as any).pushTokens) {
+        if (Expo.isExpoPushToken(token.token)) {
+          pushTokens.push(token.token);
+        }
+      }
+    }
+
+    if (pushTokens.length > 0) {
+      const messages = pushTokens.map(pushToken => ({
+        to: pushToken,
+        sound: 'default' as const,
+        title: notification.title,
+        body: notification.body,
+        data: { ...notification.data, type: notification.type },
+      }));
+
+      try {
+        const chunks = expo.chunkPushNotifications(messages);
+        for (const chunk of chunks) {
+          const receipts = await expo.sendPushNotificationsAsync(chunk);
+          console.log('📱 Push notification receipts:', receipts);
+        }
+      } catch (error) {
+        console.error('Error sending push notifications:', error);
+      }
+    }
 
     return deviceIds.length;
   } catch (error) {
@@ -86,13 +100,29 @@ export async function notifyDevice(
       return false;
     }
 
-    console.log(`📱 Would send notification to device ${deviceId}:`, {
-      title: notification.title,
-      body: notification.body,
-      type: notification.type,
-    });
+    // Send push notification via Expo
+    const expo = new Expo();
+    if (Expo.isExpoPushToken(pushToken.token)) {
+      const message = {
+        to: pushToken.token,
+        sound: 'default' as const,
+        title: notification.title,
+        body: notification.body,
+        data: { ...notification.data, type: notification.type },
+      };
 
-    // TODO: Implement actual push notification sending
+      try {
+        const chunks = expo.chunkPushNotifications([message]);
+        for (const chunk of chunks) {
+          await expo.sendPushNotificationsAsync(chunk);
+        }
+        return true;
+      } catch (error) {
+        console.error('Error sending push notification:', error);
+        return false;
+      }
+    }
+
     return true;
   } catch (error) {
     console.error('Error sending notification to device:', error);

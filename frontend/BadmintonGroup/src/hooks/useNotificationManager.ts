@@ -1,10 +1,11 @@
+import { API_BASE_URL } from '../config';
 import { useEffect, useState, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { notificationService, NotificationType } from '../services/NotificationService';
 import { InAppNotificationData } from '../components/InAppNotification';
 import { io, Socket } from 'socket.io-client';
 
-const API_BASE_URL = 'http://localhost:3001'; // TODO: Use from config
+import { API_BASE_URL } from '../config';
 
 interface UseNotificationManagerProps {
   shareCode?: string;

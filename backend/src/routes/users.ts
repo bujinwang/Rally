@@ -74,8 +74,51 @@ router.get('/users/:userId/profile', authenticateToken, async (req: AuthRequest,
     }
 
     // Check privacy settings
-    // TODO: Implement privacy checks based on user settings
     const isOwnProfile = currentUserId === userId;
+
+    // Fetch user's privacy settings
+    const userSettingsRecord = await prisma.userSettings.findUnique({
+      where: { userId }
+    });
+
+    const profileVisibility = userSettingsRecord?.profileVisibility || 'public';
+
+    if (!isOwnProfile) {
+      if (profileVisibility === 'private') {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'This profile is private'
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      if (profileVisibility === 'friends') {
+        // Check if current user is friends with the profile user
+        const friendship = await prisma.friend.findFirst({
+          where: {
+            OR: [
+              { playerId: currentUserId, friendId: userId },
+              { playerId: userId, friendId: currentUserId }
+            ],
+            status: 'ACCEPTED'
+          }
+        });
+
+        if (!friendship) {
+          return res.status(403).json({
+            success: false,
+            error: {
+              code: 'FORBIDDEN',
+              message: 'You must be friends to view this profile'
+            },
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+    }
     
     // Get aggregated statistics from MvpPlayer entries
     const playerStats = await prisma.mvpPlayer.aggregate({
@@ -159,9 +202,11 @@ router.put('/users/:userId/profile', authenticateToken, validate(updateProfileSc
       where: { id: userId },
       data: {
         name: name || undefined,
-        phone: phone || undefined
-        // Note: bio, location, skillLevel, preferredPlayStyle need to be added to User model
-        // For now, we'll skip them or store in a metadata JSON field
+        phone: phone || undefined,
+        bio: bio || undefined,
+        location: location || undefined,
+        skillLevel: skillLevel || undefined,
+        preferredPlayStyle: preferredPlayStyle || undefined
       },
       select: {
         id: true,
@@ -347,24 +392,44 @@ router.get('/users/:userId/settings', authenticateToken, async (req: AuthRequest
       });
     }
 
-    // TODO: Fetch from UserSettings table (needs to be created)
-    // For now, return default settings
-    const settings = {
-      privacySettings: {
-        profileVisibility: 'public',
-        showEmail: false,
-        showPhone: false,
-        showStats: true,
-        showLocation: true
-      },
-      notificationSettings: {
-        friendRequests: true,
-        messages: true,
-        sessionInvites: true,
-        matchResults: true,
-        achievements: true
-      }
-    };
+    // Fetch from UserSettings table
+    const userSettingsRecord = await prisma.userSettings.findUnique({
+      where: { userId }
+    });
+
+    const settings = userSettingsRecord
+      ? {
+          privacySettings: {
+            profileVisibility: userSettingsRecord.profileVisibility,
+            showEmail: userSettingsRecord.showEmail,
+            showPhone: userSettingsRecord.showPhone,
+            showStats: userSettingsRecord.showStats,
+            showLocation: userSettingsRecord.showLocation
+          },
+          notificationSettings: {
+            friendRequests: userSettingsRecord.friendRequests,
+            messages: userSettingsRecord.messages,
+            sessionInvites: userSettingsRecord.sessionInvites,
+            matchResults: userSettingsRecord.matchResults,
+            achievements: userSettingsRecord.achievements
+          }
+        }
+      : {
+          privacySettings: {
+            profileVisibility: 'public',
+            showEmail: false,
+            showPhone: false,
+            showStats: true,
+            showLocation: true
+          },
+          notificationSettings: {
+            friendRequests: true,
+            messages: true,
+            sessionInvites: true,
+            matchResults: true,
+            achievements: true
+          }
+        };
 
     res.json({
       success: true,
@@ -404,8 +469,44 @@ router.put('/users/:userId/settings', authenticateToken, validate(updateSettings
 
     const { privacySettings, notificationSettings } = req.body;
 
-    // TODO: Save to UserSettings table (needs to be created)
-    // For now, just return the updated settings
+    // Save to UserSettings table using upsert
+    await prisma.userSettings.upsert({
+      where: { userId },
+      create: {
+        userId,
+        ...(privacySettings ? {
+          profileVisibility: privacySettings.profileVisibility,
+          showEmail: privacySettings.showEmail,
+          showPhone: privacySettings.showPhone,
+          showStats: privacySettings.showStats,
+          showLocation: privacySettings.showLocation
+        } : {}),
+        ...(notificationSettings ? {
+          friendRequests: notificationSettings.friendRequests,
+          messages: notificationSettings.messages,
+          sessionInvites: notificationSettings.sessionInvites,
+          matchResults: notificationSettings.matchResults,
+          achievements: notificationSettings.achievements
+        } : {})
+      },
+      update: {
+        ...(privacySettings ? {
+          profileVisibility: privacySettings.profileVisibility,
+          showEmail: privacySettings.showEmail,
+          showPhone: privacySettings.showPhone,
+          showStats: privacySettings.showStats,
+          showLocation: privacySettings.showLocation
+        } : {}),
+        ...(notificationSettings ? {
+          friendRequests: notificationSettings.friendRequests,
+          messages: notificationSettings.messages,
+          sessionInvites: notificationSettings.sessionInvites,
+          matchResults: notificationSettings.matchResults,
+          achievements: notificationSettings.achievements
+        } : {})
+      }
+    });
+
     const settings = {
       privacySettings: privacySettings || {},
       notificationSettings: notificationSettings || {}

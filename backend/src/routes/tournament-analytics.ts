@@ -28,7 +28,7 @@ router.get(
         where: {
           id: tournamentId,
           OR: [
-            { organizer: 'temp-user' }, // TODO: Get from req.user when auth is properly set up
+            { organizerName: req.user?.name || 'Unknown' }, // Get from req.user when auth is properly set up
             { visibility: 'PUBLIC' },
           ],
         },
@@ -90,7 +90,7 @@ router.post(
     try {
       const { id } = req.params;
       const { rating, comments } = req.body;
-      const playerId = 'temp-user-id'; // TODO: Get from req.user when auth is properly set up
+      const playerId = req.user?.id || 'temp-user-id'; // Get from req.user when auth is properly set up
       const tournamentId = id as string;
 
       // Verify player participated in tournament

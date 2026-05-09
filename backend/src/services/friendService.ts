@@ -514,14 +514,43 @@ export class FriendService {
       }
     });
 
-    return suggestions.map(s => ({
-      id: s.id,
-      name: s.name,
-      avatarUrl: null,
-      mutualFriends: 0, // TODO: Calculate mutual friends
-      gamesPlayed: s.gamesPlayed,
-      winRate: s.winRate
-    }));
+    // Calculate mutual friends for each suggestion
+    const suggestionsWithMutuals = await Promise.all(
+      suggestions.map(async (s) => {
+        // Get friend IDs of the suggested user
+        const suggestedUserFriends = await prisma.friend.findMany({
+          where: {
+            OR: [
+              { playerId: s.id },
+              { friendId: s.id }
+            ],
+            status: FriendStatus.ACCEPTED
+          },
+          select: {
+            playerId: true,
+            friendId: true
+          }
+        });
+
+        const suggestedUserFriendIds = new Set(
+          suggestedUserFriends.flatMap(f => [f.playerId, f.friendId]).filter(id => id !== s.id)
+        );
+
+        // Count how many of current user's friends are in suggested user's friends
+        const mutualCount = friendIds.filter(id => suggestedUserFriendIds.has(id)).length;
+
+        return {
+          id: s.id,
+          name: s.name,
+          avatarUrl: null,
+          mutualFriends: mutualCount,
+          gamesPlayed: s.gamesPlayed,
+          winRate: s.winRate
+        };
+      })
+    );
+
+    return suggestionsWithMutuals;
   }
 }
 
