@@ -174,12 +174,16 @@ export async function updatePlayerMatchStatistics(
     team2Player2: string;
     winnerTeam: number;
     duration?: number;
-  }
+  },
+  revert: boolean = false
 ): Promise<void> {
   const { team1Player1, team1Player2, team2Player1, team2Player2, winnerTeam, duration } = matchData;
   const allPlayers = [team1Player1, team1Player2, team2Player1, team2Player2];
   const winners = winnerTeam === 1 ? [team1Player1, team1Player2] : [team2Player1, team2Player2];
   const losers = winnerTeam === 1 ? [team2Player1, team2Player2] : [team1Player1, team1Player2];
+
+  // Use negative increment for revert
+  const matchDelta = revert ? -1 : 1;
 
   // Update match statistics for all players
   await prisma.mvpPlayer.updateMany({
@@ -188,7 +192,7 @@ export async function updatePlayerMatchStatistics(
       name: { in: allPlayers }
     },
     data: {
-      matchesPlayed: { increment: 1 }
+      matchesPlayed: { increment: matchDelta }
     }
   });
 
@@ -199,7 +203,7 @@ export async function updatePlayerMatchStatistics(
       name: { in: winners }
     },
     data: {
-      matchWins: { increment: 1 }
+      matchWins: { increment: matchDelta }
     }
   });
 
@@ -210,7 +214,7 @@ export async function updatePlayerMatchStatistics(
       name: { in: losers }
     },
     data: {
-      matchLosses: { increment: 1 }
+      matchLosses: { increment: matchDelta }
     }
   });
 
@@ -222,7 +226,7 @@ export async function updatePlayerMatchStatistics(
         name: { in: allPlayers }
       },
       data: {
-        totalPlayTime: { increment: duration }
+        totalPlayTime: { increment: duration * matchDelta }
       }
     });
   }
