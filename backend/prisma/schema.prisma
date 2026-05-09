@@ -29,6 +29,7 @@ model MvpSession {
   longitude         Float? // GPS longitude for location-based discovery
   courtType         String? // indoor, outdoor, mixed
   visibility        String  @default("public") // public, private, club
+  sport             String  @default("badminton") // badminton, pickleball, tennis, table_tennis, volleyball
 
   // Club / Private Session Settings
   clubAffiliation    String? // Club name for private club sessions
