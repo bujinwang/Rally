@@ -21,6 +21,7 @@ import {
 } from '../types/statistics';
 import { statisticsApi } from '../services/statisticsApi';
 import { sessionApi } from '../services/sessionApi';
+import { PerformanceTrendsChart } from '../components/PerformanceTrendsChart';
 
 const { width } = Dimensions.get('window');
 
