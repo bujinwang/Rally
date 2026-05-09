@@ -15,6 +15,7 @@ import discoveryApi, { DiscoveryResult, DiscoveryFilters } from '../services/dis
 import SessionFilters from '../components/SessionFilters';
 import SessionCard from '../components/SessionCard';
 import { useLocation } from '../hooks/useLocation';
+import { SPORTS, SPORT_LIST, SportKey, getPreferredSport, setPreferredSport } from '../config/sports';
 
 const SessionDiscoveryScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -25,9 +26,11 @@ const SessionDiscoveryScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [filters, setFilters] = useState<DiscoveryFilters>({
+    sport: getPreferredSport(),
     limit: 20,
     offset: 0,
   });
+  const [activeSport, setActiveSport] = useState<SportKey>(getPreferredSport());
 
   // Real-time discovery state
   const [isRealTimeEnabled, setIsRealTimeEnabled] = useState(false);
@@ -251,6 +254,32 @@ const SessionDiscoveryScreen: React.FC = () => {
           Find badminton games near you
         </Text>
       </View>
+
+      {/* Sport Switcher — pick once, filters everything */}
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        style={{ backgroundColor: '#fff', paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#e9ecef' }}
+      >
+        {SPORT_LIST.map(sport => (
+          <TouchableOpacity
+            key={sport}
+            style={{
+              paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+              marginRight: 8, backgroundColor: activeSport === sport ? '#007AFF' : '#f0f0f0',
+            }}
+            onPress={() => {
+              setActiveSport(sport);
+              setPreferredSport(sport);
+              handleFiltersChange({ sport, offset: 0 });
+            }}
+          >
+            <Text style={{ fontSize: 14, fontWeight: '600', color: activeSport === sport ? '#fff' : '#555' }}>
+              {SPORTS[sport].icon} {SPORTS[sport].name}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       <SessionFilters
         filters={filters}
