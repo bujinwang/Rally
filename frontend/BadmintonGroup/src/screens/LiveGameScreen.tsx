@@ -310,7 +310,6 @@ export default function LiveGameScreen() {
           if (!court.currentGame && court.queue.length === 0) {
             autoPopulateQueue(court.id, true);
           }
-        }
         });
       }, 2000); // Wait 2 seconds after data loads
       
