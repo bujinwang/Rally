@@ -636,4 +636,284 @@ router.get('/:shareCode/scores/export', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Edit a recorded score (organizer only)
+ * PUT /:shareCode/matches/:matchId/score
+ */
+router.put(
+  '/:shareCode/matches/:matchId/score',
+  rateLimiters.api,
+  requireOrganizer('modify_pairings'),
+  scoreValidation,
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid input data',
+            details: errors.array()
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      const { shareCode, matchId } = req.params;
+      const { team1Score, team2Score, recordedBy, deviceId } = req.body;
+
+      // Find session
+      const session = await prisma.mvpSession.findUnique({
+        where: { shareCode }
+      });
+
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Validate score format
+      const totalScore = team1Score + team2Score;
+      if (totalScore !== 2) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_SCORE', message: 'Invalid match score. Must be 2-0 or 2-1' },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Find match
+      const match = await prisma.mvpMatch.findUnique({
+        where: { id: matchId }
+      });
+
+      if (!match) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'MATCH_NOT_FOUND', message: 'Match not found' },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      if (match.sessionId !== session.id) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'MATCH_SESSION_MISMATCH', message: 'Match does not belong to this session' },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Store old values for audit
+      const oldTeam1Score = match.team1GamesWon;
+      const oldTeam2Score = match.team2GamesWon;
+      const oldWinnerTeam = match.winnerTeam;
+
+      // Determine new winner
+      const winnerTeam = team1Score > team2Score ? 1 : 2;
+      const scoreType = `${Math.max(team1Score, team2Score)}-${Math.min(team1Score, team2Score)}`;
+
+      // Update match
+      const updatedMatch = await prisma.mvpMatch.update({
+        where: { id: matchId },
+        data: {
+          team1GamesWon: team1Score,
+          team2GamesWon: team2Score,
+          winnerTeam
+        }
+      });
+
+      // Revert old player stats and apply new ones
+      await updatePlayerMatchStatistics(session.id, {
+        team1Player1: match.team1Player1,
+        team1Player2: match.team1Player2,
+        team2Player1: match.team2Player1,
+        team2Player2: match.team2Player2,
+        winnerTeam: oldWinnerTeam
+      }, true); // true = revert
+
+      await updatePlayerMatchStatistics(session.id, {
+        team1Player1: match.team1Player1,
+        team1Player2: match.team1Player2,
+        team2Player1: match.team2Player1,
+        team2Player2: match.team2Player2,
+        winnerTeam
+      });
+
+      // Audit log
+      await AuditLogger.logAction({
+        action: 'SCORE_EDITED',
+        actorId: deviceId || recordedBy,
+        actorName: recordedBy,
+        targetId: matchId,
+        targetType: 'match',
+        sessionId: session.id,
+        metadata: {
+          oldTeam1Score,
+          oldTeam2Score,
+          oldWinnerTeam,
+          newTeam1Score: team1Score,
+          newTeam2Score: team2Score,
+          newWinnerTeam: winnerTeam,
+          scoreType
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+
+      // Emit real-time update
+      try {
+        const { io } = await import('../server');
+        io.to(`session-${shareCode}`).emit('score_edited', {
+          matchId,
+          team1Score,
+          team2Score,
+          winnerTeam,
+          scoreType,
+          editedAt: new Date().toISOString()
+        });
+      } catch (error) {
+        console.warn('Failed to emit score edit:', error);
+      }
+
+      res.json({
+        success: true,
+        data: {
+          match: {
+            id: updatedMatch.id,
+            team1GamesWon: updatedMatch.team1GamesWon,
+            team2GamesWon: updatedMatch.team2GamesWon,
+            winnerTeam: updatedMatch.winnerTeam,
+            scoreType
+          }
+        },
+        message: `Score updated: ${scoreType}`,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Edit score error:', error);
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to edit score' },
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+);
+
+/**
+ * Delete a recorded score (organizer only)
+ * DELETE /:shareCode/matches/:matchId/score
+ */
+router.delete(
+  '/:shareCode/matches/:matchId/score',
+  rateLimiters.api,
+  requireOrganizer('modify_pairings'),
+  async (req: Request, res: Response) => {
+    try {
+      const { shareCode, matchId } = req.params;
+      const { deviceId } = req.body;
+
+      // Find session
+      const session = await prisma.mvpSession.findUnique({
+        where: { shareCode }
+      });
+
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Find match
+      const match = await prisma.mvpMatch.findUnique({
+        where: { id: matchId }
+      });
+
+      if (!match) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'MATCH_NOT_FOUND', message: 'Match not found' },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      if (match.sessionId !== session.id) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'MATCH_SESSION_MISMATCH', message: 'Match does not belong to this session' },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Revert player statistics
+      await updatePlayerMatchStatistics(session.id, {
+        team1Player1: match.team1Player1,
+        team1Player2: match.team1Player2,
+        team2Player1: match.team2Player1,
+        team2Player2: match.team2Player2,
+        winnerTeam: match.winnerTeam
+      }, true); // true = revert
+
+      // Reset match to in-progress (removes score)
+      await prisma.mvpMatch.update({
+        where: { id: matchId },
+        data: {
+          team1GamesWon: 0,
+          team2GamesWon: 0,
+          winnerTeam: null,
+          status: 'IN_PROGRESS',
+          endTime: null
+        }
+      });
+
+      // Audit log
+      await AuditLogger.logAction({
+        action: 'SCORE_DELETED',
+        actorId: deviceId || 'unknown',
+        actorName: deviceId || 'unknown',
+        targetId: matchId,
+        targetType: 'match',
+        sessionId: session.id,
+        metadata: {
+          previousTeam1Score: match.team1GamesWon,
+          previousTeam2Score: match.team2GamesWon,
+          previousWinnerTeam: match.winnerTeam
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+
+      // Emit real-time update
+      try {
+        const { io } = await import('../server');
+        io.to(`session-${shareCode}`).emit('score_deleted', {
+          matchId,
+          deletedAt: new Date().toISOString()
+        });
+      } catch (error) {
+        console.warn('Failed to emit score delete:', error);
+      }
+
+      res.json({
+        success: true,
+        message: 'Score deleted successfully',
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Delete score error:', error);
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to delete score' },
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+);
+
 export default router;
