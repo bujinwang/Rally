@@ -272,6 +272,11 @@ model MvpPlayer {
   // Deposit & No-show Tracking
   depositPaid Boolean @default(false) // Whether deposit has been paid
   noShow      Boolean @default(false) // Whether player was a no-show
+
+  // Check-in System
+  checkedIn   Boolean   @default(false) // Whether player has checked in
+  checkedInAt DateTime? // When player checked in
+
   TournamentFeedback    TournamentFeedback[]
 
   @@unique([sessionId, name]) // Prevent duplicate names in same session
@@ -541,6 +546,32 @@ model PlayerRankingHistory {
 }
 
 // MVP Enums
+// Session Templates
+model SessionTemplate {
+  id            String   @id @default(cuid())
+  name          String   // Template name
+  description   String?  // Optional description
+  ownerDeviceId String   // Device ID of creator
+
+  // Session defaults
+  maxPlayers     Int      @default(20)
+  courtCount     Int      @default(1)
+  skillLevel     String?
+  location       String?
+  cost           Float?
+
+  // Scoring defaults
+  scoringSystem String  @default("21_POINT")
+  bestOfGames   Int     @default(3)
+  restPeriod    Int     @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerDeviceId])
+  @@map("session_templates")
+}
+
 enum MvpSessionStatus {
   ACTIVE
   COMPLETED

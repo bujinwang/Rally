@@ -1829,6 +1829,13 @@ router.put('/:shareCode/games/:gameId/score', requireOrganizer('modify_pairings'
           ? `${game.team1Player1} & ${game.team1Player2}` 
           : `${game.team2Player1} & ${game.team2Player2}`;
         console.log(`📡 Socket.IO: Game completed for ${shareCode} - ${winners} beat opponents ${team1FinalScore}-${team2FinalScore}`);
+        // Send push notification to subscribers
+        notifySessionSubscribers(session.id, {
+          title: '🏸 Game Over!',
+          body: `${winners} won ${team1FinalScore}-${team2FinalScore}. Next game starting soon!`,
+          type: 'GAME_COMPLETED',
+          data: { winnerTeam, score: `${team1FinalScore}-${team2FinalScore}` },
+        }).catch(err => console.warn('Push notification failed:', err));
         // Notify players about next game
         io.to(`session-${shareCode}`).emit('session-notification', {
           type: 'game_completed',
@@ -1851,6 +1858,111 @@ router.put('/:shareCode/games/:gameId/score', requireOrganizer('modify_pairings'
 
   } catch (error) {
     console.error('Error updating game score:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * Delete a game (organizer only)
+ * DELETE /:shareCode/games/:gameId
+ */
+router.delete('/:shareCode/games/:gameId', requireOrganizer('modify_pairings'), async (req, res) => {
+  try {
+    const { shareCode, gameId } = req.params;
+
+    const session = await prisma.mvpSession.findFirst({
+      where: { shareCode }
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: 'Session not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const game = await prisma.mvpGame.findFirst({
+      where: { id: gameId, sessionId: session.id }
+    });
+
+    if (!game) {
+      return res.status(404).json({
+        success: false,
+        message: 'Game not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const prevScore = `${game.team1FinalScore}-${game.team2FinalScore}`;
+    const prevWinner = game.winnerTeam;
+
+    // Revert player statistics if game was completed
+    if (game.status === 'COMPLETED' && game.winnerTeam) {
+      const allPlayers = [game.team1Player1, game.team1Player2, game.team2Player1, game.team2Player2];
+      const winners = game.winnerTeam === 1 
+        ? [game.team1Player1, game.team1Player2]
+        : [game.team2Player1, game.team2Player2];
+      const losers = game.winnerTeam === 1
+        ? [game.team2Player1, game.team2Player2]
+        : [game.team1Player1, game.team1Player2];
+
+      // Decrement games played for all
+      await prisma.mvpPlayer.updateMany({
+        where: { sessionId: session.id, name: { in: allPlayers } },
+        data: { gamesPlayed: { decrement: 1 } }
+      });
+
+      // Decrement wins for winners
+      await prisma.mvpPlayer.updateMany({
+        where: { sessionId: session.id, name: { in: winners } },
+        data: { wins: { decrement: 1 } }
+      });
+
+      // Decrement losses for losers
+      await prisma.mvpPlayer.updateMany({
+        where: { sessionId: session.id, name: { in: losers } },
+        data: { losses: { decrement: 1 } }
+      });
+    }
+
+    // Delete the game
+    await prisma.mvpGame.delete({ where: { id: gameId } });
+
+    // Emit Socket.IO update
+    try {
+      const { io: sio } = await import('../server');
+      const updatedSession = await prisma.mvpSession.findFirst({
+        where: { shareCode },
+        include: {
+          players: { select: { id: true, name: true, status: true, joinedAt: true, skillLevel: true, gamesPlayed: true, wins: true, losses: true } },
+          games: { orderBy: { gameNumber: 'desc' } }
+        }
+      });
+
+      if (updatedSession) {
+        sio.to(`session-${shareCode}`).emit('mvp-session-updated', {
+          session: updatedSession,
+          timestamp: new Date().toISOString()
+        });
+        console.log(`📡 Socket.IO: Game deleted from ${shareCode} - score was ${prevScore}, winner was team ${prevWinner}`);
+      }
+    } catch (error) {
+      console.warn('Failed to emit socket update:', error instanceof Error ? error.message : 'Unknown error');
+    }
+
+    res.json({
+      success: true,
+      message: 'Game deleted successfully. Player statistics have been reverted.',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error deleting game:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error',
@@ -2654,6 +2766,73 @@ router.get('/:shareCode/statistics', async (req, res) => {
 });
 
 // Get session leaderboard
+/**
+ * Session recap summary
+ * GET /:shareCode/recap
+ */
+router.get('/:shareCode/recap', async (req, res) => {
+  try {
+    const { shareCode } = req.params;
+
+    const session = await prisma.mvpSession.findFirst({
+      where: { shareCode },
+      include: {
+        players: { select: { id: true, name: true, gamesPlayed: true, wins: true, losses: true, status: true, checkedIn: true } },
+        games: { where: { status: 'COMPLETED' }, orderBy: { createdAt: 'desc' } },
+      }
+    });
+
+    if (!session) {
+      return res.status(404).json({ success: false, message: 'Session not found', timestamp: new Date().toISOString() });
+    }
+
+    const totalGames = session.games.length;
+    const totalPlayers = session.players.length;
+    const checkedInCount = session.players.filter(p => p.checkedIn).length;
+
+    // Top players by wins
+    const topPlayers = [...session.players]
+      .sort((a, b) => b.wins - a.wins)
+      .slice(0, 3)
+      .map(p => ({ name: p.name, wins: p.wins, games: p.gamesPlayed }));
+
+    // MVPs (best win rate, min 3 games)
+    const mvps = [...session.players]
+      .filter(p => p.gamesPlayed >= 3)
+      .sort((a, b) => {
+        const aRate = a.gamesPlayed > 0 ? a.wins / a.gamesPlayed : 0;
+        const bRate = b.gamesPlayed > 0 ? b.wins / b.gamesPlayed : 0;
+        return bRate - aRate;
+      })
+      .slice(0, 2)
+      .map(p => ({ name: p.name, winRate: p.gamesPlayed > 0 ? Math.round((p.wins / p.gamesPlayed) * 100) : 0 }));
+
+    // Recent games
+    const recentGames = session.games.slice(0, 5).map(g => ({
+      teams: `${g.team1Player1} & ${g.team1Player2} vs ${g.team2Player1} & ${g.team2Player2}`,
+      score: `${g.team1FinalScore}-${g.team2FinalScore}`,
+      winner: g.winnerTeam === 1 ? `${g.team1Player1} & ${g.team1Player2}` : `${g.team2Player1} & ${g.team2Player2}`,
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        sessionName: session.name,
+        totalGames,
+        totalPlayers,
+        checkedInCount,
+        topPlayers,
+        mvps,
+        recentGames,
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Recap error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error', timestamp: new Date().toISOString() });
+  }
+});
+
 router.get('/:shareCode/leaderboard', async (req, res) => {
   try {
     const { shareCode } = req.params;
@@ -3168,6 +3347,175 @@ router.put('/:shareCode/players/:playerId/status', requireOrganizerOrSelf('updat
         message: 'Failed to update player status'
       },
       timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * Check-in a player (mark as arrived)
+ * PUT /:shareCode/players/:playerId/check-in
+ */
+router.put('/:shareCode/players/:playerId/check-in', async (req, res) => {
+  try {
+    const { shareCode, playerId } = req.params;
+
+    const session = await prisma.mvpSession.findFirst({ where: { shareCode } });
+    if (!session) {
+      return res.status(404).json({
+        success: false, message: 'Session not found', timestamp: new Date().toISOString()
+      });
+    }
+
+    const player = await prisma.mvpPlayer.findFirst({
+      where: { id: playerId, sessionId: session.id }
+    });
+    if (!player) {
+      return res.status(404).json({
+        success: false, message: 'Player not found', timestamp: new Date().toISOString()
+      });
+    }
+
+    const updated = await prisma.mvpPlayer.update({
+      where: { id: playerId },
+      data: { checkedIn: true, checkedInAt: new Date() }
+    });
+
+    // Emit socket update
+    try {
+      const { io: sio } = await import('../server');
+      const updatedSession = await prisma.mvpSession.findFirst({
+        where: { shareCode },
+        include: {
+          players: { select: { id: true, name: true, status: true, checkedIn: true, checkedInAt: true } },
+        }
+      });
+      if (updatedSession) {
+        sio.to(`session-${shareCode}`).emit('mvp-session-updated', {
+          session: updatedSession, timestamp: new Date().toISOString()
+        });
+      }
+    } catch (e) { console.warn('Socket emit failed:', e); }
+
+    res.json({
+      success: true,
+      data: { player: { id: updated.id, name: updated.name, checkedIn: true, checkedInAt: updated.checkedInAt } },
+      message: `${player.name} checked in`,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Check-in error:', error);
+    res.status(500).json({
+      success: false, message: 'Internal server error', timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * Undo check-in for a player
+ * PUT /:shareCode/players/:playerId/check-out
+ */
+router.put('/:shareCode/players/:playerId/check-out', async (req, res) => {
+  try {
+    const { shareCode, playerId } = req.params;
+
+    const session = await prisma.mvpSession.findFirst({ where: { shareCode } });
+    if (!session) {
+      return res.status(404).json({
+        success: false, message: 'Session not found', timestamp: new Date().toISOString()
+      });
+    }
+
+    const player = await prisma.mvpPlayer.findFirst({
+      where: { id: playerId, sessionId: session.id }
+    });
+    if (!player) {
+      return res.status(404).json({
+        success: false, message: 'Player not found', timestamp: new Date().toISOString()
+      });
+    }
+
+    await prisma.mvpPlayer.update({
+      where: { id: playerId },
+      data: { checkedIn: false, checkedInAt: null }
+    });
+
+    // Emit socket update
+    try {
+      const { io: sio } = await import('../server');
+      const updatedSession = await prisma.mvpSession.findFirst({
+        where: { shareCode },
+        include: {
+          players: { select: { id: true, name: true, status: true, checkedIn: true, checkedInAt: true } },
+        }
+      });
+      if (updatedSession) {
+        sio.to(`session-${shareCode}`).emit('mvp-session-updated', {
+          session: updatedSession, timestamp: new Date().toISOString()
+        });
+      }
+    } catch (e) { console.warn('Socket emit failed:', e); }
+
+    res.json({
+      success: true,
+      message: `${player.name} checked out`,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Check-out error:', error);
+    res.status(500).json({
+      success: false, message: 'Internal server error', timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * Get check-in summary for a session
+ * GET /:shareCode/check-in-summary
+ */
+router.get('/:shareCode/check-in-summary', async (req, res) => {
+  try {
+    const { shareCode } = req.params;
+
+    const session = await prisma.mvpSession.findFirst({
+      where: { shareCode },
+      include: {
+        players: {
+          where: { status: { not: 'LEFT' } },
+          select: { id: true, name: true, status: true, checkedIn: true, checkedInAt: true }
+        }
+      }
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false, message: 'Session not found', timestamp: new Date().toISOString()
+      });
+    }
+
+    const total = session.players.length;
+    const checkedIn = session.players.filter(p => p.checkedIn).length;
+    const notCheckedIn = total - checkedIn;
+
+    res.json({
+      success: true,
+      data: {
+        total,
+        checkedIn,
+        notCheckedIn,
+        players: session.players.map(p => ({
+          id: p.id,
+          name: p.name,
+          status: p.status,
+          checkedIn: p.checkedIn,
+          checkedInAt: p.checkedInAt,
+        }))
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Check-in summary error:', error);
+    res.status(500).json({
+      success: false, message: 'Internal server error', timestamp: new Date().toISOString()
     });
   }
 });

@@ -14,9 +14,9 @@ RUN npm prune --production
 FROM node:18-alpine AS frontend-builder
 
 WORKDIR /app
-COPY frontend/BadmintonGroup/package*.json ./
+COPY frontend/Rally/package*.json ./
 RUN npm ci
-COPY frontend/BadmintonGroup/ .
+COPY frontend/Rally/ .
 
 # Build the web app with production env vars
 ENV EXPO_PUBLIC_API_URL=/api/v1
