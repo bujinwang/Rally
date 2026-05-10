@@ -29,13 +29,11 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       let lang = 'en';
       if (typeof window !== 'undefined' && window.navigator) {
         const nav = window.navigator.language || (window.navigator as any).userLanguage || '';
-        if (nav.startsWith('fr')) lang = 'fr';
-        else if (nav.startsWith('ko')) lang = 'ko';
-        else if (nav.startsWith('tl') || nav.startsWith('fil')) lang = 'tl';
+        if (nav.startsWith('zh')) lang = 'zh';
       }
       try {
         const stored = localStorage.getItem('badminton-locale');
-        if (stored && ['en', 'fr', 'ko', 'tl'].includes(stored)) lang = stored;
+        if (stored === 'en' || stored === 'zh') lang = stored;
       } catch {}
       setLocaleState(lang as Locale);
     };

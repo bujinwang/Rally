@@ -5,6 +5,9 @@ import { requireOrganizer } from '../middleware/permissions';
 import { createRateLimiters } from '../middleware/rateLimit';
 import { updatePlayerMatchStatistics } from '../utils/statisticsService';
 import { AuditLogger } from '../utils/auditLogger';
+import { notifySessionSubscribers } from '../utils/notificationHelper';
+import { emitScoreRecorded } from '../socket/notificationHandlers';
+import { io } from '../server';
 
 const router = Router();
 const rateLimiters = createRateLimiters();
@@ -161,6 +164,25 @@ router.post(
         console.log(`📡 Socket.IO: Score recorded for match ${matchId}`);
       } catch (error) {
         console.warn('Failed to emit score update:', error);
+      }
+
+      // Send push notification to session subscribers
+      try {
+        await notifySessionSubscribers(session.id, {
+          title: '🎯 Score Recorded',
+          body: `Match result: ${scoreType}`,
+          type: 'SCORE_RECORDED',
+          data: { matchId, scoreType, team1Score, team2Score },
+        });
+        emitScoreRecorded(io, shareCode, {
+          matchId,
+          matchNumber: updatedMatch.matchNumber || 0,
+          team1Score,
+          team2Score,
+          players: [],
+        });
+      } catch (err) {
+        console.warn('Failed to send score notification:', err);
       }
 
       res.json({

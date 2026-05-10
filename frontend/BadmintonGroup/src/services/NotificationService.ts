@@ -57,7 +57,7 @@ class NotificationService {
       // Get push token (for production push notifications)
       if (Platform.OS !== 'web') {
         const token = await Notifications.getExpoPushTokenAsync({
-          projectId: 'your-expo-project-id', // Update this
+          projectId: process.env.EXPO_PUBLIC_PROJECT_ID || 'your-expo-project-id',
         });
         this.pushToken = token.data;
         
