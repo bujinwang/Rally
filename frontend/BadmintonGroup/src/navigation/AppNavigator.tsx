@@ -47,6 +47,28 @@ const AppNavigator = () => {
 const RootNavigator = () => {
   const isAuthenticated = useSelector((state: any) => state.auth.isAuthenticated);
 
+  // Initialize push notifications on login
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      const initNotifications = async () => {
+        try {
+          const { notificationService } = require('../services/NotificationService');
+          const token = await notificationService.initialize();
+          if (token) {
+            const userId = await require('@react-native-async-storage/async-storage')
+              .default.getItem('userId');
+            const deviceId = await require('@react-native-async-storage/async-storage')
+              .default.getItem('@badminton_device_id');
+            await notificationService.registerPushToken(userId || '', deviceId || '');
+          }
+        } catch (e) {
+          console.warn('Push notification init skipped:', e);
+        }
+      };
+      initNotifications();
+    }
+  }, [isAuthenticated]);
+
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {isAuthenticated ? (
