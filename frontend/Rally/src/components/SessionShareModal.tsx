@@ -19,6 +19,9 @@ interface SessionShareModalProps {
   shareCode: string;
   sessionName: string;
   sessionDate: string;
+  scheduledAt?: string; // ISO datetime for time formatting
+  location?: string;
+  players?: Array<{ name: string; status: string }>;
   organizerSecret?: string;
 }
 
@@ -31,11 +34,31 @@ export default function SessionShareModal({
   shareCode, 
   sessionName, 
   sessionDate,
+  scheduledAt,
+  location,
+  players,
   organizerSecret
 }: SessionShareModalProps) {
   const [copied, setCopied] = useState(false);
   
   const shareLink = `https://badminton-group.app/join/${shareCode}`;
+
+  // Format time from ISO string
+  const formatTimeRange = () => {
+    if (!scheduledAt) return sessionDate;
+    const start = new Date(scheduledAt);
+    const end = new Date(start.getTime() + 2 * 60 * 60 * 1000); // assume 2h
+    const fmt = (d: Date) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return `${fmt(start)}-${fmt(end)}`;
+  };
+
+  // Build players list for share
+  const buildPlayersList = () => {
+    if (!players || players.length === 0) return '';
+    const active = players.filter(p => p.status === 'ACTIVE');
+    if (active.length === 0) return '';
+    return active.map(p => p.name).join(', ');
+  };
   const shortShareCode = shareCode.toUpperCase();
   
   const handleCopyCode = async () => {
@@ -72,12 +95,22 @@ export default function SessionShareModal({
   
   const handleShare = async () => {
     try {
-      const message = `Join my badminton session!\n\n📅 ${sessionName}\n🗓️ ${sessionDate}\n\n🔗 Join link: ${shareLink}\n💯 Or use code: ${shortShareCode}`;
+      const timeRange = formatTimeRange();
+      const playersList = buildPlayersList();
+      const loc = location || 'Location TBD';
+      
+      const message = `🏸 ${sessionName}\n` +
+        `📅 ${sessionDate}\n` +
+        `⏰ ${timeRange}\n` +
+        `📍 ${loc}\n` +
+        (playersList ? `👥 ${playersList}\n` : '') +
+        `\n🔗 Join: ${shareLink}\n` +
+        `💯 Code: ${shortShareCode}`;
       
       await Share.share({
         message,
-        title: 'Join Badminton Session',
-        url: shareLink, // iOS will use this
+        title: `Rally: ${sessionName}`,
+        url: shareLink,
       });
     } catch (error) {
       Alert.alert('Error', 'Failed to share session');
@@ -91,7 +124,7 @@ export default function SessionShareModal({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
+      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
         <View style={styles.modal}>
           {/* Header */}
           <View style={styles.header}>
@@ -184,8 +217,8 @@ export default function SessionShareModal({
               <Text style={styles.shareButtonText}>Share Session</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
     </Modal>
   );
 }

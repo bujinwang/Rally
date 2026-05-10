@@ -113,14 +113,11 @@ const MatchSchedulingScreen = () => {
   };
 
   const handleMatchPress = (match: ScheduledMatch) => {
-    // Navigate to match details screen
-    // TODO: Implement navigation to MatchDetails screen
-    Alert.alert('Match Details', `Viewing details for: ${match.title}`);
+    (navigation as any).navigate('MatchDetails', { matchId: match.id, matchTitle: match.title });
   };
 
   const handleCreateMatch = () => {
-    // TODO: Implement navigation to CreateMatch screen
-    Alert.alert('Create Match', 'Match creation screen will be implemented next');
+    (navigation as any).navigate('CreateMatch');
   };
 
   const handleRefresh = () => {

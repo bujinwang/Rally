@@ -1,5 +1,7 @@
 import NetInfo from '@react-native-community/netinfo';
 import { StorageService } from './storageService';
+import { API_BASE_URL } from '../config/api';
+import DeviceService from './deviceService';
 
 interface SyncOperation {
   id: string;
@@ -112,16 +114,18 @@ export class SyncManager {
 
   // Process individual sync operation
   private async processSyncOperation(operation: SyncOperation): Promise<void> {
-    const baseURL = 'http://localhost:3001/api/v1'; // TODO: Use environment variable
+    const baseURL = API_BASE_URL;
+    const deviceId = await DeviceService.getDeviceId();
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-Device-ID': deviceId,
+    };
 
     switch (operation.type) {
       case 'CREATE_SESSION':
         await fetch(`${baseURL}/sessions`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            // TODO: Add auth token
-          },
+          headers,
           body: JSON.stringify(operation.payload),
         });
         break;
@@ -129,10 +133,7 @@ export class SyncManager {
       case 'UPDATE_SESSION':
         await fetch(`${baseURL}/sessions/${operation.payload.id}`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            // TODO: Add auth token
-          },
+          headers,
           body: JSON.stringify(operation.payload),
         });
         break;
@@ -140,10 +141,7 @@ export class SyncManager {
       case 'UPDATE_PLAYER_STATUS':
         await fetch(`${baseURL}/sessions/${operation.payload.sessionId}/players/${operation.payload.playerId}/status`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            // TODO: Add auth token
-          },
+          headers,
           body: JSON.stringify({ status: operation.payload.status }),
         });
         break;
@@ -151,10 +149,7 @@ export class SyncManager {
       case 'TRIGGER_ROTATION':
         await fetch(`${baseURL}/sessions/${operation.payload.sessionId}/rotation/trigger`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            // TODO: Add auth token
-          },
+          headers,
           body: JSON.stringify(operation.payload),
         });
         break;

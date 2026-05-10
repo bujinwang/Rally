@@ -8,6 +8,7 @@ export interface CreateSessionRequest {
   location?: string;
   maxPlayers?: number;
   organizerName: string;
+  invitePlayerNames?: string[];
 }
 
 export interface SessionData {

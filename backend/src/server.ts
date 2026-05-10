@@ -43,9 +43,20 @@ app.use(helmet({
 // Trust reverse proxy (nginx) for correct client IP
 app.set('trust proxy', 1);
 
-// CORS configuration
+// CORS configuration — allow all localhost ports in development
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:8081').split(',');
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, Postman, mobile apps)
+    if (!origin) return callback(null, true);
+    // Check exact match first, then localhost wildcard for dev
+    if (allowedOrigins.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS blocked: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 
@@ -147,10 +158,18 @@ app.use(errorHandler);
 // Socket.io setup
 const io = new SocketServer(server, {
   cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: (origin: string | undefined, callback: (err: Error | null, allow: boolean) => void) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'), false);
+      }
+    },
     credentials: true
   }
 });
+
 
 setupSocket(io);
 

@@ -234,8 +234,7 @@ export default function PlayerProfileScreen() {
   };
 
   const handleEditProfile = () => {
-    // TODO: Navigate to profile edit screen
-    Alert.alert('Coming Soon', 'Profile editing will be available soon!');
+    (navigation as any).navigate('EditProfile');
   };
 
   const navigateToSessionHistory = () => {

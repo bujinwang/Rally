@@ -18,6 +18,7 @@ import RotationScreen from '../screens/rotation/RotationScreen';
 import SessionDiscoveryScreen from '../screens/SessionDiscoveryScreen';
 import MatchRecordingScreen from '../screens/MatchRecordingScreen';
 import StatisticsDashboardScreen from '../screens/StatisticsDashboardScreen';
+import TrendsDashboardScreen from '../screens/TrendsDashboardScreen';
 import RankingScreen from '../screens/RankingScreen';
 import AchievementScreen from '../screens/AchievementScreen';
 import TournamentListScreen from '../screens/TournamentListScreen';
@@ -84,6 +85,11 @@ function HomeStackNavigator() {
         name="SessionSettings"
         component={SessionSettingsScreen}
         options={{ title: 'Session Settings' }}
+      />
+      <HomeStack.Screen
+        name="Pairing"
+        component={PairingScreen}
+        options={{ title: 'Player Pairing' }}
       />
       <HomeStack.Screen
         name="PlayerProfile"
@@ -229,6 +235,11 @@ function ProfileStackNavigator() {
         name="StatisticsDashboard"
         component={StatisticsDashboardScreen}
         options={{ title: 'Statistics' }}
+      />
+      <ProfileStack.Screen
+        name="TrendsDashboard"
+        component={TrendsDashboardScreen}
+        options={{ title: 'Trends' }}
       />
       <ProfileStack.Screen
         name="RankingScreen"

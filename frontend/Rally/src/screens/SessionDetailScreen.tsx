@@ -1019,11 +1019,14 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
 
           <TouchableOpacity
             style={[styles.primaryActionButton, { backgroundColor: '#9C27B0' }]}
-            onPress={() => navigation.navigate('Pairing', {
-              sessionId: sessionData?.id,
-              players: sessionData?.players?.filter(p => p.status === 'ACTIVE').map(p => ({
-                id: p.id, name: p.name, gamesPlayed: p.gamesPlayed || 0, wins: p.wins || 0, status: p.status,
-              })) || [],
+            onPress={() => navigation.navigate('Sessions', {
+              screen: 'Pairing',
+              params: {
+                sessionId: sessionData?.id,
+                players: sessionData?.players?.filter(p => p.status === 'ACTIVE').map(p => ({
+                  id: p.id, name: p.name, gamesPlayed: p.gamesPlayed || 0, wins: p.wins || 0, status: p.status,
+                })) || [],
+              }
             })}
           >
             <Text style={styles.primaryActionText}>🎯 Pairings</Text>

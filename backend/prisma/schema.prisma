@@ -21,8 +21,14 @@ model MvpSession {
   maxPlayers  Int      @default(20)
   skillLevel  String?
   cost        Float?
+  costModel   String  @default("SPLIT_EVENLY") // SPLIT_EVENLY, PER_PLAYER, BYOB, ORGANIZER_COVERS, PER_COURT
   description String?
   courtCount  Int      @default(1) // Number of available courts
+
+  // Birdie / Shuttlecock Tracking
+  birdieCostPerTube  Float?  // Cost of one tube of shuttlecocks
+  birdieTubesOpened  Int     @default(0) // How many tubes used this session
+  birdieProvidedBy   String? // ORGANIZER, PLAYERS_BRING_OWN, INCLUDED_IN_COST
 
   // Discovery Fields
   latitude          Float? // GPS latitude for location-based discovery
@@ -69,6 +75,8 @@ model MvpSession {
   matches        MvpMatch[]
   scoringMatches Match[]
   configuration  MvpSessionConfiguration?
+  club           Club?              @relation(fields: [clubId], references: [id])
+  clubId         String?
 
   // Analytics Relations
   analytics SessionAnalytics?
@@ -160,6 +168,62 @@ model MvpSessionConfiguration {
   updatedAt DateTime @updatedAt
 
   @@map("mvp_session_configurations")
+}
+
+// ── Club Accounts ────────────────────────────────────────────────────────────────
+
+model Club {
+  id          String   @id @default(cuid())
+  name        String   @unique // Club display name
+  description String?  // About the club
+  logoUrl     String?  // Club logo image URL
+  coverUrl    String?  // Banner image
+  location    String?  // Primary location
+  sportTypes  String[] // badminton, pickleball, tennis, etc.
+
+  // Club settings
+  isPublic     Boolean @default(true)  // Discoverable by others
+  memberLimit  Int?    // Max members
+  requiresApproval Boolean @default(false) // Members need approval
+
+  // Contact
+  contactEmail String?
+  contactPhone String?
+  website      String?
+  wechatGroup  String? // WeChat group ID/QR
+
+  // Owner
+  ownerDeviceId String // Creator's device ID
+  adminIds      String[] // Device IDs with admin privileges
+
+  // Relations
+  members  ClubMember[]
+  sessions MvpSession[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerDeviceId])
+  @@index([isPublic])
+  @@map("clubs")
+}
+
+model ClubMember {
+  id       String @id @default(cuid())
+  clubId   String
+  club     Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  deviceId String  // Member's device ID
+  name     String  // Display name in club
+  role     String  @default("MEMBER") // ADMIN, MEMBER
+  skillLevel Int?  // Self-reported skill 1-10
+
+  joinedAt DateTime @default(now())
+
+  @@unique([clubId, deviceId])
+  @@index([clubId])
+  @@index([deviceId])
+  @@map("club_members")
 }
 
 model MvpPlayer {
@@ -447,6 +511,9 @@ model MvpGame {
   duration       Int? // Duration in minutes
   lastTeamChange DateTime? // Track when teams were last switched
 
+  // Birdie / Shuttlecock usage per game
+  birdiesUsed Int @default(0) // How many shuttlecocks used in this game
+
   // Status
   status MvpGameStatus @default(IN_PROGRESS)
 
@@ -582,6 +649,7 @@ enum MvpPlayerStatus {
   ACTIVE
   RESTING
   LEFT
+  PENDING
 }
 
 enum MvpPlayerRole {
