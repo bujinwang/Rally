@@ -16,6 +16,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useRoute } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -41,6 +42,7 @@ export default function CreateSessionScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation();
   const route = useRoute<any>();
+  const isAuthenticated = useSelector((state: any) => state.auth.isAuthenticated);
   const prefill: PrefillData | undefined = route.params?.prefill;
   const [loading, setLoading] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -253,6 +255,38 @@ export default function CreateSessionScreen() {
     });
   };
 
+  // Require authentication for session organizers
+  if (!isAuthenticated) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.authPromptContainer}>
+          <Text style={styles.authPromptIcon}>🔐</Text>
+          <Text style={styles.authPromptTitle}>Sign In Required</Text>
+          <Text style={styles.authPromptText}>
+            Session organizers need an account to create and manage sessions.
+          </Text>
+          <Text style={styles.authPromptSubtext}>
+            It's free — sign up in seconds to start organizing games.
+          </Text>
+          <TouchableOpacity
+            style={styles.authLoginButton}
+            onPress={() => (navigation as any).navigate('Login')}
+          >
+            <Ionicons name="log-in" size={20} color="#fff" />
+            <Text style={styles.authLoginButtonText}>Sign In</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.authRegisterButton}
+            onPress={() => (navigation as any).navigate('Register')}
+          >
+            <Ionicons name="person-add" size={20} color="#007AFF" />
+            <Text style={styles.authRegisterButtonText}>Create Account</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView 
       style={styles.container} 
@@ -397,6 +431,72 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  authPromptContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  authPromptIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  authPromptTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+  },
+  authPromptText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 8,
+  },
+  authPromptSubtext: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+  authLoginButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 40,
+    paddingVertical: 14,
+    borderRadius: 10,
+    marginBottom: 12,
+    width: '100%',
+    maxWidth: 300,
+    gap: 8,
+  },
+  authLoginButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  authRegisterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 40,
+    paddingVertical: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BBDEFB',
+    width: '100%',
+    maxWidth: 300,
+    gap: 8,
+  },
+  authRegisterButtonText: {
+    color: '#1565C0',
+    fontSize: 16,
+    fontWeight: '600',
   },
   scrollContent: {
     padding: 20,
