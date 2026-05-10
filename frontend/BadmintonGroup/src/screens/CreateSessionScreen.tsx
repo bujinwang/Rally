@@ -15,6 +15,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from '../i18n/LanguageContext';
 import sessionApi, { CreateSessionRequest } from '../services/sessionApi';
 import SessionShareModal from '../components/SessionShareModal';
 import socketService from '../services/socketService';
@@ -28,6 +29,7 @@ interface SessionFormData {
 }
 
 export default function CreateSessionScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation();
   const [loading, setLoading] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -199,7 +201,7 @@ export default function CreateSessionScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Create New Session</Text>
+        <Text style={styles.title}>{t.session.create}</Text>
 
         {errors.length > 0 && (
           <View style={styles.errorContainer}>
@@ -210,7 +212,7 @@ export default function CreateSessionScreen() {
         )}
 
         <View style={styles.form}>
-          <Text style={styles.label}>Your Name *</Text>
+          <Text style={styles.label}>{t.auth.name} *</Text>
           <TextInput
             style={styles.input}
             value={formData.organizerName}
@@ -219,7 +221,7 @@ export default function CreateSessionScreen() {
             maxLength={30}
           />
 
-          <Text style={styles.label}>Date & Time *</Text>
+          <Text style={styles.label}>{t.session.dateTime} *</Text>
           <TouchableOpacity 
             style={styles.dateInput} 
             onPress={() => setShowDatePicker(true)}
@@ -238,7 +240,7 @@ export default function CreateSessionScreen() {
             />
           )}
 
-          <Text style={styles.label}>Location *</Text>
+          <Text style={styles.label}>{t.session.location} *</Text>
           <TextInput
             style={styles.input}
             value={formData.location}
@@ -247,7 +249,7 @@ export default function CreateSessionScreen() {
             maxLength={255}
           />
 
-          <Text style={styles.label}>Session Name (optional)</Text>
+          <Text style={styles.label}>{t.session.name}</Text>
           <TextInput
             style={styles.input}
             value={formData.name}
@@ -256,7 +258,7 @@ export default function CreateSessionScreen() {
             maxLength={50}
           />
 
-          <Text style={styles.label}>Max Players *</Text>
+          <Text style={styles.label}>{t.session.maxPlayers} *</Text>
           <TextInput
             style={styles.input}
             value={formData.maxPlayers.toString()}
@@ -277,7 +279,7 @@ export default function CreateSessionScreen() {
             ) : (
               <>
                 <Ionicons name="add" size={20} color="white" />
-                <Text style={styles.buttonText}>Create Session</Text>
+                <Text style={styles.buttonText}>{t.session.create}</Text>
               </>
             )}
           </TouchableOpacity>

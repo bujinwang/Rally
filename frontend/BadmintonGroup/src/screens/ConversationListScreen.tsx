@@ -14,8 +14,10 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { messagingApi, MessageThread } from '../services/messagingApi';
 import { ConversationCard } from '../components/ConversationCard';
+import { useTranslation } from '../i18n/LanguageContext';
 
 export default function ConversationListScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const [threads, setThreads] = useState<MessageThread[]>([]);
   const [filteredThreads, setFilteredThreads] = useState<MessageThread[]>([]);
@@ -43,7 +45,7 @@ export default function ConversationListScreen() {
       console.error('Error loading threads:', error);
       // Only show alert on initial load failure
       if (threads.length === 0) {
-        Alert.alert('Error', 'Failed to load conversations');
+        Alert.alert(t.common.error, 'Failed to load conversations');
       }
     } finally {
       setLoading(false);
@@ -80,30 +82,30 @@ export default function ConversationListScreen() {
       'What would you like to do?',
       [
         {
-          text: 'Delete',
+          text: t.common.delete,
           style: 'destructive',
           onPress: () => confirmDeleteThread(threadId),
         },
-        { text: 'Cancel', style: 'cancel' },
+        { text: t.common.cancel, style: 'cancel' },
       ]
     );
   };
 
   const confirmDeleteThread = (threadId: string) => {
     Alert.alert(
-      'Delete Conversation',
+      t.common.delete + ' Conversation',
       'Are you sure you want to delete this conversation?',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t.common.cancel, style: 'cancel' },
         {
-          text: 'Delete',
+          text: t.common.delete,
           style: 'destructive',
           onPress: async () => {
             try {
               await messagingApi.leaveThread(threadId);
               setThreads(prev => prev.filter(t => t.id !== threadId));
             } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to delete conversation');
+              Alert.alert(t.common.error, error.message || 'Failed to delete conversation');
             }
           },
         },
@@ -113,7 +115,7 @@ export default function ConversationListScreen() {
 
   const navigateToNewChat = () => {
     Alert.alert(
-      'New Message',
+      t.messages.newMessage,
       'Start a conversation with a friend from your friends list.',
       [
         {
@@ -134,7 +136,7 @@ export default function ConversationListScreen() {
     <View style={styles.emptyContainer}>
       <Ionicons name="chatbubbles-outline" size={64} color="#ccc" />
       <Text style={styles.emptyTitle}>
-        {searchQuery ? 'No conversations found' : 'No messages yet'}
+        {searchQuery ? t.common.noResults : t.messages.noMessages}
       </Text>
       <Text style={styles.emptySubtext}>
         {searchQuery
@@ -144,7 +146,7 @@ export default function ConversationListScreen() {
       {!searchQuery && (
         <TouchableOpacity style={styles.newChatButton} onPress={navigateToNewChat}>
           <Ionicons name="create-outline" size={18} color="#fff" />
-          <Text style={styles.newChatButtonText}>New Message</Text>
+          <Text style={styles.newChatButtonText}>{t.messages.newMessage}</Text>
         </TouchableOpacity>
       )}
     </View>
