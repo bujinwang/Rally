@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { NotificationType, NotificationCategory, NotificationRecord, NotificationPreferences, NotificationPreferenceKey } from '../types/notifications';
+import { API_BASE_URL } from '../config/api';
 
 export interface RegisterPushTokenRequest {
   token: string;
@@ -47,7 +48,7 @@ export interface ApiResponse {
 }
 
 class NotificationApiService {
-  private baseUrl = 'http://localhost:3000/api/notifications';
+  private baseUrl = `${API_BASE_URL}/notifications`;
 
   /**
    * Register a push notification token

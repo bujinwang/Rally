@@ -7,6 +7,8 @@ import { io } from '../server';
 import { requireOrganizer, requireOrganizerOrSelf } from '../middleware/permissions';
 import { PasswordUtils } from '../utils/password';
 import { createRateLimiters } from '../middleware/rateLimit';
+import { notifySessionSubscribers } from '../utils/notificationHelper';
+import { emitPlayerJoined } from '../socket/notificationHandlers';
 
 const rateLimiters = createRateLimiters();
 
@@ -654,6 +656,20 @@ router.post('/join/:shareCode', joinSessionValidation, async (req: Request, res:
           timestamp: new Date().toISOString()
         });
         console.log(`📡 Socket.IO: Emitted session update for ${shareCode} - player "${name}" joined`);
+        // Send push notification to session subscribers
+        notifySessionSubscribers(session.id, {
+          title: '👋 New Player Joined',
+          body: `${name} joined ${session.name || 'the session'}`,
+          type: 'PLAYER_JOINED',
+          data: { playerName: name, sessionName: session.name },
+        }).catch(err => console.warn('Push notification failed:', err));
+
+        // Emit socket notification to session room
+        emitPlayerJoined(io, shareCode, {
+          playerName: name,
+          sessionName: session.name || 'the session',
+        });
+
         // Send notification to all existing players about the new player
         io.to(`session-${shareCode}`).emit('session-notification', {
           type: 'player_joined',
