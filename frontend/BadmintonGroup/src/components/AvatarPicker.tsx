@@ -98,9 +98,9 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
       setAvatarUrl(newAvatarUrl);
       onUpdate(newAvatarUrl);
       Alert.alert('Success', 'Avatar updated successfully');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading avatar:', error);
-      Alert.alert('Error', error.message || 'Failed to upload avatar');
+      Alert.alert('Error', error?.message || 'Failed to upload avatar');
     } finally {
       setUploading(false);
     }
@@ -122,9 +122,9 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
               setAvatarUrl('');
               onUpdate('');
               Alert.alert('Success', 'Avatar deleted successfully');
-            } catch (error) {
+            } catch (error: any) {
               console.error('Error deleting avatar:', error);
-              Alert.alert('Error', error.message || 'Failed to delete avatar');
+              Alert.alert('Error', error?.message || 'Failed to delete avatar');
             } finally {
               setUploading(false);
             }
