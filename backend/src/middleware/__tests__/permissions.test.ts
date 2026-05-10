@@ -19,8 +19,10 @@ const mockRequest = (params: any = {}, body: any = {}, user: any = {}): any => (
   params,
   body,
   user,
+  ip: '127.0.0.1',
   get: jest.fn(),
   header: jest.fn(),
+  connection: { remoteAddress: '127.0.0.1' },
 });
 
 const mockResponse = () => {
