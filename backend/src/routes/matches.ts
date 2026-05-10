@@ -272,7 +272,9 @@ router.post('/detailed', async (req: Request, res: Response) => {
 router.post('/', async (req: Request, res: Response) => {
   try {
     const { sessionId, player1Id, player2Id, winnerId, scoreType, deviceId } = req.body;
-    const recordedBy = deviceId; // Use deviceId for MVP system
+
+    // Resolve recordedBy: must be a valid MvpPlayer.id (not a deviceId)
+    let recordedBy: string = deviceId;
 
     // Validate required fields
     if (!sessionId || !player1Id || !player2Id || !winnerId || !scoreType) {
@@ -345,6 +347,12 @@ router.post('/', async (req: Request, res: Response) => {
           message: 'Both players must be active participants in the session'
         }
       });
+    }
+
+    // Resolve recordedBy to a valid MvpPlayer.id if it's a deviceId
+    const recorderPlayer = session.players.find(p => p.deviceId === deviceId);
+    if (recorderPlayer) {
+      recordedBy = recorderPlayer.id;
     }
 
     // Check permission: players can record their own matches, organizers can record any
@@ -452,12 +460,11 @@ router.put('/:id/approve', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { deviceId } = req.body;
-    const approvedBy = deviceId;
 
     // Find the match
-    const match = await prisma.mvpMatch.findUnique({
+    const match = await prisma.match.findUnique({
       where: { id },
-      include: { session: true }
+      include: { session: { include: { players: true } } }
     });
 
     if (!match) {
@@ -481,8 +488,8 @@ router.put('/:id/approve', async (req: Request, res: Response) => {
       });
     }
 
-    // Check if already approved (status is COMPLETED)
-    if (match.status === 'COMPLETED') {
+    // Check if already approved (has approvedBy set)
+    if (match.approvedBy) {
       return res.status(400).json({
         success: false,
         error: {
@@ -492,11 +499,16 @@ router.put('/:id/approve', async (req: Request, res: Response) => {
       });
     }
 
-    // Approve the match by setting status to COMPLETED
-    const updatedMatch = await prisma.mvpMatch.update({
+    // Resolve approvedBy to a valid MvpPlayer.id
+    const approverPlayer = match.session.players.find(p => p.deviceId === deviceId);
+    const approvedBy = approverPlayer ? approverPlayer.id : deviceId;
+
+    // Approve the match
+    const updatedMatch = await prisma.match.update({
       where: { id },
       data: {
-        status: 'COMPLETED'
+        approvedBy,
+        approvedAt: new Date()
       },
       include: {
         session: { select: { id: true, name: true } }
@@ -509,7 +521,7 @@ router.put('/:id/approve', async (req: Request, res: Response) => {
       io.to(`session-${match.sessionId}`).emit('match_approved', {
         matchId: updatedMatch.id,
         sessionId: match.sessionId,
-        approvedAt: updatedMatch.updatedAt
+        approvedAt: updatedMatch.approvedAt?.toISOString()
       });
     }
 
@@ -682,26 +694,26 @@ router.get('/session/:sessionId', async (req: Request, res: Response) => {
     }
 
     // Get matches for the session
-    const matches = await prisma.mvpMatch.findMany({
+    const matches = await prisma.match.findMany({
       where: { sessionId },
       include: {
         session: { select: { id: true, name: true } }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { recordedAt: 'desc' }
     });
 
     // Transform matches to include player names
     const transformedMatches = await Promise.all(
       matches.map(async (match) => {
         const player1 = await prisma.mvpPlayer.findUnique({
-          where: { id: match.team1Player1 },
+          where: { id: match.player1Id },
           select: { id: true, name: true }
         });
         const player2 = await prisma.mvpPlayer.findUnique({
-          where: { id: match.team2Player1 },
+          where: { id: match.player2Id },
           select: { id: true, name: true }
         });
-        const winner = match.winnerTeam === 1 ? player1 : player2;
+        const winner = match.winnerId === player1?.id ? player1 : player2;
 
         return {
           id: match.id,
@@ -709,9 +721,10 @@ router.get('/session/:sessionId', async (req: Request, res: Response) => {
           player1,
           player2,
           winner,
-          scoreType: match.winnerTeam === 1 ? '2-0' : '2-1', // Simplified for MVP
-          recordedAt: match.createdAt,
-          status: match.status
+          scoreType: match.scoreType,
+          recordedAt: match.recordedAt.toISOString(),
+          approvedBy: match.approvedBy,
+          approvedAt: match.approvedAt
         };
       })
     );

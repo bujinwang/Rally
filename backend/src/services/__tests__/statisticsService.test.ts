@@ -80,3 +80,8 @@ export { runTests };
 if (require.main === module) {
   runTests().catch(console.error);
 }
+describe("StatisticsService", () => {
+  it("should be importable", () => {
+    expect(statisticsService).toBeDefined();
+  });
+});
