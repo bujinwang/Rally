@@ -13,12 +13,14 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { registerUser, clearError, socialLogin } from '../../store/slices/authSlice';
 import SocialLoginButtons from '../../components/SocialLoginButtons';
+import { useTranslation } from '../../i18n/LanguageContext';
 
 interface RegisterScreenProps {
   navigation: any;
 }
 
 const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,7 +30,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
 
   const handleRegister = async () => {
     if (!name || !email || !password) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      Alert.alert(t.common.error, 'Please fill in all required fields');
       return;
     }
 
@@ -49,7 +51,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   // Show error alert when error state changes
   React.useEffect(() => {
     if (error) {
-      Alert.alert('Registration Failed', error);
+      Alert.alert(t.common.error, error);
       dispatch(clearError());
     }
   }, [error, dispatch]);
@@ -61,14 +63,14 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.header}>
-          <Text style={styles.title}>🏸 Badminton Group</Text>
-          <Text style={styles.subtitle}>Create your account</Text>
+          <Text style={styles.title}>🏸 {t.common.appName}</Text>
+          <Text style={styles.subtitle}>{t.auth.registerTitle}</Text>
         </View>
 
         <View style={styles.form}>
           <TextInput
             style={styles.input}
-            placeholder="Full Name *"
+            placeholder={`${t.auth.name} *`}
             value={name}
             onChangeText={setName}
             autoCapitalize="words"
@@ -76,7 +78,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
 
           <TextInput
             style={styles.input}
-            placeholder="Email *"
+            placeholder={`${t.auth.email} *`}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -86,7 +88,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
 
           <TextInput
             style={styles.input}
-            placeholder="Password *"
+            placeholder={`${t.auth.password} *`}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -95,7 +97,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
 
           <TextInput
             style={styles.input}
-            placeholder="Phone (optional)"
+            placeholder={t.auth.phone}
             value={phone}
             onChangeText={setPhone}
             keyboardType="phone-pad"
@@ -107,14 +109,14 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
             disabled={isLoading}
           >
             <Text style={styles.buttonText}>
-              {isLoading ? 'Creating account...' : 'Sign Up'}
+              {isLoading ? t.auth.creatingAccount : t.auth.register}
             </Text>
           </TouchableOpacity>
 
           {/* Social login divider */}
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or sign up with</Text>
+            <Text style={styles.dividerText}>{t.auth.orSignUp}</Text>
             <View style={styles.dividerLine} />
           </View>
 
@@ -136,7 +138,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
             onPress={() => navigation.navigate('Login')}
           >
             <Text style={styles.linkText}>
-              Already have an account? Login
+              {t.auth.hasAccount}
             </Text>
           </TouchableOpacity>
         </View>

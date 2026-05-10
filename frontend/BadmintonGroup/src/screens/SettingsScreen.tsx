@@ -12,6 +12,7 @@ import {
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { userApi, UserSettings } from '../services/userApi';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface RouteParams {
   userId: string;
@@ -22,6 +23,7 @@ export default function SettingsScreen() {
   const navigation = useNavigation();
   const { userId } = route.params as RouteParams;
 
+  const { t, locale, setLocale, availableLocales } = useTranslation();
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -172,6 +174,23 @@ export default function SettingsScreen() {
             trackColor={{ false: '#ccc', true: '#007AFF' }}
           />
         </View>
+      </View>
+
+      {/* Language */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>🌐 Language / 语言</Text>
+        {availableLocales.map(({ code, name }) => (
+          <TouchableOpacity
+            key={code}
+            style={[styles.settingRow, locale === code && styles.settingRowActive]}
+            onPress={() => setLocale(code)}
+          >
+            <Text style={[styles.settingLabel, locale === code && styles.settingLabelActive]}>
+              {name}
+            </Text>
+            {locale === code && <Ionicons name="checkmark-circle" size={20} color="#007AFF" />}
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* Notification Settings */}
@@ -327,6 +346,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 3
+  },
+  settingLabelActive: {
+    color: '#007AFF',
+  },
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 4,
+    borderRadius: 8,
+    backgroundColor: '#f9f9f9',
+  },
+  settingRowActive: {
+    backgroundColor: '#E3F2FD',
   },
   settingDescription: {
     fontSize: 13,
