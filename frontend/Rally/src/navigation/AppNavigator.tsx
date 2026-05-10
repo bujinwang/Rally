@@ -2,12 +2,14 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Provider, useSelector } from 'react-redux';
-import { Linking } from 'react-native';
+import { Provider } from 'react-redux';
 
 import { store } from '../store';
 import MainTabNavigator from './MainTabNavigator';
-import AuthNavigator from './AuthNavigator';
+
+// Auth screens (accessible from Profile tab, not as a gate)
+import LoginScreen from '../screens/auth/LoginScreen';
+import RegisterScreen from '../screens/auth/RegisterScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -45,37 +47,40 @@ const AppNavigator = () => {
 };
 
 const RootNavigator = () => {
-  const isAuthenticated = useSelector((state: any) => state.auth.isAuthenticated);
-
-  // Initialize push notifications on login
+  // Initialize push notifications on mount for all users (drop-in + registered)
   React.useEffect(() => {
-    if (isAuthenticated) {
-      const initNotifications = async () => {
-        try {
-          const { notificationService } = require('../services/NotificationService');
-          const token = await notificationService.initialize();
-          if (token) {
-            const userId = await require('@react-native-async-storage/async-storage')
-              .default.getItem('userId');
-            const deviceId = await require('@react-native-async-storage/async-storage')
-              .default.getItem('@badminton_device_id');
-            await notificationService.registerPushToken(deviceId || '');
-          }
-        } catch (e) {
-          console.warn('Push notification init skipped:', e);
+    const initNotifications = async () => {
+      try {
+        const { notificationService } = require('../services/NotificationService');
+        await notificationService.initialize();
+        const deviceId = await require('@react-native-async-storage/async-storage')
+          .default.getItem('@badminton_device_id');
+        if (deviceId) {
+          await notificationService.registerPushToken(deviceId);
         }
-      };
-      initNotifications();
-    }
-  }, [isAuthenticated]);
+      } catch (e) {
+        console.warn('Push notification init skipped:', e);
+      }
+    };
+    initNotifications();
+  }, []);
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {isAuthenticated ? (
-        <Stack.Screen name="Main" component={MainTabNavigator} />
-      ) : (
-        <Stack.Screen name="Auth" component={AuthNavigator} />
-      )}
+      {/* Main app always visible — no auth gate */}
+      <Stack.Screen name="Main" component={MainTabNavigator} />
+      
+      {/* Auth screens accessible from Profile/More tab */}
+      <Stack.Screen 
+        name="Login" 
+        component={LoginScreen}
+        options={{ headerShown: true, title: 'Sign In', headerBackTitle: 'Back' }}
+      />
+      <Stack.Screen 
+        name="Register" 
+        component={RegisterScreen}
+        options={{ headerShown: true, title: 'Create Account', headerBackTitle: 'Back' }}
+      />
     </Stack.Navigator>
   );
 };
