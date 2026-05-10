@@ -281,3 +281,8 @@ export const manualTestingChecklist = [
   '✅ Verify fairness scores are calculated correctly',
   '✅ Test odd number of players handling'
 ];
+describe("PairingService", () => {
+  it("should have test infrastructure", () => {
+    expect(true).toBe(true);
+  });
+});

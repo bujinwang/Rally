@@ -9,6 +9,7 @@ describe('Matches API', () => {
   let testPlayer1Id: string;
   let testPlayer2Id: string;
   let testOrganizerId: string;
+  let testOrganizerPlayerId: string;
 
   beforeAll(async () => {
     // Create test data
@@ -22,6 +23,16 @@ describe('Matches API', () => {
       }
     });
     testSessionId = session.id;
+
+    // Create organizer as a player in the session (needed for FK references)
+    const organizer = await prisma.mvpPlayer.create({
+      data: {
+        sessionId: testSessionId,
+        name: 'Test Organizer',
+        deviceId: 'organizer-device-123'
+      }
+    });
+    testOrganizerPlayerId = organizer.id;
 
     const player1 = await prisma.mvpPlayer.create({
       data: {
@@ -70,7 +81,7 @@ describe('Matches API', () => {
       };
 
       const response = await request(app)
-        .post('/api/matches')
+        .post('/api/v1/matches')
         .send(matchData)
         .expect(201);
 
@@ -93,7 +104,7 @@ describe('Matches API', () => {
       };
 
       const response = await request(app)
-        .post('/api/matches')
+        .post('/api/v1/matches')
         .send(matchData)
         .expect(201);
 
@@ -111,7 +122,7 @@ describe('Matches API', () => {
       };
 
       const response = await request(app)
-        .post('/api/matches')
+        .post('/api/v1/matches')
         .send(incompleteData)
         .expect(400);
 
@@ -131,7 +142,7 @@ describe('Matches API', () => {
       };
 
       const response = await request(app)
-        .post('/api/matches')
+        .post('/api/v1/matches')
         .send(invalidScoreData)
         .expect(400);
 
@@ -151,7 +162,7 @@ describe('Matches API', () => {
       };
 
       const response = await request(app)
-        .post('/api/matches')
+        .post('/api/v1/matches')
         .send(invalidWinnerData)
         .expect(400);
 
@@ -168,7 +179,7 @@ describe('Matches API', () => {
           scheduledAt: new Date(),
           ownerName: 'Test Owner',
           status: 'COMPLETED', // Inactive
-          shareCode: 'INACTIVE123'
+          shareCode: `INACTIVE-${Date.now()}`
         }
       });
 
@@ -182,7 +193,7 @@ describe('Matches API', () => {
       };
 
       const response = await request(app)
-        .post('/api/matches')
+        .post('/api/v1/matches')
         .send(matchData)
         .expect(400);
 
@@ -200,7 +211,7 @@ describe('Matches API', () => {
           name: 'Other Session',
           scheduledAt: new Date(),
           ownerName: 'Test Owner',
-          shareCode: 'OTHER123'
+          shareCode: `OTHER-${Date.now()}`
         }
       });
 
@@ -214,7 +225,7 @@ describe('Matches API', () => {
       };
 
       const response = await request(app)
-        .post('/api/matches')
+        .post('/api/v1/matches')
         .send(matchData)
         .expect(400);
 
@@ -236,7 +247,7 @@ describe('Matches API', () => {
       };
 
       const response = await request(app)
-        .post('/api/matches')
+        .post('/api/v1/matches')
         .send(matchData)
         .expect(403);
 
@@ -257,7 +268,7 @@ describe('Matches API', () => {
           player2Id: testPlayer2Id,
           winnerId: testPlayer1Id,
           scoreType: '2-0',
-          recordedBy: 'player1-device'
+          recordedBy: testPlayer1Id
           // No approvedBy/approvedAt, so it needs approval
         }
       });
@@ -266,12 +277,12 @@ describe('Matches API', () => {
 
     it('should approve a match as organizer', async () => {
       const response = await request(app)
-        .put(`/api/matches/${pendingMatchId}/approve`)
+        .put(`/api/v1/matches/${pendingMatchId}/approve`)
         .send({ deviceId: testOrganizerId })
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data.match.status).toBe('COMPLETED');
+      expect(response.body.data.match.approvedBy).toBe(testOrganizerPlayerId);
       expect(response.body.data.message).toContain('approved successfully');
     });
 
@@ -284,12 +295,12 @@ describe('Matches API', () => {
           player2Id: testPlayer2Id,
           winnerId: testPlayer2Id,
           scoreType: '2-1',
-          recordedBy: 'player2-device'
+          recordedBy: testPlayer2Id
         }
       });
 
       const response = await request(app)
-        .put(`/api/matches/${anotherMatch.id}/approve`)
+        .put(`/api/v1/matches/${anotherMatch.id}/approve`)
         .send({ deviceId: 'player1-device' }) // Not organizer
         .expect(403);
 
@@ -302,7 +313,7 @@ describe('Matches API', () => {
 
     it('should reject approval of already approved match', async () => {
       const response = await request(app)
-        .put(`/api/matches/${pendingMatchId}/approve`)
+        .put(`/api/v1/matches/${pendingMatchId}/approve`)
         .send({ deviceId: testOrganizerId })
         .expect(400);
 
@@ -322,8 +333,8 @@ describe('Matches API', () => {
             player2Id: testPlayer2Id,
             winnerId: testPlayer1Id,
             scoreType: '2-0',
-            recordedBy: testOrganizerId,
-            approvedBy: testOrganizerId,
+            recordedBy: testOrganizerPlayerId,
+            approvedBy: testOrganizerPlayerId,
             approvedAt: new Date()
           },
           {
@@ -332,8 +343,8 @@ describe('Matches API', () => {
             player2Id: testPlayer1Id,
             winnerId: testPlayer2Id,
             scoreType: '2-1',
-            recordedBy: testOrganizerId,
-            approvedBy: testOrganizerId,
+            recordedBy: testOrganizerPlayerId,
+            approvedBy: testOrganizerPlayerId,
             approvedAt: new Date()
           }
         ]
@@ -342,7 +353,7 @@ describe('Matches API', () => {
 
     it('should get matches for a session as participant', async () => {
       const response = await request(app)
-        .get(`/api/matches/session/${testSessionId}`)
+        .get(`/api/v1/matches/session/${testSessionId}`)
         .query({ deviceId: 'player1-device' })
         .expect(200);
 
@@ -354,7 +365,7 @@ describe('Matches API', () => {
 
     it('should get matches for a session as organizer', async () => {
       const response = await request(app)
-        .get(`/api/matches/session/${testSessionId}`)
+        .get(`/api/v1/matches/session/${testSessionId}`)
         .query({ deviceId: testOrganizerId })
         .expect(200);
 
@@ -364,7 +375,7 @@ describe('Matches API', () => {
 
     it('should reject access for non-participants', async () => {
       const response = await request(app)
-        .get(`/api/matches/session/${testSessionId}`)
+        .get(`/api/v1/matches/session/${testSessionId}`)
         .query({ deviceId: 'unauthorized-device' })
         .expect(403);
 

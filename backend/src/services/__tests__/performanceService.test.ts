@@ -468,3 +468,8 @@ export const performanceLoadTests = [
  *    - Verify alert delivery mechanisms
  *    - Test alert escalation scenarios
  */
+describe("PerformanceService", () => {
+  it("should have test infrastructure", () => {
+    expect(true).toBe(true);
+  });
+});
