@@ -128,39 +128,39 @@ export default function UserProfileScreen() {
 
       {/* Statistics Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Statistics</Text>
+        <Text style={styles.sectionTitle}>{t.profile.stats}</Text>
         
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{profile.stats.totalSessions}</Text>
-            <Text style={styles.statLabel}>Total Sessions</Text>
+            <Text style={styles.statLabel}>{t.profile.totalSessions}</Text>
           </View>
           
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{profile.stats.sessionsHosted}</Text>
-            <Text style={styles.statLabel}>Hosted</Text>
+            <Text style={styles.statLabel}>{t.profile.sessionsHosted}</Text>
           </View>
           
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{profile.stats.gamesPlayed}</Text>
-            <Text style={styles.statLabel}>Games Played</Text>
+            <Text style={styles.statLabel}>{t.profile.gamesPlayed}</Text>
           </View>
           
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{profile.stats.wins}</Text>
-            <Text style={styles.statLabel}>Wins</Text>
+            <Text style={styles.statLabel}>{t.profile.wins}</Text>
           </View>
           
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{profile.stats.losses}</Text>
-            <Text style={styles.statLabel}>Losses</Text>
+            <Text style={styles.statLabel}>{t.profile.losses}</Text>
           </View>
           
           <View style={styles.statCard}>
             <Text style={styles.statValue}>
               {(profile.stats.winRate * 100).toFixed(1)}%
             </Text>
-            <Text style={styles.statLabel}>Win Rate</Text>
+            <Text style={styles.statLabel}>{t.profile.winRate}</Text>
           </View>
         </View>
       </View>

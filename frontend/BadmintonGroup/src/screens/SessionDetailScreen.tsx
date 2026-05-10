@@ -367,11 +367,11 @@ export default function SessionDetailScreen() {
           setIsOwner(false);
         }
       } else {
-        Alert.alert('Error', result.error?.message || 'Session not found');
+        Alert.alert(t.common.error, result.error?.message || 'Session not found');
       }
     } catch (error: any) {
       console.error('Fetch session error:', error);
-      Alert.alert('Error', 'Failed to load session details');
+      Alert.alert(t.common.error, 'Failed to load session details');
     } finally {
       setLoading(false);
     }
@@ -392,7 +392,7 @@ export default function SessionDetailScreen() {
     if (!shareCode || !isOwner) return;
     
     Alert.alert(
-      'Terminate Session',
+      t.session.leave,
       'Are you sure you want to terminate this session? This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
@@ -415,11 +415,11 @@ export default function SessionDetailScreen() {
                 Alert.alert('Success', 'Session has been terminated');
                 refreshSessionData();
               } else {
-                Alert.alert('Error', result.error?.message || 'Failed to terminate session');
+                Alert.alert(t.common.error, result.error?.message || 'Failed to terminate session');
               }
             } catch (error: any) {
               console.error('Terminate session error:', error);
-              Alert.alert('Error', 'Failed to terminate session');
+              Alert.alert(t.common.error, 'Failed to terminate session');
             }
           }
         }
@@ -450,11 +450,11 @@ export default function SessionDetailScreen() {
         refreshSessionData();
         Alert.alert('Success', 'Player added successfully');
       } else {
-        Alert.alert('Error', result.error?.message || 'Failed to add player');
+        Alert.alert(t.common.error, result.error?.message || 'Failed to add player');
       }
     } catch (error: any) {
       console.error('Add player error:', error);
-      Alert.alert('Error', 'Failed to add player');
+      Alert.alert(t.common.error, 'Failed to add player');
     }
   };
 
@@ -485,11 +485,11 @@ export default function SessionDetailScreen() {
                 refreshSessionData();
                 Alert.alert('Success', 'Player removed successfully');
               } else {
-                Alert.alert('Error', result.error?.message || 'Failed to remove player');
+                Alert.alert(t.common.error, result.error?.message || 'Failed to remove player');
               }
             } catch (error: any) {
               console.error('Remove player error:', error);
-              Alert.alert('Error', 'Failed to remove player');
+              Alert.alert(t.common.error, 'Failed to remove player');
             }
           }
         }
@@ -523,11 +523,11 @@ export default function SessionDetailScreen() {
                 Alert.alert('Success', 'Session has been reactivated');
                 refreshSessionData();
               } else {
-                Alert.alert('Error', result.error?.message || 'Failed to reactivate session');
+                Alert.alert(t.common.error, result.error?.message || 'Failed to reactivate session');
               }
             } catch (error: any) {
               console.error('Reactivate session error:', error);
-              Alert.alert('Error', 'Failed to reactivate session');
+              Alert.alert(t.common.error, 'Failed to reactivate session');
             }
           }
         }
@@ -537,7 +537,7 @@ export default function SessionDetailScreen() {
 
   const createGame = async () => {
     if (!shareCode || !gameForm.team1Player1 || !gameForm.team1Player2 || !gameForm.team2Player1 || !gameForm.team2Player2) {
-      Alert.alert('Error', 'Please select all four players');
+      Alert.alert(t.common.error, 'Please select all four players');
       return;
     }
 
@@ -562,11 +562,11 @@ export default function SessionDetailScreen() {
         refreshSessionData();
         Alert.alert('Success', 'Game created successfully!');
       } else {
-        Alert.alert('Error', response.message || 'Failed to create game');
+        Alert.alert(t.common.error, response.message || 'Failed to create game');
       }
     } catch (error: any) {
       console.error('Create game error:', error);
-      Alert.alert('Error', 'Failed to create game: ' + error.message);
+      Alert.alert(t.common.error, 'Failed to create game: ' + error.message);
     }
   };
 
@@ -574,13 +574,13 @@ export default function SessionDetailScreen() {
     if (!selectedGame || !shareCode) return;
 
     if (scoreForm.team1FinalScore === scoreForm.team2FinalScore) {
-      Alert.alert('Error', 'Game cannot end in a tie');
+      Alert.alert(t.common.error, 'Game cannot end in a tie');
       return;
     }
 
     if (scoreForm.team1FinalScore < 0 || scoreForm.team1FinalScore > 2 || 
         scoreForm.team2FinalScore < 0 || scoreForm.team2FinalScore > 2) {
-      Alert.alert('Error', 'Scores must be between 0 and 2');
+      Alert.alert(t.common.error, 'Scores must be between 0 and 2');
       return;
     }
 
@@ -605,11 +605,11 @@ export default function SessionDetailScreen() {
         
         Alert.alert('Game Completed!', `🏆 ${winner} won ${scoreForm.team1FinalScore}-${scoreForm.team2FinalScore}!`);
       } else {
-        Alert.alert('Error', response.message || 'Failed to update score');
+        Alert.alert(t.common.error, response.message || 'Failed to update score');
       }
     } catch (error: any) {
       console.error('Update score error:', error);
-      Alert.alert('Error', 'Failed to update score: ' + error.message);
+      Alert.alert(t.common.error, 'Failed to update score: ' + error.message);
     }
   };
 
@@ -621,13 +621,13 @@ export default function SessionDetailScreen() {
                      teamSwitchForm.team2Player1, teamSwitchForm.team2Player2];
     
     if (players.some(p => !p.trim())) {
-      Alert.alert('Error', 'Please select all four players');
+      Alert.alert(t.common.error, 'Please select all four players');
       return;
     }
 
     const uniquePlayers = new Set(players);
     if (uniquePlayers.size !== 4) {
-      Alert.alert('Error', 'All players must be different');
+      Alert.alert(t.common.error, 'All players must be different');
       return;
     }
 
@@ -652,11 +652,11 @@ export default function SessionDetailScreen() {
         refreshSessionData();
         Alert.alert('Teams Updated!', 'Team arrangements have been successfully changed.');
       } else {
-        Alert.alert('Error', response.message || 'Failed to update teams');
+        Alert.alert(t.common.error, response.message || 'Failed to update teams');
       }
     } catch (error: any) {
       console.error('Update teams error:', error);
-      Alert.alert('Error', 'Failed to update teams: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      Alert.alert(t.common.error, 'Failed to update teams: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
@@ -946,7 +946,7 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
                 <Text style={[styles.statusBadgeText, getSessionStatusStyle(sessionData.status)]}>
                   {getSessionStatusText(sessionData.status)}
                 </Text>
-                <Text style={styles.courtCountBadge}>🏸 Courts: {sessionData.courtCount || 1}</Text>
+                <Text style={styles.courtCountBadge}>🏸 {t.session.courts}: {sessionData.courtCount || 1}</Text>
               </View>
             </View>
           </View>
@@ -1009,7 +1009,7 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
                 </TouchableOpacity>
                 
                 <TouchableOpacity style={styles.terminateButton} onPress={terminateSession}>
-                  <Text style={styles.terminateButtonText}>🛑 Terminate Session</Text>
+                  <Text style={styles.terminateButtonText}>🛑 {t.session.leave}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -1035,8 +1035,8 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
         
         {!sessionData.players || sessionData.players.length === 0 ? (
           <View style={styles.emptyPlayerState}>
-            <Text style={styles.noPlayersText}>No players yet</Text>
-            <Text style={styles.noPlayersSubtext}>Share the session to invite others!</Text>
+            <Text style={styles.noPlayersText}>{t.session.players}: 0</Text>
+            <Text style={styles.noPlayersSubtext}>{t.session.share}</Text>
             {isOwner && (
               <TouchableOpacity 
                 style={styles.addFirstPlayerButton} 
@@ -1124,7 +1124,7 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Player</Text>
+            <Text style={styles.modalTitle}>{t.common.edit} Player</Text>
             <TextInput
               style={styles.modalInput}
               placeholder="Enter player name"
@@ -1149,14 +1149,14 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
                 onPress={addPlayer}
                 disabled={!newPlayerName.trim()}
               >
-                <Text style={styles.modalAddText}>Add Player</Text>
+                <Text style={styles.modalAddText}>{t.common.edit} Player</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Court Settings Modal */}
+      {/* {t.session.courts} Settings Modal */}
       <Modal
         visible={showCourtSettings}
         transparent={true}
@@ -1165,10 +1165,10 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Court Settings</Text>
+            <Text style={styles.modalTitle}>{t.session.courts} Settings</Text>
             
             <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>Number of Courts:</Text>
+              <Text style={styles.settingLabel}>{t.session.courts}:</Text>
               <View style={styles.counterControls}>
                 <TouchableOpacity 
                   style={styles.counterButton}
@@ -1230,11 +1230,11 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
                       refreshSessionData();
                       Alert.alert('Settings Saved', `Court count set to ${courtSettings.courtCount}`);
                     } else {
-                      Alert.alert('Error', result.message || 'Failed to save settings');
+                      Alert.alert(t.common.error, result.message || 'Failed to save settings');
                     }
                   } catch (error: any) {
                     console.error('Save court settings error:', error);
-                    Alert.alert('Error', 'Failed to save court settings: ' + error.message);
+                    Alert.alert(t.common.error, 'Failed to save court settings: ' + error.message);
                   }
                 }}
               >
@@ -2264,7 +2264,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  // Court Settings Modal Styles
+  // {t.session.courts} Settings Modal Styles
   settingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

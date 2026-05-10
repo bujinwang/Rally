@@ -16,10 +16,12 @@ import { useMessaging } from '../hooks/useMessaging';
 import { MessageBubble } from '../components/MessageBubble';
 import { MessageInput } from '../components/MessageInput';
 import { TypingIndicator } from '../components/TypingIndicator';
+import { useTranslation } from '../i18n/LanguageContext';
 
 const MESSAGES_PER_PAGE = 50;
 
 export default function ChatScreen() {
+  const { t } = useTranslation();
   const route = useRoute<any>();
   const navigation = useNavigation();
   const { threadId } = route.params;
@@ -81,7 +83,7 @@ export default function ChatScreen() {
       setHasMore(messageList.length >= MESSAGES_PER_PAGE);
     } catch (error: any) {
       console.error('Error loading chat:', error);
-      Alert.alert('Error', 'Failed to load conversation');
+      Alert.alert(t.common.error, 'Failed to load conversation');
     } finally {
       setLoading(false);
     }
@@ -104,10 +106,32 @@ export default function ChatScreen() {
   useEffect(() => {
     if (threadDetails) {
       navigation.setOptions({
-        title: threadDetails.title || 'Chat',
+        title: threadDetails.title || t.messages.title,
       });
     }
   }, [threadDetails, navigation]);
+
+  /**
+   * Format a date for the separator (e.g. "Today", "Yesterday")
+   */
+  const formatDateSeparator = useCallback((dateString: string): string => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const messageDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const diffDays = Math.floor((today.getTime() - messageDay.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return t.messages.today;
+    if (diffDays === 1) return t.messages.yesterday;
+    if (diffDays < 7) {
+      return date.toLocaleDateString('en-US', { weekday: 'long' });
+    }
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+    });
+  }, [t]);
 
   /**
    * Load older messages (pagination)
@@ -148,7 +172,7 @@ export default function ChatScreen() {
           setMessages(prev => [...prev, sent]);
         }
       } catch (error: any) {
-        Alert.alert('Error', error.message || 'Failed to send message');
+        Alert.alert(t.common.error, error.message || 'Failed to send message');
       }
     },
     [threadId, isConnected, sendSocketMessage]
@@ -196,7 +220,7 @@ export default function ChatScreen() {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Loading messages...</Text>
+        <Text style={styles.loadingText}>{t.common.loading}</Text>
       </View>
     );
   }
@@ -210,7 +234,7 @@ export default function ChatScreen() {
       {/* Connection status banner */}
       {!isConnected && (
         <View style={styles.offlineBanner}>
-          <Text style={styles.offlineText}>Connecting...</Text>
+          <Text style={styles.offlineText}>{t.messages.connecting}</Text>
         </View>
       )}
 
@@ -236,8 +260,8 @@ export default function ChatScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No messages yet</Text>
-            <Text style={styles.emptySubtext}>Say hello!</Text>
+            <Text style={styles.emptyText}>{t.messages.noMessages}</Text>
+            <Text style={styles.emptySubtext}>{t.messages.sayHello}</Text>
           </View>
         }
       />
@@ -255,30 +279,6 @@ export default function ChatScreen() {
     </KeyboardAvoidingView>
   );
 }
-
-/**
- * Format a date for the separator (e.g. "Today", "Yesterday", "Monday, Jan 5")
- */
-const formatDateSeparator = (dateString: string): string => {
-  const now = new Date();
-  const date = new Date(dateString);
-
-  // Reset time components for date comparison
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const messageDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const diffDays = Math.floor((today.getTime() - messageDay.getTime()) / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) {
-    return date.toLocaleDateString('en-US', { weekday: 'long' });
-  }
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
-  });
-};
 
 const styles = StyleSheet.create({
   container: {

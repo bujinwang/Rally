@@ -15,8 +15,10 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { friendsApi, Friend } from '../services/friendsApi';
 import { FriendCard } from '../components/FriendCard';
+import { useTranslation } from '../i18n/LanguageContext';
 
 export default function FriendsListScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [filteredFriends, setFilteredFriends] = useState<Friend[]>([]);
@@ -39,7 +41,7 @@ export default function FriendsListScreen() {
       setFriends(data);
     } catch (error: any) {
       console.error('Error loading friends:', error);
-      Alert.alert('Error', 'Failed to load friends list');
+      Alert.alert(t.common.error, 'Failed to load friends list');
     } finally {
       setLoading(false);
     }
@@ -134,7 +136,7 @@ export default function FriendsListScreen() {
         <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search friends..."
+          placeholder={t.friends.search}
           value={searchQuery}
           onChangeText={setSearchQuery}
           autoCapitalize="none"
@@ -150,12 +152,12 @@ export default function FriendsListScreen() {
       <View style={styles.actionButtonsContainer}>
         <TouchableOpacity style={styles.actionButtonPrimary} onPress={navigateToAddFriend}>
           <Ionicons name="person-add" size={20} color="#fff" />
-          <Text style={styles.actionButtonText}>Add Friend</Text>
+          <Text style={styles.actionButtonText}>{t.friends.add}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionButtonSecondary} onPress={navigateToRequests}>
           <Ionicons name="mail" size={20} color="#007AFF" />
-          <Text style={styles.actionButtonTextSecondary}>Requests</Text>
+          <Text style={styles.actionButtonTextSecondary}>{t.friends.requests}</Text>
         </TouchableOpacity>
       </View>
 
@@ -172,7 +174,7 @@ export default function FriendsListScreen() {
     <View style={styles.emptyContainer}>
       <Ionicons name="people-outline" size={64} color="#ccc" />
       <Text style={styles.emptyText}>
-        {searchQuery ? 'No friends found' : 'No friends yet'}
+        {searchQuery ? t.common.noResults : t.friends.noFriends}
       </Text>
       <Text style={styles.emptySubtext}>
         {searchQuery
@@ -181,7 +183,7 @@ export default function FriendsListScreen() {
       </Text>
       {!searchQuery && (
         <TouchableOpacity style={styles.addFriendButton} onPress={navigateToAddFriend}>
-          <Text style={styles.addFriendButtonText}>Add Friends</Text>
+          <Text style={styles.addFriendButtonText}>{t.friends.add}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -204,7 +206,7 @@ export default function FriendsListScreen() {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Loading friends...</Text>
+        <Text style={styles.loadingText}>{t.common.loading}</Text>
       </View>
     );
   }
