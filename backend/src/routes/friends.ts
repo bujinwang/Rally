@@ -2,6 +2,7 @@ import { Router, Request } from 'express';
 import { FriendService } from '../services/friendService';
 import { authenticateToken } from '../middleware/auth';
 import { validate } from '../utils/validation';
+import { notifyDevice } from '../utils/notificationHelper';
 import Joi from 'joi';
 
 const router = Router();
@@ -56,6 +57,14 @@ router.post('/requests', validate(sendFriendRequestSchema), async (req: AuthRequ
       message
     });
 
+    // Notify receiver of new friend request
+    notifyDevice(receiverId, {
+      title: '👥 New Friend Request',
+      body: message || 'Someone wants to be your friend!',
+      type: 'FRIEND_REQUEST',
+      data: { requestId: friendRequest.id, senderId },
+    }).catch(() => {});
+
     res.status(201).json({
       success: true,
       data: friendRequest,
@@ -103,6 +112,16 @@ router.put('/requests/:requestId', async (req: AuthRequest, res) => {
     }
 
     const response = await FriendService.respondToFriendRequest(requestId, userId, accept);
+
+    // Notify the original sender if request was accepted
+    if (accept && response?.senderId) {
+      notifyDevice(response.senderId, {
+        title: '✅ Friend Request Accepted',
+        body: 'Your friend request was accepted!',
+        type: 'FRIEND_ACCEPTED',
+        data: { requestId },
+      }).catch(() => {});
+    }
 
     res.json({
       success: true,
