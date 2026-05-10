@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import { Server as SocketServer } from 'socket.io';
@@ -39,10 +40,24 @@ app.use(helmet({
   },
 }));
 
+// Trust reverse proxy (nginx) for correct client IP
+app.set('trust proxy', 1);
+
 // CORS configuration
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   credentials: true
+}));
+
+// Response compression (gzip)
+app.use(compression({
+  level: 6,               // Balance speed vs compression
+  threshold: 1024,        // Only compress responses > 1KB
+  filter: (req, res) => {
+    // Don't compress WebSocket upgrades
+    if (req.headers['upgrade']) return false;
+    return compression.filter(req, res);
+  }
 }));
 
 // Logging middleware
