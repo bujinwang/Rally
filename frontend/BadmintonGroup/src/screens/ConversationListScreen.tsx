@@ -156,7 +156,7 @@ export default function ConversationListScreen() {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Loading conversations...</Text>
+        <Text style={styles.loadingText}>{t.common.loading}</Text>
       </View>
     );
   }
@@ -169,7 +169,7 @@ export default function ConversationListScreen() {
           <Ionicons name="search" size={18} color="#999" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search conversations..."
+            placeholder={t.messages.search}
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoCapitalize="none"
