@@ -19,7 +19,8 @@
     "test:e2e": "jest --testPathPattern=e2e",
     "test:load": "jest --testPathPattern=load",
     "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e && npm run test:load",
-    "test:ci": "npm run test:all -- --coverage --watchAll=false"
+    "test:smoke": "node ../tests/smoke-test.mjs",
+    "test:ci": "npm run test:all -- --coverage --watchAll=false && npm run test:smoke"
   },
   "keywords": [],
   "author": "",
