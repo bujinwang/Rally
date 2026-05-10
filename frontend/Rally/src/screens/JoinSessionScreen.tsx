@@ -13,8 +13,9 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import { OrganizerClaimModal } from '../components/OrganizerClaimModal';
 import DeviceService from '../services/deviceService';
 import { notificationService } from '../services/NotificationService';
+import { API_BASE_URL } from '../config/api';
 
-const API_BASE_URL = 'http://localhost:3001/api/v1';
+
 
 interface SessionData {
   id: string;

@@ -28,7 +28,7 @@ const initialState: AuthState = {
   user: null,
   tokens: null,
   isLoading: false,
-  isAuthenticated: true, // MVP mode
+  isAuthenticated: false,
   error: null,
 };
 

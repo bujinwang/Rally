@@ -16,8 +16,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { SessionConfigApiService } from '../services/sessionConfigApi';
 import { SessionConfiguration, DEFAULT_SESSION_CONFIG } from '../types/sessionConfig';
 import sessionApi from '../services/sessionApi';
+import { API_BASE_URL } from '../config/api';
 
-const API_BASE_URL = 'http://localhost:3001/api/v1';
+
 
 interface RouteParams {
   sessionId: string;

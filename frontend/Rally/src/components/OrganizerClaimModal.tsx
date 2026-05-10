@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DeviceService from '../services/deviceService';
+import { API_BASE_URL } from '../config/api';
 
 interface OrganizerClaimModalProps {
   visible: boolean;
@@ -21,7 +22,7 @@ interface OrganizerClaimModalProps {
   onSuccess: () => void;
 }
 
-const API_BASE_URL = 'http://localhost:3001/api/v1';
+
 
 export const OrganizerClaimModal: React.FC<OrganizerClaimModalProps> = ({
   visible,

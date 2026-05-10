@@ -40,7 +40,7 @@ export default function SessionSuggestions({ deviceId, style }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`http://localhost:3001/api/v1/session-suggestions/${deviceId}`);
+      const res = await fetch(`${API_BASE_URL}/session-suggestions/${deviceId}`);
       const data = await res.json();
       if (data.success) {
         setSuggestions(data.data.suggestions);

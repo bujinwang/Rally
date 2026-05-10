@@ -23,8 +23,9 @@ import { DEVICE_ID_KEY } from '../config/api';
 import { sessionApi } from '../services/sessionApi';
 import { StatusManager } from '../components/StatusManager';
 import { useTranslation } from '../i18n/LanguageContext';
+import { API_BASE_URL } from '../config/api';
 
-const API_BASE_URL = 'http://localhost:3001/api/v1';
+
 
 interface Player {
   id: string;

@@ -18,7 +18,7 @@ interface Session {
   isOwner: boolean;
 }
 
-const mockSessions: Session[] = [
+ = [
   {
     id: '1',
     name: '北京羽毛球会 - 8/25 14:00',
@@ -68,7 +68,7 @@ const SessionListScreen = () => {
       </View>
 
       <FlatList
-        data={mockSessions}
+        data={sessions}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <SessionItem session={item} />}
         contentContainerStyle={styles.listContainer}

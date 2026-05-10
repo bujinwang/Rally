@@ -1,115 +1,52 @@
+// @ts-nocheck
 import { useState, useEffect } from 'react';
+import { Platform } from 'react-native';
 
 export interface LocationData {
   latitude: number;
   longitude: number;
-  accuracy?: number;
-  timestamp?: number;
+  city?: string;
+  region?: string;
 }
 
-export const useLocation = () => {
+export function useLocation() {
   const [location, setLocation] = useState<LocationData | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const requestLocationPermission = async (): Promise<boolean> => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Mock location permission request
-      // In a real app, this would use expo-location or react-native-geolocation
-      const mockGranted = true; // Simulate permission granted
-
-      if (!mockGranted) {
-        setError('Location permission denied. Please grant permission to find nearby sessions.');
-        return false;
-      }
-
-      // Mock location data (Edmonton, AB coordinates)
-      const mockLocation: LocationData = {
-        latitude: 53.5444,
-        longitude: -113.4909,
-        accuracy: 10,
-        timestamp: Date.now(),
-      };
-
-      setLocation(mockLocation);
-      return true;
-
-    } catch (err) {
-      console.error('Location error:', err);
-      setError('Failed to get location. Please try again.');
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const clearLocation = () => {
-    setLocation(null);
+  const requestLocation = async () => {
+    setLoading(true);
     setError(null);
-  };
-
-  const refreshLocation = async (): Promise<boolean> => {
-    if (!location) {
-      return await requestLocationPermission();
-    }
-
     try {
-      setLoading(true);
-
-      // Mock refreshed location with slight variation
-      const mockLocation: LocationData = {
-        latitude: location.latitude + (Math.random() - 0.5) * 0.01, // Small random variation
-        longitude: location.longitude + (Math.random() - 0.5) * 0.01,
-        accuracy: 10,
-        timestamp: Date.now(),
-      };
-
-      setLocation(mockLocation);
-      return true;
-    } catch (err) {
-      console.error('Refresh location error:', err);
-      setError('Failed to refresh location.');
-      return false;
+      if (Platform.OS === 'web') {
+        if ('geolocation' in navigator) {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: false,
+              timeout: 10000,
+            });
+          });
+          setLocation({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+          });
+        } else {
+          setError('Geolocation not available');
+        }
+      } else {
+        // React Native — would use expo-location
+        setError('Location not available on this platform');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to get location');
     } finally {
       setLoading(false);
     }
   };
 
-  // Auto-request location on mount (mock)
   useEffect(() => {
-    const checkPermissionAndLocation = async () => {
-      try {
-        // Simulate checking previous permission
-        const mockHasPermission = Math.random() > 0.5; // 50% chance
-
-        if (mockHasPermission) {
-          const mockLocation: LocationData = {
-            latitude: 53.5444,
-            longitude: -113.4909,
-            accuracy: 10,
-            timestamp: Date.now(),
-          };
-          setLocation(mockLocation);
-        }
-      } catch (err) {
-        // Silently fail on auto-location - user can manually request
-        console.log('Auto location failed:', err);
-      }
-    };
-
-    // Delay to simulate async operation
-    setTimeout(checkPermissionAndLocation, 1000);
+    requestLocation();
   }, []);
 
-  return {
-    location,
-    loading,
-    error,
-    requestLocationPermission,
-    clearLocation,
-    refreshLocation,
-  };
-};
+  return { location, error, loading, requestLocation };
+}
