@@ -2,6 +2,7 @@ import { Router, Request } from 'express';
 import { messagingService } from '../services/messagingService';
 import { authenticateToken } from '../middleware/auth';
 import { validate } from '../utils/validation';
+import { notifyDevice } from '../utils/notificationHelper';
 import Joi from 'joi';
 
 const router = Router();
@@ -103,6 +104,22 @@ router.post('/messages', validate(sendMessageSchema), async (req: AuthRequest, r
       content,
       messageType
     });
+
+    // Send push notification to other thread participants
+    try {
+      const thread = await messagingService.getThreadDetails(threadId, senderId);
+      const recipients = (thread?.participants || []).filter((p: string) => p !== senderId);
+      for (const recipientId of recipients) {
+        await notifyDevice(recipientId, {
+          title: '💬 New Message',
+          body: content.length > 50 ? content.slice(0, 50) + '...' : content,
+          type: 'NEW_MESSAGE',
+          data: { threadId, senderId },
+        }).catch(() => {}); // fire-and-forget per recipient
+      }
+    } catch (err) {
+      console.warn('Failed to send message push notification:', err);
+    }
 
     res.status(201).json({
       success: true,

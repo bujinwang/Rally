@@ -4,6 +4,9 @@ import { PairingService } from '../services/pairingService';
 import { AIPairingService } from '../services/aiPairingService';
 import { validatePairingRequest, validate } from '../utils/validation';
 import { prisma } from '../config/database';
+import { io } from '../server';
+import { emitPairingGenerated } from '../socket/notificationHandlers';
+import { notifySessionSubscribers } from '../utils/notificationHelper';
 
 interface AuthRequest extends Request {
   user?: {
@@ -66,6 +69,24 @@ router.post('/sessions/:sessionId/pairings', requireRole(['OWNER', 'ORGANIZER'])
 
     // Store pairings in database (we'll need to create a pairings table)
     // For now, return the result directly
+
+    // Send push + socket notification
+    try {
+      const gameCount = pairingResult?.pairings?.length || 0;
+      await notifySessionSubscribers(sessionId, {
+        title: '🎯 New Pairings Generated',
+        body: `${gameCount} new ${gameCount === 1 ? 'game' : 'games'} created`,
+        type: 'PAIRING_GENERATED',
+        data: { sessionId, gameCount },
+      });
+      // Emit socket if shareCode available (MVP sessions)
+      const mvpSession = await prisma.mvpSession.findUnique({ where: { id: sessionId } });
+      if (mvpSession?.shareCode) {
+        emitPairingGenerated(io, mvpSession.shareCode, { newGamesCount: gameCount });
+      }
+    } catch (err) {
+      console.warn('Failed to send pairing notification:', err);
+    }
 
     res.json({
       success: true,
