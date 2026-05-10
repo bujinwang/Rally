@@ -241,7 +241,7 @@ const createSessionValidation = [
   body('clubAffiliation').optional().isLength({ max: 100 }).withMessage('Club name must be under 100 characters'),
   body('dropInFee').optional().isFloat({ min: 0 }).withMessage('Drop-in fee must be a positive number'),
   body('invitationRequired').optional().isBoolean().withMessage('Invitation required must be true/false'),
-  body('sport').optional().isIn(['badminton','pickleball','tennis','table_tennis','volleyball']).withMessage('Invalid sport'),
+  body('sport').optional().isIn(['badminton','pickleball','tennis','table_tennis','volleyball','guandan']).withMessage('Invalid sport'),
   body('depositRequired').optional().isBoolean().withMessage('Deposit required must be true/false'),
   body('depositAmount').optional().isFloat({ min: 0 }).withMessage('Deposit amount must be positive'),
   body('invitePlayerNames').optional().isArray().withMessage('Invite player names must be an array'),
