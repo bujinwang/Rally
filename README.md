@@ -15,37 +15,32 @@
 
 ## ✨ Features
 
-- 🏸 **Smart Pairing**: Intelligent algorithms for balanced game pairing
-- ⚡ **Real-time Updates**: Live session status and player updates via Socket.io
-- 📱 **Cross-platform**: iOS, Android, and Web support
-- 🔐 **Secure Authentication**: JWT-based auth with refresh tokens
-- 📊 **Session Analytics**: Track game statistics and player performance
-- 🎯 **Rotation Management**: Automated player rotation systems
-- 💾 **Offline Support**: Continue using the app without internet
-- 🔗 **Easy Sharing**: Quick join links for session sharing
+### Core
+- 🏸 **Multi-Sport Support**: Badminton, pickleball, tennis, table tennis, volleyball
+- ⚡ **Real-time Updates**: Live session status, game results, and chat via Socket.io
+- 📱 **Cross-platform**: iOS, Android, and Web
+- 🔐 **Authentication**: JWT + OAuth (Google, WeChat)
+- 🔗 **Easy Sharing**: Share links + QR codes for quick session joining
 
-A comprehensive badminton session management application built with React Native, Node.js, Express, and PostgreSQL.
+### Sessions & Gameplay
+- 🎯 **Smart Pairing**: Rotation-based fair pairing with manual override
+- 📊 **Scoring & Stats**: Match recording, leaderboards, win/loss tracking
+- 🏆 **Tournaments**: Bracket generation, scheduling, results
+- ⏱️ **Player Status**: Active / Resting / Left management
+- 📅 **Match Scheduling**: Calendar-based match planning
 
----
+### Social & Community
+- 👥 **Friend System**: Send/accept requests, block users, friend search
+- 💬 **Messaging**: Direct messages + group chat with typing indicators
+- 🌍 **Community Discovery**: Leaderboards, venue directory, player search
+- 🎖️ **Achievements**: Badge system for milestones and performance
+- 🔔 **Live Notifications**: Game ready, friend requests, messages
 
-## 🚀 Quick Demo
-
-> **Try it now!** Check out our [live demo](https://badmintongroup-demo.vercel.app) or follow the quick start guide below.
-
-### 🎥 Screenshots
-
-<!-- Add screenshots here when available -->
-*Screenshots coming soon! Feel free to contribute some.*
-
-## 📱 Mobile App Features
-
-- **Session Creation**: Create and customize badminton sessions
-- **Smart Joining**: Join sessions via QR codes or share links
-- **Live Dashboard**: Real-time session status and player tracking
-- **Intelligent Pairing**: Automatic player pairing with skill balancing
-- **Game Management**: Score tracking and match history
-- **Player Profiles**: Individual statistics and preferences
-- **Offline Mode**: Continue using core features without internet
+### Management
+- 💰 **Deposit System**: Required deposits, pay/no-show tracking
+- 🛡️ **Organizer Controls**: Claim flow, permissions, audit logging
+- 📈 **Analytics**: Session stats, performance trends, CSV export
+- 👤 **User Profiles**: Avatars, privacy settings, notification preferences
 
 ---
 
@@ -326,26 +321,28 @@ Authorization: Bearer <jwt_token>
 
 ### Key Endpoints
 
-#### Authentication
-- `POST /auth/register` - User registration
-- `POST /auth/login` - User login
-- `POST /auth/refresh` - Refresh access token
+| Category | Endpoints |
+|----------|-----------|
+| **Auth** | `register`, `login`, `refresh`, OAuth (Google/WeChat) |
+| **MVP Sessions** | `create`, `join`, `leave`, `claim organizer`, player status |
+| **Users** | `profile`, `avatar upload`, `settings`, `search` |
+| **Friends** | `send/accept/decline requests`, `block`, `stats`, `suggestions` |
+| **Messaging** | `threads`, `direct messages`, `group chat`, `read receipts` |
+| **Scoring** | `record scores`, `leaderboard`, `edit/delete with audit trail` |
+| **Tournaments** | `create`, `brackets`, `schedule`, `results` |
+| **Community** | `leaderboard`, `venue directory`, `trending sessions`, `nearby players` |
+| **Statistics** | `player stats`, `session analytics`, `performance trends` |
+| **Achievements** | `badge system`, `milestone tracking` |
+| **Match Scheduling** | `calendar planning`, `conflict detection` |
+| **Deposits** | `required deposits`, `pay/no-show tracking` |
 
-#### Sessions
-- `GET /sessions` - List user's sessions
-- `POST /sessions` - Create new session
-- `GET /sessions/:id` - Get session details
-- `PUT /sessions/:id` - Update session
-- `DELETE /sessions/:id` - Delete session
-
-#### Health Check
-- `GET /health` - Application health check
+> Full route listing: `backend/src/routes/index.ts` — 25+ active route modules.
 
 ### Real-time Events (Socket.io)
-- `join-session` - Join session room
-- `leave-session` - Leave session room
-- `player-status-update` - Update player status
-- `session-updated` - Session data changed
+- `messaging:new-message`, `messaging:user-typing` — real-time chat
+- `mvp-session-updated` — live session state changes
+- `presence:user-online`, `presence:user-offline` — friend presence
+- `friend_request_received` — instant friend notifications
 
 ## 🚀 Deployment
 
