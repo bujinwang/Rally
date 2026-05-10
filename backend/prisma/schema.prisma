@@ -602,7 +602,6 @@ model User {
   socialConnections SocialConnection[]
   userSettings   UserSettings?
 
-  @@index([userId])
   @@map("users")
 }
 
@@ -2697,6 +2696,27 @@ enum VenueType {
   HOTEL
   STADIUM
   OTHER
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String   // SESSION_UPDATED, PLAYER_REMOVED, etc.
+  actorId     String
+  actorName   String
+  targetId    String?
+  targetType  String?  // session, player, game, match
+  sessionId   String?
+  metadata    String?  // JSON string of change details
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([actorId])
+  @@index([targetId, targetType])
+  @@index([createdAt])
+  @@index([action])
+  @@map("audit_logs")
 }
 
 model PredictionModel {
