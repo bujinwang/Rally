@@ -56,7 +56,7 @@ jobs:
           Download the APK from the assets below or build from source.
           
           ## Full Changelog
-          **Full Changelog**: https://github.com/yourusername/BadmintonGroup/compare/v${{ steps.version.outputs.VERSION }}...HEAD
+          **Full Changelog**: https://github.com/yourusername/Rally/compare/v${{ steps.version.outputs.VERSION }}...HEAD
         draft: false
         prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
 
@@ -118,11 +118,11 @@ jobs:
       run: npm install -g @expo/cli
 
     - name: Install dependencies
-      working-directory: ./frontend/BadmintonGroup
+      working-directory: ./frontend/Rally
       run: npm ci
 
     - name: Build for production
-      working-directory: ./frontend/BadmintonGroup
+      working-directory: ./frontend/Rally
       run: |
         # Configure for production build
         echo "EXPO_PUBLIC_API_URL=https://api.badmintongroup.com/api/v1" > .env
@@ -134,7 +134,7 @@ jobs:
 
     # Note: For actual app store builds, you'd need to set up EAS Build
     # - name: Build with EAS
-    #   working-directory: ./frontend/BadmintonGroup
+    #   working-directory: ./frontend/Rally
     #   run: |
     #     npm install -g @expo/eas-cli
     #     eas build --platform all --non-interactive

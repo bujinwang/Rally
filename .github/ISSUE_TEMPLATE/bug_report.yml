@@ -41,7 +41,7 @@ body:
     id: version
     attributes:
       label: Version
-      description: What version of BadmintonGroup are you using?
+      description: What version of Rally are you using?
       placeholder: "v1.0.0"
     validations:
       required: true

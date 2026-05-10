@@ -35,7 +35,7 @@ export default function MoreScreen() {
       <View style={styles.mvpSection}>
         <Text style={styles.mvpTitle}>🏸 MVP Features</Text>
         <Text style={styles.mvpText}>
-          This is the MVP version of the Badminton Group app. 
+          This is the MVP version of the Rally app. 
           Current features include session creation, sharing, and management without requiring user accounts.
         </Text>
       </View>

@@ -5,7 +5,7 @@
 
 ## Epic Goal
 
-Expand the Badminton Group platform with advanced features to increase user engagement, improve matching accuracy, and enable community building through tournaments, social sharing, and AI-powered pairing suggestions.
+Expand the Rally platform with advanced features to increase user engagement, improve matching accuracy, and enable community building through tournaments, social sharing, and AI-powered pairing suggestions.
 
 ## Epic Description
 

@@ -1,4 +1,4 @@
-// Social SDK Integrations for Badminton Group
+// Social SDK Integrations for Rally
 // Note: These integrations require installing the respective SDK packages
 
 // TODO: Install required packages:

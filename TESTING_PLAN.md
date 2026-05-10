@@ -43,7 +43,7 @@
 - Format: `{platform}-{hash}-{timestamp}` (e.g., `ios-abc123-xyz`)
 
 **Files to verify:**
-- `frontend/BadmintonGroup/src/services/deviceService.ts`
+- `frontend/Rally/src/services/deviceService.ts`
 - Check logs for "📱 Generated new device ID"
 
 #### Test 1.2: Device ID in API Calls
@@ -95,7 +95,7 @@
 
 **Code locations:**
 - Backend: `backend/src/routes/mvpSessions.ts` line ~3066-3082
-- Frontend: `frontend/BadmintonGroup/src/services/realTimeService.ts`
+- Frontend: `frontend/Rally/src/services/realTimeService.ts`
 
 #### Test 2.3: Player Removed
 **Steps:**
@@ -135,8 +135,8 @@
 - Warning message: "Save this secret! You'll need it to regain organizer access"
 
 **Files:**
-- `frontend/BadmintonGroup/src/components/SessionShareModal.tsx`
-- `frontend/BadmintonGroup/src/screens/CreateSessionScreen.tsx`
+- `frontend/Rally/src/components/SessionShareModal.tsx`
+- `frontend/Rally/src/screens/CreateSessionScreen.tsx`
 
 **Screenshot areas:**
 - Section with key icon (🔑)
@@ -158,8 +158,8 @@
 - Can manage session (remove players, etc.)
 
 **Files:**
-- `frontend/BadmintonGroup/src/components/OrganizerClaimModal.tsx`
-- `frontend/BadmintonGroup/src/screens/JoinSessionScreen.tsx`
+- `frontend/Rally/src/components/OrganizerClaimModal.tsx`
+- `frontend/Rally/src/screens/JoinSessionScreen.tsx`
 
 **Backend endpoint:** `POST /api/v1/mvp-sessions/claim`
 
@@ -302,14 +302,14 @@ npm run dev
 
 ### Terminal 2: Start Frontend (iOS)
 ```bash
-cd frontend/BadmintonGroup
+cd frontend/Rally
 npx expo start --clear
 # Press 'i' for iOS simulator
 ```
 
 ### Terminal 3: Start Frontend (Android)
 ```bash
-cd frontend/BadmintonGroup
+cd frontend/Rally
 npx expo start --clear
 # Press 'a' for Android emulator
 ```

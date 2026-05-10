@@ -1,6 +1,6 @@
-# BadmintonGroup UI/UX Specification
+# Rally UI/UX Specification
 
-This document defines the user experience goals, information architecture, user flows, and visual design specifications for BadmintonGroup's Enhanced Live Games system. It serves as the foundation for visual design and frontend development, ensuring a cohesive and user-centered experience.
+This document defines the user experience goals, information architecture, user flows, and visual design specifications for Rally's Enhanced Live Games system. It serves as the foundation for visual design and frontend development, ensuring a cohesive and user-centered experience.
 
 ## Overall UX Goals & Principles
 
@@ -190,7 +190,7 @@ graph TD
 
 ## Component Library / Design System
 
-**Design System Approach:** React Native component library built on established BadmintonGroup design tokens, extended with Enhanced Live Games specific components for real-time gaming functionality
+**Design System Approach:** React Native component library built on established Rally design tokens, extended with Enhanced Live Games specific components for real-time gaming functionality
 
 ### Core Components
 
@@ -406,7 +406,7 @@ interface WaitTimeService {
 
 ### Visual Identity
 
-**Brand Guidelines:** The BadmintonGroup app maintains a clean, sports-focused identity that balances professionalism with the fun, social nature of recreational badminton. The visual language emphasizes fairness, transparency, and community building.
+**Brand Guidelines:** The Rally app maintains a clean, sports-focused identity that balances professionalism with the fun, social nature of recreational badminton. The visual language emphasizes fairness, transparency, and community building.
 
 ### Color Palette
 
@@ -809,7 +809,7 @@ interface EnhancedQueueState {
 - [x] **Component inventory complete** - LiveGameCard, TeamSwitchInterface, and RotationQueue components specified
 - [x] **Accessibility requirements defined** - WCAG 2.1 AA compliance with sports context considerations
 - [x] **Responsive strategy clear** - Mobile-first approach with tablet and desktop adaptations
-- [x] **Brand guidelines incorporated** - Color palette, typography, and iconography aligned with BadmintonGroup identity
+- [x] **Brand guidelines incorporated** - Color palette, typography, and iconography aligned with Rally identity
 - [x] **Performance goals established** - Real-time responsiveness and mobile optimization targets set
 
 ---

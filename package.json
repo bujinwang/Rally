@@ -1,4 +1,5 @@
 {
+  "name": "rally",
   "dependencies": {
     "react-native-url-polyfill": "^2.0.0"
   },

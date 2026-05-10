@@ -1,8 +1,8 @@
-# Badminton Group MVP - Project Timeline
+# Rally MVP - Project Timeline
 
 ## Overview
 
-This document outlines the comprehensive development timeline for the Badminton Group MVP application, covering all 9 user stories across 3 epics. The timeline provides estimated timeframes, dependencies, milestones, and risk considerations.
+This document outlines the comprehensive development timeline for the Rally MVP application, covering all 9 user stories across 3 epics. The timeline provides estimated timeframes, dependencies, milestones, and risk considerations.
 
 ## Project Structure
 

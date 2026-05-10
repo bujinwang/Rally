@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# BadmintonGroup MVP - Production Deployment Script
+# Rally MVP - Production Deployment Script
 # This script automates the production deployment process
 
 set -e  # Exit on error
@@ -12,7 +12,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration
-PROJECT_NAME="BadmintonGroup"
+PROJECT_NAME="Rally"
 COMPOSE_FILE="docker/docker-compose.prod.yml"
 BACKUP_DIR="./backups"
 

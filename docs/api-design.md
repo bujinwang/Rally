@@ -1,4 +1,4 @@
-# 🔌 Badminton Group Management API - Design Specification
+# 🔌 Rally Management API - Design Specification
 
 This document provides detailed API specifications for the badminton pairing management application's backend services.
 

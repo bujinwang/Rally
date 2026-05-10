@@ -1,4 +1,4 @@
-# 🏸 Badminton Group Management App
+# 🏸 Rally Management App
 
 ## Project Overview
 
@@ -53,7 +53,7 @@ The frontend is a React Native application managed with Expo.
 
 ```bash
 # Navigate to the frontend directory
-cd frontend/BadmintonGroup
+cd frontend/Rally
 
 # Install dependencies
 npm install
@@ -65,7 +65,7 @@ This will open the Expo developer tools in your browser. You can then run the ap
 
 ## Key Commands
 
-*   **Run all tests:** `npm test` (run from within `backend` or `frontend/BadmintonGroup`).
+*   **Run all tests:** `npm test` (run from within `backend` or `frontend/Rally`).
 *   **View database with Prisma Studio:** `npx prisma studio` (run from `backend`).
 *   **Build backend for production:** `npm run build` (run from `backend`).
 

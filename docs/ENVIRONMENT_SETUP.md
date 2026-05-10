@@ -1,6 +1,6 @@
 # Environment Configuration Guide
 
-This document explains how to configure the BadmintonGroup application for different environments.
+This document explains how to configure the Rally application for different environments.
 
 ## 📋 Quick Setup
 
@@ -22,7 +22,7 @@ This document explains how to configure the BadmintonGroup application for diffe
 
 1. **Copy the environment template:**
    ```bash
-   cd frontend/BadmintonGroup
+   cd frontend/Rally
    cp .env.example .env
    ```
 
@@ -71,7 +71,7 @@ This document explains how to configure the BadmintonGroup application for diffe
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `EXPO_PUBLIC_APP_NAME` | Application name | `BadmintonGroup` |
+| `EXPO_PUBLIC_APP_NAME` | Application name | `Rally` |
 | `EXPO_PUBLIC_APP_VERSION` | Application version | `1.0.0` |
 | `EXPO_PUBLIC_ENVIRONMENT` | Environment name | `development` |
 | `EXPO_PUBLIC_DEBUG_MODE` | Enable debug features | `true` |
@@ -202,7 +202,7 @@ cd backend
 npm run validate-env
 
 # Frontend validation
-cd frontend/BadmintonGroup
+cd frontend/Rally
 npm run validate-env
 ```
 

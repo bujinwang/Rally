@@ -1,4 +1,4 @@
-# 🔒 Security Audit Checklist - BadmintonGroup MVP
+# 🔒 Security Audit Checklist - Rally MVP
 
 **Date:** January 29, 2025  
 **Version:** 1.0.0  
@@ -9,7 +9,7 @@
 
 ## 📋 Overview
 
-This comprehensive security audit checklist ensures the BadmintonGroup MVP meets production security standards before launch.
+This comprehensive security audit checklist ensures the Rally MVP meets production security standards before launch.
 
 ---
 
@@ -233,7 +233,7 @@ _____________________
 ```bash
 # Run these commands and verify no HIGH/CRITICAL vulnerabilities
 cd backend && npm audit
-cd frontend/BadmintonGroup && npm audit
+cd frontend/Rally && npm audit
 ```
 
 - [ ] No high or critical vulnerabilities in dependencies

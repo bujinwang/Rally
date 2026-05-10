@@ -58,7 +58,7 @@ router.get('/s/:shareCode', async (req: Request, res: Response) => {
   <meta property="og:description" content="${cardDesc}" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="${joinUrl}" />
-  <meta property="og:site_name" content="BadmintonGroup" />
+  <meta property="og:site_name" content="Rally" />
   <meta property="og:locale" content="en_US" />
 
   <!-- Twitter Card -->
@@ -229,7 +229,7 @@ router.get('/s/:shareCode', async (req: Request, res: Response) => {
   </div>
 
   <div class="powered-by">
-    Shared via <a href="${appUrl}">BadmintonGroup</a> — The easiest way to organize games
+    Shared via <a href="${appUrl}">Rally</a> — The easiest way to organize games
   </div>
 </body>
 </html>`;

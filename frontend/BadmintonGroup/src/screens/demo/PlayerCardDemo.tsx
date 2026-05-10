@@ -48,7 +48,7 @@ export const PlayerCardDemo: React.FC = () => {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         
         {/* Header */}
-        <Text style={styles.title}>BadmintonGroup Design System</Text>
+        <Text style={styles.title}>Rally Design System</Text>
         <Text style={styles.subtitle}>PlayerCard Component Demo</Text>
         
         {/* Active Players Section */}

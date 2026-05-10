@@ -2,7 +2,7 @@
 
 ## Overview
 
-The BadmintonGroup MVP application implements a comprehensive role-based permission system that controls user access to various features and actions within sessions. This system ensures that only authorized users can perform specific operations while maintaining a smooth user experience.
+The Rally MVP application implements a comprehensive role-based permission system that controls user access to various features and actions within sessions. This system ensures that only authorized users can perform specific operations while maintaining a smooth user experience.
 
 ## Roles
 

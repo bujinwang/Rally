@@ -31,7 +31,7 @@ function generateDeviceFingerprint() {
   const ctx = canvas.getContext('2d');
   if (ctx) {
     ctx.textBaseline = 'top';
-    ctx.fillText('BadmintonGroup Device ID', 2, 2);
+    ctx.fillText('Rally Device ID', 2, 2);
   }
   
   const components = [

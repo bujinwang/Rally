@@ -1,5 +1,5 @@
 #!/bin/bash
-# BadmintonGroup — Production Database Backup Script
+# Rally — Production Database Backup Script
 # Run via cron: 0 2 * * * /path/to/scripts/backup-db.sh
 # Supports PostgreSQL dumps to local disk and optional S3 sync
 

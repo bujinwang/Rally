@@ -2,7 +2,7 @@
 
 ## Overview
 
-The BadmintonGroup MVP now has a comprehensive role-based permission system that ensures only authorized users (organizers) can perform sensitive operations while allowing players to manage their own status.
+The Rally MVP now has a comprehensive role-based permission system that ensures only authorized users (organizers) can perform sensitive operations while allowing players to manage their own status.
 
 ## Features Implemented
 
@@ -88,7 +88,7 @@ All organizer-only endpoints now require authentication:
 
 #### OrganizerControls Component
 
-**File:** `frontend/BadmintonGroup/src/components/OrganizerControls.tsx`
+**File:** `frontend/Rally/src/components/OrganizerControls.tsx`
 
 A comprehensive UI for organizers with:
 
@@ -114,7 +114,7 @@ A comprehensive UI for organizers with:
 
 #### PermissionErrorAlert Component
 
-**File:** `frontend/BadmintonGroup/src/components/PermissionErrorAlert.tsx`
+**File:** `frontend/Rally/src/components/PermissionErrorAlert.tsx`
 
 User-friendly permission error display:
 
@@ -423,9 +423,9 @@ The system is production-ready and provides a solid foundation for the remaining
 - `backend/src/routes/mvpSessions.ts` - Protected routes
 
 ### Frontend
-- `frontend/BadmintonGroup/src/components/OrganizerControls.tsx` - Organizer UI
-- `frontend/BadmintonGroup/src/components/PermissionErrorAlert.tsx` - Error display
-- `frontend/BadmintonGroup/src/screens/SessionDetailScreen.tsx` - Main screen (to be updated)
+- `frontend/Rally/src/components/OrganizerControls.tsx` - Organizer UI
+- `frontend/Rally/src/components/PermissionErrorAlert.tsx` - Error display
+- `frontend/Rally/src/screens/SessionDetailScreen.tsx` - Main screen (to be updated)
 
 ### Documentation
 - `NEXT_FEATURES_ROADMAP.md` - Overall roadmap

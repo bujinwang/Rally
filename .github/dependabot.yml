@@ -44,7 +44,7 @@ updates:
 
   # Frontend dependencies
   - package-ecosystem: "npm"
-    directory: "/frontend/BadmintonGroup"
+    directory: "/frontend/Rally"
     schedule:
       interval: "weekly"
       day: "monday"

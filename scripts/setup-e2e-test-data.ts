@@ -3,7 +3,7 @@
 /**
  * E2E Test Data Setup Script
  *
- * Sets up test data for end-to-end testing of the Badminton Group MVP.
+ * Sets up test data for end-to-end testing of the Rally MVP.
  * This script creates sessions, players, and pairings for E2E test scenarios.
  */
 

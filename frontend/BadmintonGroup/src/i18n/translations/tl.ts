@@ -1,6 +1,6 @@
 export default {
   common: {
-    appName: 'BadmintonGroup',
+    appName: 'Rally',
     loading: 'Naglo-load...',
     error: 'Error',
     cancel: 'Kanselahin',

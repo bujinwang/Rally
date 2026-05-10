@@ -21,7 +21,7 @@ npm run prisma:migrate   # Run database migrations
 
 ### Frontend Development
 ```bash
-cd frontend/BadmintonGroup
+cd frontend/Rally
 npm start            # Start Expo development server
 npm run ios          # Run on iOS simulator
 npm run android      # Run on Android emulator
@@ -73,7 +73,7 @@ This is a badminton pairing management application with a React Native frontend 
 - `src/utils/` - Utility functions (JWT, password, validation)
 - `prisma/schema.prisma` - Database schema with dual model design
 
-#### Frontend (`/frontend/BadmintonGroup`)
+#### Frontend (`/frontend/Rally`)
 - `src/screens/` - React Native screens
 - `src/navigation/` - Navigation configuration
 - `src/store/` - Redux store and slices
