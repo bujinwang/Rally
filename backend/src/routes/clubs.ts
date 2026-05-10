@@ -26,7 +26,7 @@ const createClubValidation = [
   body('contactEmail').optional().isEmail(),
 ];
 
-router.post('/', createClubValidation, async (req: Request, res: Response) => {
+router.post('/', authenticateToken, createClubValidation, async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -96,7 +96,7 @@ router.post('/:clubId/join', async (req: Request, res: Response) => {
 /**
  * POST /clubs/:clubId/sessions — Create club session (auto-invites all members)
  */
-router.post('/:clubId/sessions', async (req: Request, res: Response) => {
+router.post('/:clubId/sessions', authenticateToken, async (req: Request, res: Response) => {
   try {
     const { clubId } = req.params;
     const sessionData = req.body;
