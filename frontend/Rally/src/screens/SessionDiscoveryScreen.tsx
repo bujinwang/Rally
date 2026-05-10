@@ -5,6 +5,7 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
+  TextInput,
   StyleSheet,
   Alert,
   ActivityIndicator,
@@ -32,6 +33,11 @@ const SessionDiscoveryScreen: React.FC = () => {
     offset: 0,
   });
   const [activeSport, setActiveSport] = useState<SportKey>(getPreferredSport());
+  const [viewMode, setViewMode] = useState<'discover' | 'recommended' | 'nearby'>('discover');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [recommended, setRecommended] = useState<any[]>([]);
+  const [nearby, setNearby] = useState<any[]>([]);
+  const [deviceId, setDeviceId] = useState('');
 
   // Real-time discovery state
   const [isRealTimeEnabled, setIsRealTimeEnabled] = useState(false);
@@ -68,8 +74,44 @@ const SessionDiscoveryScreen: React.FC = () => {
     }
   }, [filters, location]);
 
+  // Load personalized recommendations
+  const loadRecommended = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`http://localhost:3001/api/v1/sessions/discovery/recommended/${deviceId}?latitude=${location?.latitude || ''}&longitude=${location?.longitude || ''}&limit=10`);
+      const data = await res.json();
+      if (data.success) setRecommended(data.data);
+    } catch (e) {
+      console.warn('Recommendations failed:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [deviceId, location]);
+
+  // Load nearby sessions
+  const loadNearby = useCallback(async () => {
+    try {
+      setLoading(true);
+      if (!location) return;
+      const res = await fetch(`http://localhost:3001/api/v1/sessions/discovery/nearby?latitude=${location.latitude}&longitude=${location.longitude}&radius=10`);
+      const data = await res.json();
+      if (data.success) setNearby(data.data.sessions || []);
+    } catch (e) {
+      console.warn('Nearby failed:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [location]);
+
   // Initialize real-time discovery updates
   useEffect(() => {
+    const init = async () => {
+      try {
+        const id = await require('../services/sessionApi').default.getDeviceId();
+        setDeviceId(id);
+      } catch {}
+    };
+    init();
     discoveryApi.initializeRealTimeUpdates();
     setIsRealTimeEnabled(true);
 
@@ -282,6 +324,55 @@ const SessionDiscoveryScreen: React.FC = () => {
         ))}
       </ScrollView>
 
+      {/* View mode tabs */}
+      <View style={{ flexDirection: 'row', backgroundColor: '#fff', paddingHorizontal: 12, paddingBottom: 8, gap: 8 }}>
+        {(['discover', 'recommended', 'nearby'] as const).map(mode => (
+          <TouchableOpacity
+            key={mode}
+            onPress={() => {
+              setViewMode(mode);
+              if (mode === 'recommended') loadRecommended();
+              if (mode === 'nearby') loadNearby();
+              if (mode === 'discover') loadSessions();
+            }}
+            style={{
+              flex: 1, paddingVertical: 10, borderRadius: 10,
+              backgroundColor: viewMode === mode ? '#007AFF' : '#f0f0f0',
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ fontSize: 14, fontWeight: '600', color: viewMode === mode ? '#fff' : '#555' }}>
+              {mode === 'discover' ? '🔍 Discover' : mode === 'recommended' ? '⭐ For You' : '📍 Nearby'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Search bar (Discover mode) */}
+      {viewMode === 'discover' && (
+        <View style={{ backgroundColor: '#fff', paddingHorizontal: 12, paddingBottom: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f0f0', borderRadius: 10, paddingHorizontal: 12 }}>
+            <Text style={{ fontSize: 16, marginRight: 8 }}>🔍</Text>
+            <TextInput
+              style={{ flex: 1, paddingVertical: 10, fontSize: 15 }}
+              placeholder="Search sessions by name, location..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onSubmitEditing={() => {
+                if (searchQuery.trim()) {
+                  loadSessions({ ...filters, location: searchQuery.trim(), offset: 0 });
+                }
+              }}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => { setSearchQuery(''); loadSessions({ offset: 0 }); }}>
+                <Text style={{ color: '#999', fontSize: 18 }}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
+
       <SessionFilters
         filters={filters}
         onFiltersChange={handleFiltersChange}
@@ -290,7 +381,7 @@ const SessionDiscoveryScreen: React.FC = () => {
       />
 
       <FlatList
-        data={sessions}
+        data={viewMode === 'recommended' ? recommended : viewMode === 'nearby' ? nearby : sessions}
         keyExtractor={(item) => item.id}
         renderItem={renderSessionItem}
         ListEmptyComponent={renderEmpty}
