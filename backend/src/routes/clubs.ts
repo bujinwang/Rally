@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { body, param, validationResult } from 'express-validator';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
 import {
   createClub,
   getClub,
