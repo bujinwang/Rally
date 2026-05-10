@@ -1,7 +1,9 @@
 // API Configuration
-export const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:3001/api/v1' 
-  : 'http://localhost:3001/api/v1';
+// In production, set EXPO_PUBLIC_API_URL to point at your backend
+// (e.g. https://api.yourdomain.com/api/v1)
+export const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL ||
+  (__DEV__ ? 'http://localhost:3001/api/v1' : '/api/v1');
 
 // API timeout in milliseconds
 export const API_TIMEOUT = 10000;

@@ -64,8 +64,8 @@ services:
   # Backend API
   backend:
     build:
-      context: ../backend
-      dockerfile: ../docker/production.Dockerfile
+      context: ..
+      dockerfile: docker/production.Dockerfile
     container_name: badminton-backend-prod
     restart: unless-stopped
     depends_on:

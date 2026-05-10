@@ -102,24 +102,34 @@ app.use(adminRoutes);
 console.log('✅ Web session routes configured at /join');
 
 // Serve Expo web build (SPA)
-const webBuildPath = path.join(__dirname, '../../frontend/BadmintonGroup/dist/web');
-app.use(express.static(webBuildPath, {
-  setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.js')) {
-      res.setHeader('Content-Type', 'application/javascript');
+// In Docker, the web build lives at /app/public. Locally, it's at ../../frontend/.../dist/web.
+const webBuildPath =
+  process.env.WEB_BUILD_PATH ||
+  path.join(__dirname, '../../frontend/BadmintonGroup/dist/web');
+
+// Only serve web build if the directory exists (may not in API-only deploys)
+const fs = require('fs');
+if (fs.existsSync(webBuildPath)) {
+  app.use(express.static(webBuildPath, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.js')) {
+        res.setHeader('Content-Type', 'application/javascript');
+      }
     }
-  }
-}));
-// SPA fallback — serve index.html for all non-API, non-join routes
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api') || req.path.startsWith('/join') || req.path.startsWith('/uploads') || req.path === '/health') {
-    return next();
-  }
-  res.sendFile(path.join(webBuildPath, 'index.html'), (err) => {
-    if (err) next();
+  }));
+  // SPA fallback — serve index.html for all non-API, non-join routes
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/join') || req.path.startsWith('/uploads') || req.path === '/health') {
+      return next();
+    }
+    res.sendFile(path.join(webBuildPath, 'index.html'), (err: any) => {
+      if (err) next();
+    });
   });
-});
-console.log(`📁 Web app served from ${webBuildPath}`);
+  console.log(`📁 Web app served from ${webBuildPath}`);
+} else {
+  console.log('📁 Web build not found — API-only mode');
+}
 
 // Health check for route verification
 app.get('/api/v1/health', (req, res) => {
