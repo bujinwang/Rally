@@ -24,8 +24,8 @@ import friendsRoutes from './friends';
 import messagingRoutes from './messaging';
 import challengesRoutes from './challenges';
 import matchSchedulingRoutes from './matchScheduling';
-// Equipment routes disabled (not part of MVP, compilation errors)
-// import equipmentRoutes from './equipment';
+// Equipment routes — equipment inventory, reservations, maintenance
+import equipmentRoutes from './equipment';
 // Court booking routes disabled (depends on payment service)
 // import courtBookingRoutes from './courtBookings';
 // Payment routes disabled (requires Stripe dependency)
@@ -94,9 +94,9 @@ console.log('  - /challenges');
 router.use('/challenges', challengesRoutes);
 console.log('  - /match-scheduling');
 router.use('/match-scheduling', matchSchedulingRoutes);
-// Equipment routes disabled (not part of MVP)
-// console.log('  - /equipment');
-// router.use('/equipment', equipmentRoutes);
+// Equipment routes — inventory, reservations, check-out/return, maintenance
+console.log('  - /equipment');
+router.use('/equipment', equipmentRoutes);
 // Court booking routes disabled (not part of MVP)
 // console.log('  - /court-bookings');
 // router.use('/court-bookings', courtBookingRoutes);
