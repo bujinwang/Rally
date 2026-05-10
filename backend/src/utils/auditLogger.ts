@@ -28,16 +28,14 @@ export class AuditLogger {
         metadata: entry.metadata ? JSON.stringify(entry.metadata) : null,
         ipAddress: entry.ipAddress,
         userAgent: entry.userAgent,
-        timestamp: new Date()
+        createdAt: new Date()
       };
 
-      // Log to console for now (in production, this would go to a dedicated audit table)
+      // Persist to audit_logs table
       console.log('🔒 AUDIT LOG:', JSON.stringify(logEntry, null, 2));
-
-      // TODO: When audit table is added to schema, uncomment:
-      // await prisma.auditLog.create({
-      //   data: logEntry
-      // });
+      await prisma.auditLog.create({
+        data: logEntry
+      });
     } catch (error) {
       console.error('Failed to log audit entry:', error);
       // Don't throw - audit logging should not break the main operation
@@ -215,27 +213,21 @@ export class AuditLogger {
    * Get audit logs for a session (for future use)
    */
   static async getSessionLogs(sessionId: string, limit: number = 50): Promise<any[]> {
-    // TODO: When audit table is added, implement:
-    // return await prisma.auditLog.findMany({
-    //   where: { sessionId },
-    //   orderBy: { timestamp: 'desc' },
-    //   take: limit
-    // });
-    
-    return []; // Placeholder
+    return await prisma.auditLog.findMany({
+      where: { sessionId },
+      orderBy: { createdAt: 'desc' },
+      take: limit
+    });
   }
 
   /**
    * Get audit logs for a specific player (for future use)
    */
   static async getPlayerLogs(playerId: string, limit: number = 50): Promise<any[]> {
-    // TODO: When audit table is added, implement:
-    // return await prisma.auditLog.findMany({
-    //   where: { targetId: playerId, targetType: 'player' },
-    //   orderBy: { timestamp: 'desc' },
-    //   take: limit
-    // });
-    
-    return []; // Placeholder
+    return await prisma.auditLog.findMany({
+      where: { targetId: playerId, targetType: 'player' },
+      orderBy: { createdAt: 'desc' },
+      take: limit
+    });
   }
 }
