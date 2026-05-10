@@ -134,11 +134,14 @@ connectDB();
 
 const PORT = process.env.PORT || 3001;
 
-server.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
-  console.log(`📊 Health check available at http://localhost:${PORT}/health`);
-  console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+// Only listen when executed directly (not when imported by tests)
+if (process.env.NODE_ENV !== 'test') {
+  server.listen(PORT, () => {
+    console.log(`🚀 Server is running on port ${PORT}`);
+    console.log(`📊 Health check available at http://localhost:${PORT}/health`);
+    console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
+  });
+}
 
 export default app;
 export { io };
