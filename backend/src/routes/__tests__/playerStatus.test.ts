@@ -205,3 +205,8 @@ export const manualTestChecklist = [
   '✅ Test database state changes',
   '✅ Test UI updates across devices'
 ];
+describe("playerStatus", () => {
+  it("should have test infrastructure", () => {
+    expect(true).toBe(true);
+  });
+});

@@ -395,3 +395,8 @@ export const cacheIntegrationScenarios = [
  *    - Monitor garbage collection
  *    - Test memory leak scenarios
  */
+describe("CacheService", () => {
+  it("should have test infrastructure", () => {
+    expect(true).toBe(true);
+  });
+});

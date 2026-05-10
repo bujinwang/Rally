@@ -19,7 +19,7 @@ describe('Matches API', () => {
         scheduledAt: new Date(),
         ownerName: 'Test Organizer',
         ownerDeviceId: 'organizer-device-123',
-        shareCode: 'MATCH123'
+        shareCode: `MATCH-${Date.now()}`
       }
     });
     testSessionId = session.id;

@@ -1,7 +1,24 @@
 import request from 'supertest';
 import express from 'express';
+
+// Mock rate limiter to avoid 429 in tests
+jest.mock('../../middleware/rateLimit', () => ({
+  createRateLimiters: () => ({
+    api: (_req: any, _res: any, next: any) => next(),
+    sensitive: (_req: any, _res: any, next: any) => next(),
+  }),
+}));
+
 import analyticsRouter from '../analytics';
 import { AnalyticsService } from '../../services/analyticsService';
+
+// Mock DatabaseUtils to avoid raw SQL failures
+jest.mock('../../utils/databaseUtils', () => ({
+  DatabaseUtils: {
+    executeRawQuery: jest.fn().mockResolvedValue([]),
+    executeRawUpdate: jest.fn().mockResolvedValue(0),
+  },
+}));
 
 // Mock the AnalyticsService
 jest.mock('../../services/analyticsService');
@@ -219,6 +236,7 @@ describe('Analytics Routes', () => {
 
       const response = await request(app)
         .post('/api/analytics/export')
+        .send({ format: 'json' })
         .expect(200);
 
       expect(response.body.success).toBe(true);

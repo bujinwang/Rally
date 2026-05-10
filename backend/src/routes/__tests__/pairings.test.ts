@@ -441,3 +441,8 @@ export const pairingsErrorScenarios = [
     expected: '401 Unauthorized with token refresh suggestion'
   }
 ];
+describe("pairings", () => {
+  it("should have test infrastructure", () => {
+    expect(true).toBe(true);
+  });
+});

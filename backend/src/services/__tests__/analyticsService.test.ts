@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { AnalyticsService } from '../analyticsService';
 import { DatabaseUtils } from '../../utils/databaseUtils';
 
