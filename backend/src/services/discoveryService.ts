@@ -7,11 +7,12 @@ const prisma = new PrismaClient();
 export interface DiscoveryFilters {
   latitude?: number;
   longitude?: number;
-  radius?: number; // in kilometers
-  location?: string; // Text-based location search
+  radius?: number;
+  location?: string;
   startTime?: Date;
   endTime?: Date;
   skillLevel?: string;
+  sport?: string;
   minPlayers?: number;
   maxPlayers?: number;
   courtType?: string;
@@ -522,6 +523,143 @@ export class DiscoveryService {
     } catch (error) {
       console.error('Error getting nearby sessions:', error);
       throw new Error('Failed to get nearby sessions');
+    }
+  }
+  
+  /**
+   * Search sessions by text query + filters
+   */
+  static async searchSessions(query: string, filters: DiscoveryFilters): Promise<DiscoveryResponse> {
+    try {
+      const whereClause: any = {
+        status: 'ACTIVE',
+        scheduledAt: { gte: new Date() },
+      };
+
+      if (query) {
+        whereClause.OR = [
+          { name: { contains: query, mode: 'insensitive' } },
+          { location: { contains: query, mode: 'insensitive' } },
+          { description: { contains: query, mode: 'insensitive' } },
+        ];
+      }
+
+      if (filters.sport) whereClause.sport = filters.sport;
+      if (filters.skillLevel) whereClause.skillLevel = filters.skillLevel;
+
+      const sessions = await prisma.mvpSession.findMany({
+        where: whereClause,
+        include: {
+          players: {
+            where: { status: { not: 'LEFT' } },
+            select: { id: true, name: true, status: true, skillLevel: true },
+          },
+        },
+        orderBy: { scheduledAt: 'asc' },
+        take: filters.limit || 20,
+        skip: filters.offset || 0,
+      });
+
+      const totalCount = await prisma.mvpSession.count({ where: whereClause });
+
+      const results = sessions.map(s => ({
+        id: s.id,
+        name: s.name,
+        location: s.location || 'TBD',
+        shareCode: s.shareCode,
+        scheduledAt: s.scheduledAt,
+        currentPlayers: s.players.length,
+        maxPlayers: s.maxPlayers,
+        skillLevel: s.skillLevel || undefined,
+        sport: (s as any).sport || 'badminton',
+        organizerName: s.ownerName,
+        players: s.players,
+        distance: undefined as number | undefined,
+        relevanceScore: query ? 85 : 60,
+      }));
+
+      return { sessions: results as any, totalCount, filters };
+    } catch (error) {
+      console.error('Search error:', error);
+      throw new Error('Search failed');
+    }
+  }
+
+  /**
+   * Get personalized session recommendations based on player habits
+   */
+  static async getRecommendedSessions(
+    deviceId: string,
+    latitude?: number,
+    longitude?: number,
+    limit: number = 10
+  ): Promise<any[]> {
+    try {
+      const pastPlayers = await prisma.mvpPlayer.findMany({
+        where: { deviceId, status: { not: 'LEFT' } },
+        include: { session: true },
+        orderBy: { joinedAt: 'desc' },
+        take: 20,
+      });
+
+      const sportCounts = new Map<string, number>();
+      const skillCounts = new Map<string, number>();
+      const locCounts = new Map<string, number>();
+
+      for (const p of pastPlayers) {
+        const sport = (p.session as any).sport || 'badminton';
+        sportCounts.set(sport, (sportCounts.get(sport) || 0) + 1);
+        if (p.skillLevel) skillCounts.set(p.skillLevel.toString(), (skillCounts.get(p.skillLevel.toString()) || 0) + 1);
+        if ((p.session as any).location) locCounts.set((p.session as any).location, (locCounts.get((p.session as any).location) || 0) + 1);
+      }
+
+      let topSport = 'badminton', maxS = 0;
+      for (const [s, c] of sportCounts) { if (c > maxS) { maxS = c; topSport = s; } }
+
+      let topSkill: string | undefined, maxSk = 0;
+      for (const [s, c] of skillCounts) { if (c > maxSk) { maxSk = c; topSkill = s; } }
+
+      const where: any = { status: 'ACTIVE', scheduledAt: { gte: new Date() } };
+      if (topSport) where.sport = topSport;
+      if (topSkill) where.skillLevel = parseInt(topSkill);
+
+      const sessions = await prisma.mvpSession.findMany({
+        where,
+        include: { players: { where: { status: { not: 'LEFT' } }, select: { id: true, name: true } } },
+        orderBy: { scheduledAt: 'asc' },
+        take: limit + 10,
+      });
+
+      const scored = sessions.map(s => {
+        let score = 50;
+        if ((s as any).sport === topSport) score += 20;
+        if (s.skillLevel?.toString() === topSkill) score += 15;
+        if (locCounts.has(s.location || '')) score += 10;
+        const spots = s.maxPlayers - s.players.length;
+        if (spots > 0) score += Math.min(spots, 5);
+
+        let distance: number | undefined;
+        if (latitude && longitude && (s as any).latitude && (s as any).longitude) {
+          distance = DiscoveryService.calculateDistance(latitude, longitude, (s as any).latitude, (s as any).longitude);
+          if (distance < 5) score += 20;
+          else if (distance < 20) score += 10;
+        }
+
+        return {
+          id: s.id, name: s.name, location: s.location || 'TBD', shareCode: s.shareCode,
+          scheduledAt: s.scheduledAt, currentPlayers: s.players.length, maxPlayers: s.maxPlayers,
+          skillLevel: s.skillLevel, sport: (s as any).sport || 'badminton',
+          organizerName: s.ownerName, players: s.players, distance,
+          relevanceScore: Math.min(100, score),
+          matchReason: topSport === (s as any).sport ? 'Matches your ' + topSport + ' habit' : 'Near you',
+        };
+      });
+
+      scored.sort((a, b) => b.relevanceScore - a.relevanceScore);
+      return scored.slice(0, limit);
+    } catch (error) {
+      console.error('Recommendations error:', error);
+      throw new Error('Failed to get recommendations');
     }
   }
 }
