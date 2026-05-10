@@ -13,8 +13,7 @@ import notificationRoutes from './notifications';
 import pairingRoutes from './pairings';
 import discoveryRoutes from './discovery';
 import sessionConfigRoutes from './sessionConfig';
-// Tournament routes disabled (not part of MVP)
-// import tournamentRoutes from './tournaments';
+import tournamentRoutes from './tournaments';
 import matchesRoutes from './matches';
 import statisticsRoutes from './statistics';
 import rankingsRoutes from './rankings';
@@ -69,9 +68,8 @@ console.log('  - /sessions/discovery');
 router.use('/sessions/discovery', discoveryRoutes);
 console.log('  - /sessions/config');
 router.use('/sessions/config', sessionConfigRoutes);
-// Tournament routes disabled (not part of MVP)
-// console.log('  - /tournaments');
-// router.use('/tournaments', tournamentRoutes);
+console.log('  - /tournaments');
+router.use('/tournaments', tournamentRoutes);
 console.log('  - /session-history');
 router.use('/session-history', sessionHistoryRoutes);
 console.log('  - /search');
