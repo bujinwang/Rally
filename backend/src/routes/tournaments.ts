@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { body, param, query, validationResult } from 'express-validator';
-// Tournament feature not yet implemented in MVP
-// import * as tournamentService from '../services/tournamentService';
+import * as tournamentService from '../services/tournamentService';
 
 const router = Router();
 
@@ -295,12 +294,12 @@ router.post(
         });
       }
 
-      const registrationData = {
+      const { tournamentId, ...playerData } = {
         tournamentId: req.params.id,
         ...req.body,
       };
 
-      const player = await tournamentService.registerPlayer(registrationData);
+      const player = await tournamentService.registerPlayer(tournamentId, playerData);
 
       res.status(201).json({
         success: true,

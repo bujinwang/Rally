@@ -164,4 +164,148 @@ export async function checkTournamentPermission(userId: string, tournamentId: st
   return true;
 }
 
+// Get tournaments with optional filters
+export async function getTournaments(filters: any = {}) {
+  const where: any = {};
+  if (filters.status) where.status = filters.status;
+  if (filters.visibility) where.visibility = filters.visibility;
+  if (filters.tournamentType) where.tournamentType = filters.tournamentType;
+
+  const limit = filters.limit || 20;
+  const offset = filters.offset || 0;
+
+  const [tournaments, total] = await Promise.all([
+    prisma.tournament.findMany({
+      where,
+      include: { players: true, rounds: true },
+      orderBy: { startDate: 'desc' },
+      take: limit,
+      skip: offset,
+    }),
+    prisma.tournament.count({ where }),
+  ]);
+
+  return { tournaments, total };
+}
+
+// Get tournament by ID
+export async function getTournamentById(id: string) {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id },
+    include: {
+      players: { orderBy: { seed: 'asc' } },
+      rounds: {
+        orderBy: { roundNumber: 'asc' },
+        include: { matches: true },
+      },
+    },
+  });
+
+  if (!tournament) throw new Error('Tournament not found');
+  return tournament;
+}
+
+// Update tournament
+export async function updateTournament(id: string, data: any) {
+  const tournament = await prisma.tournament.findUnique({ where: { id } });
+  if (!tournament) throw new Error('Tournament not found');
+
+  return prisma.tournament.update({
+    where: { id },
+    data: {
+      name: data.name,
+      description: data.description,
+      maxPlayers: data.maxPlayers,
+      visibility: data.visibility,
+      accessCode: data.accessCode,
+    },
+  });
+}
+
+// Delete tournament
+export async function deleteTournament(id: string) {
+  const tournament = await prisma.tournament.findUnique({ where: { id } });
+  if (!tournament) throw new Error('Tournament not found');
+
+  await prisma.tournament.delete({ where: { id } });
+}
+
+// Register player for tournament
+export async function registerPlayer(tournamentId: string, playerData: { playerName: string; deviceId?: string }) {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    include: { players: true },
+  });
+
+  if (!tournament) throw new Error('Tournament not found');
+  if (tournament.status !== 'REGISTRATION_OPEN') throw new Error('Tournament is not accepting registrations');
+  if (tournament.players.length >= tournament.maxPlayers) throw new Error('Tournament is full');
+
+  const existing = tournament.players.find(p => p.playerName === playerData.playerName);
+  if (existing) throw new Error('Player already registered');
+
+  return prisma.tournamentPlayer.create({
+    data: {
+      tournamentId,
+      playerName: playerData.playerName,
+      deviceId: playerData.deviceId || null,
+      seed: tournament.players.length + 1,
+      status: 'REGISTERED',
+    },
+  });
+}
+
+// Unregister player
+export async function unregisterPlayer(tournamentId: string, playerId: string) {
+  const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+  if (!tournament) throw new Error('Tournament not found');
+  if (tournament.status !== 'REGISTRATION_OPEN') throw new Error('Cannot unregister after tournament has started');
+
+  await prisma.tournamentPlayer.delete({ where: { id: playerId } });
+}
+
+// Start tournament
+export async function startTournament(id: string) {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id },
+    include: { players: true },
+  });
+
+  if (!tournament) throw new Error('Tournament not found');
+  if (tournament.status !== 'REGISTRATION_OPEN') throw new Error('Tournament must be in registration phase');
+  if (tournament.players.length < tournament.minPlayers) throw new Error(`Tournament needs at least ${tournament.minPlayers} players`);
+
+  return prisma.tournament.update({
+    where: { id },
+    data: { status: 'IN_PROGRESS' },
+  });
+}
+
+// Get tournament statistics
+export async function getTournamentStats(id: string) {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id },
+    include: {
+      players: true,
+      rounds: { include: { matches: true } },
+    },
+  });
+
+  if (!tournament) throw new Error('Tournament not found');
+
+  const totalMatches = tournament.rounds.reduce((sum, r) => sum + r.matches.length, 0);
+  const completedMatches = tournament.rounds.reduce(
+    (sum, r) => sum + r.matches.filter(m => m.status === 'COMPLETED').length, 0
+  );
+
+  return {
+    totalPlayers: tournament.players.length,
+    maxPlayers: tournament.maxPlayers,
+    totalMatches,
+    completedMatches,
+    completionRate: totalMatches > 0 ? (completedMatches / totalMatches) * 100 : 0,
+    status: tournament.status,
+  };
+}
+
 export { Tournament, TournamentPlayer, TournamentRound, TournamentMatch, TournamentGame, TournamentGameSet };
