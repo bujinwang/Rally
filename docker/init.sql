@@ -1,4 +1,4 @@
--- BadmintonGroup MVP - Database Initialization
+-- Rally MVP - Database Initialization
 -- This script runs on first database creation
 -- Creates extensions and initial seed data
 
@@ -26,5 +26,5 @@ SET idle_in_transaction_session_timeout = '60s';
 -- Log initialization
 DO $$
 BEGIN
-  RAISE NOTICE 'BadmintonGroup database initialized successfully at %', now();
+  RAISE NOTICE 'Rally database initialized successfully at %', now();
 END $$;

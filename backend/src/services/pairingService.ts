@@ -94,7 +94,7 @@ export class PairingService {
     * Generate fair pairings using a simple algorithm
     * Prioritizes players with fewer games played
     */
-  static async generatePairings(sessionId: string, algorithm: 'fair' | 'random' = 'fair'): Promise<PairingResult> {
+  static async generatePairings(sessionId: string, algorithm: 'fair' | 'random' | 'skill_balanced' | 'partnership_rotation' = 'fair'): Promise<PairingResult> {
     const startTime = Date.now();
 
     try {
@@ -107,14 +107,22 @@ export class PairingService {
       let pairings: Pairing[] = [];
       let oddPlayerOut: string | undefined;
 
-      if (algorithm === 'random') {
-        // Simple random pairing
-        const shuffled = [...activePlayers].sort(() => Math.random() - 0.5);
-        pairings = this.createOptimizedPairsFromList(shuffled);
-      } else {
-        // Fair pairing based on games played
-        const sortedByGames = [...activePlayers].sort((a, b) => a.gamesPlayed - b.gamesPlayed);
-        pairings = this.createOptimizedPairsFromList(sortedByGames);
+      switch (algorithm) {
+        case 'random':
+          const shuffled = [...activePlayers].sort(() => Math.random() - 0.5);
+          pairings = this.createOptimizedPairsFromList(shuffled);
+          break;
+        case 'skill_balanced':
+          pairings = this.createSkillBalancedPairs(activePlayers);
+          break;
+        case 'partnership_rotation':
+          pairings = await this.createPartnershipRotationPairs(sessionId, activePlayers);
+          break;
+        case 'fair':
+        default:
+          const sortedByGames = [...activePlayers].sort((a, b) => a.gamesPlayed - b.gamesPlayed);
+          pairings = this.createOptimizedPairsFromList(sortedByGames);
+          break;
       }
 
       // Handle odd number of players
@@ -316,6 +324,118 @@ export class PairingService {
   /**
    * Validate that a pairing doesn't have duplicate players or invalid configurations
    */
+  /**
+   * Skill-balanced pairing: matches strong players with weaker players
+   * for balanced teams. Uses winRate as proxy for skill.
+   */
+  private static createSkillBalancedPairs(players: PlayerForPairing[]): Pairing[] {
+    // Sort by win rate (higher = stronger)
+    const sorted = [...players].sort((a, b) => {
+      const aRate = a.gamesPlayed > 0 ? a.wins / a.gamesPlayed : 0.5;
+      const bRate = b.gamesPlayed > 0 ? b.wins / b.gamesPlayed : 0.5;
+      return bRate - aRate;
+    });
+
+    const pairings: Pairing[] = [];
+    const half = Math.floor(sorted.length / 2);
+
+    // Pair strongest with weakest for balanced teams
+    for (let i = 0; i < half; i++) {
+      const strong = sorted[i];
+      const weak = sorted[sorted.length - 1 - i];
+
+      pairings.push({
+        id: `pairing_${i + 1}_${Date.now()}`,
+        court: i + 1,
+        players: [
+          { id: strong.id, name: strong.name, position: 'left' },
+          { id: weak.id, name: weak.name, position: 'left' },
+        ],
+        createdAt: new Date(),
+      });
+    }
+
+    return pairings;
+  }
+
+  /**
+   * Partnership rotation pairing: maximizes variety by tracking
+   * who has played with whom and avoiding repeats.
+   */
+  private static async createPartnershipRotationPairs(
+    sessionId: string,
+    players: PlayerForPairing[]
+  ): Promise<Pairing[]> {
+    // Get recent game history to track partnerships
+    const recentGames = await prisma.mvpGame.findMany({
+      where: { sessionId, status: 'COMPLETED' },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        team1Player1: true,
+        team1Player2: true,
+        team2Player1: true,
+        team2Player2: true,
+      },
+    });
+
+    // Build partnership count map
+    const partnershipCount = new Map<string, number>();
+    for (const game of recentGames) {
+      const pairs = [
+        [game.team1Player1, game.team1Player2].sort().join('|'),
+        [game.team2Player1, game.team2Player2].sort().join('|'),
+      ];
+      for (const pair of pairs) {
+        partnershipCount.set(pair, (partnershipCount.get(pair) || 0) + 1);
+      }
+    }
+
+    // Sort players by fewest games first
+    const sorted = [...players].sort((a, b) => a.gamesPlayed - b.gamesPlayed);
+    const used = new Set<string>();
+    const pairings: Pairing[] = [];
+    let court = 1;
+
+    for (let i = 0; i < sorted.length; i++) {
+      if (used.has(sorted[i].id)) continue;
+
+      // Find best partner: someone they've played with least
+      let bestPartner: PlayerForPairing | null = null;
+      let bestScore = Infinity;
+
+      for (let j = i + 1; j < sorted.length; j++) {
+        if (used.has(sorted[j].id)) continue;
+        const pairKey = [sorted[i].name, sorted[j].name].sort().join('|');
+        const count = partnershipCount.get(pairKey) || 0;
+        // Prefer players with similar games played AND low partnership count
+        const score = count * 100 + Math.abs(sorted[i].gamesPlayed - sorted[j].gamesPlayed);
+
+        if (score < bestScore || (score === bestScore && !bestPartner)) {
+          bestScore = score;
+          bestPartner = sorted[j];
+        }
+      }
+
+      if (bestPartner) {
+        used.add(sorted[i].id);
+        used.add(bestPartner.id);
+        pairings.push({
+          id: `pairing_${court}_${Date.now()}`,
+          court,
+          players: [
+            { id: sorted[i].id, name: sorted[i].name, position: 'left' },
+            { id: bestPartner.id, name: bestPartner.name, position: 'right' },
+          ],
+          createdAt: new Date(),
+        });
+        court++;
+      }
+    }
+
+    return pairings;
+  }
+
   static validatePairing(pairing: Pairing, existingPairings: Pairing[]): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
     const allPlayerIds = new Set<string>();

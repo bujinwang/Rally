@@ -137,34 +137,154 @@ router.delete('/register/:deviceId', async (req: Request, res: Response) => {
 /**
  * Subscribe to session notifications
  * POST /notifications/:shareCode/subscribe
- * Note: Disabled - sessionSubscription model not implemented in Prisma schema
  */
-/*
 router.post('/:shareCode/subscribe', async (req: Request, res: Response) => {
-  // ... disabled - sessionSubscription model not in schema
+  try {
+    const { shareCode } = req.params;
+    const { deviceId } = req.body;
+
+    if (!deviceId) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'deviceId is required' },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const session = await prisma.mvpSession.findUnique({ where: { shareCode } });
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    await prisma.sessionSubscription.upsert({
+      where: {
+        sessionId_deviceId: {
+          sessionId: session.id,
+          deviceId,
+        },
+      },
+      create: {
+        sessionId: session.id,
+        deviceId,
+        isActive: true,
+      },
+      update: {
+        isActive: true,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Subscribed to session notifications',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Subscribe error:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to subscribe' },
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
-*/
 
 /**
  * Unsubscribe from session notifications
  * DELETE /notifications/:shareCode/unsubscribe
- * Note: Disabled - sessionSubscription model not implemented in Prisma schema
  */
-/*
 router.delete('/:shareCode/unsubscribe', async (req: Request, res: Response) => {
-  // ... disabled - sessionSubscription model not in schema
+  try {
+    const { shareCode } = req.params;
+    const { deviceId } = req.body;
+
+    if (!deviceId) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'deviceId is required' },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const session = await prisma.mvpSession.findUnique({ where: { shareCode } });
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    await prisma.sessionSubscription.updateMany({
+      where: {
+        sessionId: session.id,
+        deviceId,
+      },
+      data: { isActive: false },
+    });
+
+    res.json({
+      success: true,
+      message: 'Unsubscribed from session notifications',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Unsubscribe error:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to unsubscribe' },
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
-*/
 
 /**
  * Get session subscribers (for sending session-wide notifications)
  * GET /notifications/:shareCode/subscribers
- * Note: Disabled - sessionSubscription model not implemented in Prisma schema
  */
-/*
 router.get('/:shareCode/subscribers', async (req: Request, res: Response) => {
-  // ... disabled - sessionSubscription model not in schema
+  try {
+    const { shareCode } = req.params;
+
+    const session = await prisma.mvpSession.findUnique({ where: { shareCode } });
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const subscriptions = await prisma.sessionSubscription.findMany({
+      where: {
+        sessionId: session.id,
+        isActive: true,
+      },
+      select: {
+        deviceId: true,
+        createdAt: true,
+      },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        count: subscriptions.length,
+        subscribers: subscriptions,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Get subscribers error:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to get subscribers' },
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
-*/
 
 export default router;
