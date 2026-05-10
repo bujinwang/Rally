@@ -1,4 +1,4 @@
-# 🏛️ Technical Decisions & Trade-offs - Badminton Group Management App
+# 🏛️ Technical Decisions & Trade-offs - Rally Management App
 
 This document outlines the key technical decisions made during the architecture design of the badminton pairing management application, including the reasoning behind each choice and the trade-offs considered.
 

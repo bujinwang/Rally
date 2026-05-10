@@ -1,4 +1,4 @@
-# Security policy for BadmintonGroup
+# Security policy for Rally
 
 name: CodeQL Security Analysis
 
@@ -47,7 +47,7 @@ jobs:
 
     - name: Install frontend dependencies
       if: matrix.language == 'javascript'
-      working-directory: ./frontend/BadmintonGroup
+      working-directory: ./frontend/Rally
       run: npm ci
 
     - name: Perform CodeQL Analysis

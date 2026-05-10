@@ -9,7 +9,7 @@ export const localeNames: Record<Locale, string> = {
 
 const en = {
   common: {
-    appName: 'BadmintonGroup',
+    appName: "Rally",
     save: 'Save',
     cancel: 'Cancel',
     delete: 'Delete',

@@ -1,4 +1,4 @@
-# User Acceptance Testing Plan: Badminton Group MVP
+# User Acceptance Testing Plan: Rally MVP
 
 ## Executive Summary
 

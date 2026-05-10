@@ -246,7 +246,7 @@ if (import.meta.main) {
 Create test configuration for the React Native app:
 
 ```typescript
-// frontend/BadmintonGroup/src/config/testConfig.ts
+// frontend/Rally/src/config/testConfig.ts
 export const TEST_CONFIG = {
   apiBaseUrl: 'http://localhost:3000/api',
   websocketUrl: 'ws://localhost:3000',
@@ -277,7 +277,7 @@ export const TEST_CONFIG = {
 - [ ] Verify API endpoints are responding
 
 ### Frontend Setup
-- [ ] Install dependencies: `cd frontend/BadmintonGroup && npm install`
+- [ ] Install dependencies: `cd frontend/Rally && npm install`
 - [ ] Configure test environment variables
 - [ ] Build development version: `npm run build:dev`
 - [ ] Install on test devices

@@ -100,4 +100,4 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ---
 
-*For the complete history of changes, see the [GitHub Releases](https://github.com/yourusername/BadmintonGroup/releases) page.*
+*For the complete history of changes, see the [GitHub Releases](https://github.com/yourusername/Rally/releases) page.*

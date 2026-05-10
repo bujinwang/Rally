@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { FullTheme } from 'react-native-elements';
 
-// BadmintonGroup Design System Theme
+// Rally Design System Theme
 // Based on the UI/UX specification with card-based design
 export const badmintonTheme: Partial<FullTheme> = {
   colors: {

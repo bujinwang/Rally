@@ -1,5 +1,5 @@
 // @ts-nocheck
-// BadmintonGroup MVP API Service
+// Rally MVP API Service
 // Connects to your existing backend MvpSession endpoints
 
 import { ApiService } from './apiService';

@@ -1,4 +1,4 @@
-# User Journey Maps: Badminton Group App
+# User Journey Maps: Rally App
 
 ## Overview
 

@@ -1,4 +1,4 @@
-# 🏗️ Badminton Group Management App - System Architecture
+# 🏗️ Rally Management App - System Architecture
 
 ## 📋 Architecture Overview
 

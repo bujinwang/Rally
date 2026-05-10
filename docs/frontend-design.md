@@ -1,4 +1,4 @@
-# 📱 React Native App Design - Badminton Group Management
+# 📱 React Native App Design - Rally Management
 
 This document outlines the frontend architecture and implementation strategy for the badminton pairing management mobile application.
 

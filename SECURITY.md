@@ -2,7 +2,7 @@
 
 ## 🔒 Reporting Security Vulnerabilities
 
-We take the security of BadmintonGroup seriously. If you discover a security vulnerability, please follow these steps:
+We take the security of Rally seriously. If you discover a security vulnerability, please follow these steps:
 
 ### ⚡ For Critical/Urgent Issues
 
@@ -171,4 +171,4 @@ We thank the following security researchers for their responsible disclosure:
 
 ---
 
-**Remember**: Security is a shared responsibility. By using BadmintonGroup, you agree to use it responsibly and report any security concerns promptly.
+**Remember**: Security is a shared responsibility. By using Rally, you agree to use it responsibly and report any security concerns promptly.

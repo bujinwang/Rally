@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the comprehensive monitoring strategy for the Badminton Group MVP application in production. The monitoring plan covers application performance, infrastructure health, user experience, and business metrics.
+This document outlines the comprehensive monitoring strategy for the Rally MVP application in production. The monitoring plan covers application performance, infrastructure health, user experience, and business metrics.
 
 ## Monitoring Architecture
 

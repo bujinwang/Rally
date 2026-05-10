@@ -1,23 +1,23 @@
 {
   "expo": {
-    "name": "BadmintonGroup",
-    "slug": "badmintongroup",
+    "name": "Rally",
+    "slug": "rallyapp",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "main": "index.js",
-    "scheme": "badmintongroup",
+    "scheme": "rallyapp",
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.badmintongroup.app",
-      "associatedDomains": ["applinks:badmintongroup.app"]
+      "bundleIdentifier": "com.rallyapp.app",
+      "associatedDomains": ["applinks:rallyapp.app"]
     },
     "android": {
       "backgroundColor": "#ffffff",
-      "package": "com.badmintongroup.app",
+      "package": "com.rallyapp.app",
       "intentFilters": [
         {
           "action": "VIEW",
@@ -25,7 +25,7 @@
           "data": [
             {
               "scheme": "https",
-              "host": "badmintongroup.app",
+              "host": "rallyapp.app",
               "pathPrefix": "/join"
             }
           ],

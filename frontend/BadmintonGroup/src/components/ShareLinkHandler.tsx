@@ -94,14 +94,14 @@ export const createShareableLinks = (
 👥 玩家: ${playersList}
 
 🏸 点击加入: ${universalUrl}
-💡 建议下载BadmintonGroup App获得更好体验！`;
+💡 建议下载Rally App获得更好体验！`;
 
   const whatsAppMessage = `${location || 'Badminton'} - ${dateStr} ${startTime}-${endTime}
 📍 Where: ${location || 'TBD'}  
 👥 Players: ${playersList}
 
 🏸 Join: ${universalUrl}
-💡 Download BadmintonGroup App for best experience!`;
+💡 Download Rally App for best experience!`;
 
   return {
     shareUrl: universalUrl,

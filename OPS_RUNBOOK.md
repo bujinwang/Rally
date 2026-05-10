@@ -1,4 +1,4 @@
-# Operations Runbook — BadmintonGroup
+# Operations Runbook — Rally
 
 Quick-reference guide for common production operations. For full details see `PRODUCTION_DEPLOYMENT_GUIDE.md`.
 

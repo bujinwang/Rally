@@ -1,4 +1,4 @@
-# ⚡ Quick Launch Guide - BadmintonGroup MVP (3-Day Fast Track)
+# ⚡ Quick Launch Guide - Rally MVP (3-Day Fast Track)
 
 **For:** Experienced developers who want to launch ASAP  
 **Time:** 3-4 days (accelerated path)  
@@ -8,7 +8,7 @@
 
 ## 🎯 Goal: Production in 3 Days
 
-This is the **fastest path to production** for the BadmintonGroup MVP.
+This is the **fastest path to production** for the Rally MVP.
 
 ---
 
@@ -77,8 +77,8 @@ chmod +x /usr/local/bin/docker-compose
 apt install git nodejs npm -y
 
 # Clone repo
-git clone https://github.com/yourusername/BadmintonGroup.git
-cd BadmintonGroup
+git clone https://github.com/yourusername/Rally.git
+cd Rally
 
 # Generate secrets (save these!)
 openssl rand -base64 32  # JWT_SECRET
@@ -114,14 +114,14 @@ nano .env.production
 
 ```bash
 # Run migrations
-cd ~/BadmintonGroup/backend
+cd ~/Rally/backend
 npm install
 export DATABASE_URL="your_postgres_url"
 npx prisma generate
 npx prisma migrate deploy
 
 # Deploy!
-cd ~/BadmintonGroup
+cd ~/Rally
 chmod +x scripts/deploy-production.sh
 ./scripts/deploy-production.sh deploy
 
@@ -176,7 +176,7 @@ ufw allow 443
 ufw status
 
 # Audit dependencies
-cd ~/BadmintonGroup/backend
+cd ~/Rally/backend
 npm audit fix
 
 # Setup Sentry (5 minutes)
@@ -204,7 +204,7 @@ docker logs badminton-backend-prod  # No errors?
 curl https://yourdomain.com/health  # 200 OK?
 
 # Create launch tag
-cd ~/BadmintonGroup
+cd ~/Rally
 git tag -a v1.0.0 -m "🚀 Production Launch"
 git push origin v1.0.0
 

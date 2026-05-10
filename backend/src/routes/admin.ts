@@ -83,7 +83,7 @@ router.get('/admin', (_req: Request, res: Response) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BadmintonGroup — Admin Dashboard</title>
+  <title>Rally — Admin Dashboard</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #333; } @media (prefers-color-scheme: dark) { body { background: #121212; color: #e0e0e0; } .stat-card, .section table, .header { } }
@@ -126,7 +126,7 @@ router.get('/admin', (_req: Request, res: Response) => {
 <body>
   <div class="header">
     <div>
-      <h1>🏸 BadmintonGroup Admin</h1>
+      <h1>🏸 Rally Admin</h1>
       <div style="font-size:13px;opacity:0.7;margin-top:4px">Dashboard</div>
     </div>
     <div>

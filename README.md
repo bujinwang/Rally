@@ -1,4 +1,4 @@
-# 🏸 BadmintonGroup
+# 🏸 Rally
 
 <div align="center">
   <img src="https://img.shields.io/badge/React%20Native-0.76-blue?logo=react" alt="React Native" />

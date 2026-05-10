@@ -1,4 +1,4 @@
-# 🚀 Production Deployment Guide - BadmintonGroup MVP
+# 🚀 Production Deployment Guide - Rally MVP
 
 **Date:** January 29, 2025  
 **Version:** 1.0.0  
@@ -666,7 +666,7 @@ npm audit
 npm audit fix
 
 # Frontend audit
-cd frontend/BadmintonGroup
+cd frontend/Rally
 npm audit
 npm audit fix
 
@@ -716,8 +716,8 @@ sudo chmod +x /usr/local/bin/docker-compose
 
 ```bash
 # Clone repo
-git clone https://github.com/yourusername/BadmintonGroup.git
-cd BadmintonGroup
+git clone https://github.com/yourusername/Rally.git
+cd Rally
 
 # Checkout production branch
 git checkout main

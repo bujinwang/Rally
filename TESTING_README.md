@@ -1,8 +1,8 @@
-# BadmintonGroup MVP - Comprehensive Testing Suite
+# Rally MVP - Comprehensive Testing Suite
 
 ## Overview
 
-This document outlines the comprehensive testing strategy implemented for the BadmintonGroup MVP, covering backend services, frontend components, real-time functionality, caching, performance monitoring, and integration scenarios.
+This document outlines the comprehensive testing strategy implemented for the Rally MVP, covering backend services, frontend components, real-time functionality, caching, performance monitoring, and integration scenarios.
 
 ## Test Structure
 
@@ -29,7 +29,7 @@ This document outlines the comprehensive testing strategy implemented for the Ba
   - Memory usage monitoring
   - Health check system
 
-### Frontend Testing (`/frontend/BadmintonGroup/src/`)
+### Frontend Testing (`/frontend/Rally/src/`)
 
 #### Service Tests (`/services/__tests__/`)
 - **discoveryApi.test.ts**: Frontend discovery API
@@ -145,7 +145,7 @@ npm run test:watch
 
 ### Frontend Tests
 ```bash
-cd frontend/BadmintonGroup
+cd frontend/Rally
 
 # Run React Native tests (if configured)
 npm test
@@ -379,4 +379,4 @@ describe('Discovery API', () => {
 });
 ```
 
-This comprehensive testing suite ensures the BadmintonGroup MVP maintains high quality, performance, and reliability across all implemented features.
+This comprehensive testing suite ensures the Rally MVP maintains high quality, performance, and reliability across all implemented features.

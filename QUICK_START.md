@@ -18,7 +18,7 @@ Wait for: `Server running on port 3001`
 
 ### Step 2: Start Mobile App (Terminal 2)
 ```bash
-cd frontend/BadmintonGroup
+cd frontend/Rally
 npx expo start --clear
 ```
 Press `i` for iOS or `a` for Android
@@ -99,7 +99,7 @@ Our MVP routes (mvpSessions) have **0 errors** ✅
 
 **Fix:**
 ```bash
-cd frontend/BadmintonGroup
+cd frontend/Rally
 rm -rf node_modules
 npm install
 npx expo install expo-application expo-constants

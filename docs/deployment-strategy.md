@@ -1,4 +1,4 @@
-# 🚀 Deployment Strategy - Badminton Group Management App
+# 🚀 Deployment Strategy - Rally Management App
 
 This document outlines the comprehensive deployment strategy for the badminton pairing management application across all platforms and infrastructure components.
 
@@ -398,12 +398,12 @@ jobs:
       - name: Build iOS
         run: |
           cd frontend
-          cd ios && xcodebuild -workspace BadmintonGroup.xcworkspace -scheme BadmintonGroup -configuration Release -archivePath $PWD/build/BadmintonGroup.xcarchive archive
+          cd ios && xcodebuild -workspace Rally.xcworkspace -scheme Rally -configuration Release -archivePath $PWD/build/Rally.xcarchive archive
 
       - name: Upload to TestFlight
         uses: apple-actions/upload-testflight-build@v1
         with:
-          app-path: frontend/ios/build/BadmintonGroup.xcarchive
+          app-path: frontend/ios/build/Rally.xcarchive
           issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
           api-key-id: ${{ secrets.APPSTORE_API_KEY_ID }}
           api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
@@ -423,11 +423,11 @@ platform :ios do
 
     # Build the app
     gym(
-      scheme: "BadmintonGroup",
+      scheme: "Rally",
       export_method: "app-store",
       export_options: {
         provisioningProfiles: {
-          "com.badmintongroup.app" => "Badminton Group App Store"
+          "com.badmintongroup.app" => "Rally App Store"
         }
       }
     )
@@ -525,7 +525,7 @@ end
 ### CloudFront Configuration
 ```json
 {
-  "Comment": "Badminton Group Web Distribution",
+  "Comment": "Rally Web Distribution",
   "Origins": {
     "Quantity": 1,
     "Items": [

@@ -40,7 +40,7 @@ const router = Router();
 router.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'Badminton Group API v1',
+    message: 'Rally API v1',
     timestamp: new Date().toISOString(),
     version: '1.0.0'
   });

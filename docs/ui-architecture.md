@@ -1,4 +1,4 @@
-# BadmintonGroup Frontend Architecture Document
+# Rally Frontend Architecture Document
 
 ## Template and Framework Selection
 
@@ -40,7 +40,7 @@
 ## Project Structure
 
 ```
-frontend/BadmintonGroup/src/
+frontend/Rally/src/
 ├── components/
 │   ├── design-system/
 │   │   ├── Layout/

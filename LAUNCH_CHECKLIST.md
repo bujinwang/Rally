@@ -1,4 +1,4 @@
-# 🚀 Launch Checklist - BadmintonGroup MVP
+# 🚀 Launch Checklist - Rally MVP
 
 **Target Launch Date:** __________  
 **Platform:** Production  
@@ -9,7 +9,7 @@
 
 ## 🎯 Mission: Go Live!
 
-This checklist will guide you through launching the BadmintonGroup MVP to production. Follow each step carefully.
+This checklist will guide you through launching the Rally MVP to production. Follow each step carefully.
 
 **Estimated Time:** 5-7 days (can be accelerated to 3-4 days)
 
@@ -206,8 +206,8 @@ ssh user@your-server-ip
 ```bash
 # Clone your repository
 cd ~
-git clone https://github.com/yourusername/BadmintonGroup.git
-cd BadmintonGroup
+git clone https://github.com/yourusername/Rally.git
+cd Rally
 
 # Checkout main branch
 git checkout main
@@ -249,7 +249,7 @@ openssl rand -base64 24  # Copy for REDIS_PASSWORD
 
 ```bash
 # Create production environment file
-cd ~/BadmintonGroup
+cd ~/Rally
 nano .env.production
 ```
 
@@ -337,7 +337,7 @@ chmod 600 .env.secrets
 ### Step 11: Run Database Migrations
 
 ```bash
-cd ~/BadmintonGroup/backend
+cd ~/Rally/backend
 
 # Install dependencies (if not using Docker for this step)
 npm install
@@ -368,7 +368,7 @@ npx prisma db pull
 ### Step 12: Build and Deploy
 
 ```bash
-cd ~/BadmintonGroup
+cd ~/Rally
 
 # Make deployment script executable
 chmod +x scripts/deploy-production.sh
@@ -461,7 +461,7 @@ sudo ufw status
 
 ```bash
 # Backend dependency audit
-cd ~/BadmintonGroup/backend
+cd ~/Rally/backend
 npm audit
 
 # Fix issues
@@ -636,10 +636,10 @@ ab -n 100 -c 10 https://yourdomain.com/api/v1/
 
 ```bash
 # Create launch marker
-echo "🚀 BadmintonGroup MVP launched on $(date)" > LAUNCHED.txt
+echo "🚀 Rally MVP launched on $(date)" > LAUNCHED.txt
 
 # Tag release
-git tag -a v1.0.0 -m "Production launch - BadmintonGroup MVP v1.0.0"
+git tag -a v1.0.0 -m "Production launch - Rally MVP v1.0.0"
 git push origin v1.0.0
 
 # Announce launch
@@ -755,7 +755,7 @@ sudo certbot renew
 
 ## 🎊 Congratulations!
 
-You've successfully launched the BadmintonGroup MVP to production!
+You've successfully launched the Rally MVP to production!
 
 **What you've built:**
 - ✅ Professional session management platform

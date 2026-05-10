@@ -306,7 +306,7 @@ function generateSessionHTML(session: any, existingPlayer: any, deviceId: string
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>${session.name} - BadmintonGroup</title>
+      <title>${session.name} - Rally</title>
       <style>
         * {
           margin: 0;
@@ -568,7 +568,7 @@ function generateSessionHTML(session: any, existingPlayer: any, deviceId: string
         </div>
         
         <div class="footer">
-          Powered by BadmintonGroup
+          Powered by Rally
         </div>
       </div>
       

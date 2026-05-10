@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the procedures for rolling back the Badminton Group MVP application in production. Rollback procedures are critical for minimizing downtime and data loss during deployment failures or critical issues.
+This document outlines the procedures for rolling back the Rally MVP application in production. Rollback procedures are critical for minimizing downtime and data loss during deployment failures or critical issues.
 
 ## Rollback Strategy
 

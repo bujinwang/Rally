@@ -1,6 +1,6 @@
 export default {
   common: {
-    appName: 'BadmintonGroup',
+    appName: 'Rally',
     loading: 'Loading...',
     error: 'Error',
     cancel: 'Cancel',

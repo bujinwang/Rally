@@ -1,4 +1,4 @@
-// Statistics Types for Badminton Group App
+// Statistics Types for Rally App
 
 export interface PlayerStatistics {
   playerId: string;

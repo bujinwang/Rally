@@ -105,7 +105,7 @@ console.log('✅ Web session routes configured at /join');
 // In Docker, the web build lives at /app/public. Locally, it's at ../../frontend/.../dist/web.
 const webBuildPath =
   process.env.WEB_BUILD_PATH ||
-  path.join(__dirname, '../../frontend/BadmintonGroup/dist/web');
+  path.join(__dirname, '../../frontend/Rally/dist/web');
 
 // Only serve web build if the directory exists (may not in API-only deploys)
 const fs = require('fs');

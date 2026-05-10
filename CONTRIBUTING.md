@@ -1,6 +1,6 @@
-# Contributing to BadmintonGroup
+# Contributing to Rally
 
-We welcome contributions to the BadmintonGroup project! This document provides guidelines for contributing to the project.
+We welcome contributions to the Rally project! This document provides guidelines for contributing to the project.
 
 ## 🤝 How to Contribute
 
@@ -15,7 +15,7 @@ Before creating an issue, please:
 
 ### Suggesting Features
 
-We're always looking for ways to improve BadmintonGroup! When suggesting a feature:
+We're always looking for ways to improve Rally! When suggesting a feature:
 1. Check existing [feature requests](../../issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement)
 2. Provide a clear description of the feature
 3. Explain the use case and benefits
@@ -27,8 +27,8 @@ We're always looking for ways to improve BadmintonGroup! When suggesting a featu
 
 1. **Fork the repository**
    ```bash
-   git clone https://github.com/yourusername/BadmintonGroup.git
-   cd BadmintonGroup
+   git clone https://github.com/yourusername/Rally.git
+   cd Rally
    ```
 
 2. **Set up the development environment**
@@ -43,7 +43,7 @@ We're always looking for ways to improve BadmintonGroup! When suggesting a featu
    npm run dev
 
    # Frontend setup (in another terminal)
-   cd frontend/BadmintonGroup
+   cd frontend/Rally
    npm install
    npx expo start
    ```
@@ -103,7 +103,7 @@ We're always looking for ways to improve BadmintonGroup! When suggesting a featu
 ## 🏗️ Project Structure
 
 ```
-BadmintonGroup/
+Rally/
 ├── backend/                 # Node.js/Express API server
 │   ├── src/
 │   │   ├── config/         # Database and Socket.io configuration
@@ -113,7 +113,7 @@ BadmintonGroup/
 │   ├── prisma/             # Database schema and migrations
 │   └── Dockerfile          # Backend container configuration
 ├── frontend/               # React Native mobile app
-│   └── BadmintonGroup/
+│   └── Rally/
 │       ├── src/
 │       │   ├── components/ # Reusable UI components
 │       │   ├── screens/    # Screen components
@@ -133,7 +133,7 @@ cd backend
 npm test
 
 # Frontend tests
-cd frontend/BadmintonGroup
+cd frontend/Rally
 npm test
 
 # Integration tests
@@ -185,7 +185,7 @@ npm run test:integration
 
 ## 📄 License
 
-By contributing to BadmintonGroup, you agree that your contributions will be licensed under the MIT License.
+By contributing to Rally, you agree that your contributions will be licensed under the MIT License.
 
 ## 🙏 Recognition
 
@@ -193,4 +193,4 @@ Contributors will be recognized in our README.md file and release notes. We appr
 
 ---
 
-Thank you for contributing to BadmintonGroup! Your involvement helps make this project better for the badminton community worldwide. 🏸
+Thank you for contributing to Rally! Your involvement helps make this project better for the badminton community worldwide. 🏸
