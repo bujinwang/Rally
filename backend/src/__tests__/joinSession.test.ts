@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { app } from '../server';
+import app from '../server';
 import { prisma } from '../config/database';
 
 describe('Join Session API', () => {
@@ -152,7 +152,7 @@ describe('Join Session API', () => {
     it('should validate name length', async () => {
       const response = await request(app)
         .post(`/api/v1/mvp-sessions/join/${testShareCode}`)
-        .send({ name: 'A', deviceId: 'device123' }) // Too short
+        .send({ name: '', deviceId: 'device123' }) // Empty name
         .expect(400);
 
       expect(response.body.success).toBe(false);

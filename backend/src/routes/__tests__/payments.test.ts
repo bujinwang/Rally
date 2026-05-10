@@ -1,39 +1,49 @@
 import request from 'supertest';
 import express from 'express';
-import paymentRoutes from '../payments';
+
+// Mock auth middleware before importing routes
+jest.mock('../../middleware/auth', () => ({
+  authenticateToken: (req: any, _res: any, next: any) => {
+    req.user = { id: 'test-user-id', userId: 'test-user-id', email: 'test@example.com', role: 'USER' };
+    next();
+  },
+  requireRole: () => (req: any, _res: any, next: any) => next(),
+}));
+
+// Create mock methods (var avoids TDZ since jest.mock is hoisted)
+var mockPaymentService: any = {};
 
 // Mock the PaymentService
-jest.mock('../../services/paymentService', () => {
-  return {
-    PaymentService: jest.fn().mockImplementation(() => ({
-      createPaymentIntent: jest.fn(),
-      confirmPayment: jest.fn(),
-      cancelPayment: jest.fn(),
-      createRefund: jest.fn(),
-      getPaymentIntent: jest.fn(),
-      getUserTransactions: jest.fn(),
-      handleWebhook: jest.fn(),
-      getPublishableKey: jest.fn(),
-    })),
-  };
+jest.mock('../../services/paymentService', () => ({
+  PaymentService: jest.fn(() => mockPaymentService),
+}));
+
+// Populate mock methods BEFORE importing routes (routes constructor uses the mock)
+Object.assign(mockPaymentService, {
+  createPaymentIntent: jest.fn(),
+  confirmPayment: jest.fn(),
+  cancelPayment: jest.fn(),
+  createRefund: jest.fn(),
+  getPaymentIntent: jest.fn(),
+  getUserTransactions: jest.fn(),
+  handleWebhook: jest.fn(),
+  getPublishableKey: jest.fn(),
 });
+
+// Use require() so routes load AFTER mock methods are populated
+const paymentRoutes = require('../payments').default;
 
 describe('Payment Routes', () => {
   let app: express.Application;
-  let mockPaymentService: any;
 
   beforeEach(() => {
-    // Clear all mocks
+    // Clear call history between tests
     jest.clearAllMocks();
 
     // Create Express app with payment routes
     app = express();
     app.use(express.json());
     app.use('/payments', paymentRoutes);
-
-    // Get the mocked service instance
-    const PaymentService = require('../../services/paymentService').PaymentService;
-    mockPaymentService = PaymentService.mock.results[PaymentService.mock.calls.length - 1].value;
   });
 
   describe('GET /payments/config', () => {
@@ -254,6 +264,7 @@ describe('Payment Routes', () => {
 
       const response = await request(app)
         .get('/payments/transactions')
+        .send({ userId: 'test-user-id' })
         .expect(200);
 
       expect(response.body.success).toBe(true);

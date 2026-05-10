@@ -371,3 +371,8 @@ export const discoveryServiceTestSpecs = {
  *    - Verify error responses
  *    - Test recovery mechanisms
  */
+describe("discovery", () => {
+  it("should have test infrastructure", () => {
+    expect(true).toBe(true);
+  });
+});

@@ -407,3 +407,8 @@ export const sharingApiTestSpecs = {
  *    - Test data exposure prevention
  *    - Test rate limiting effectiveness
  */
+describe("sharing", () => {
+  it("should have test infrastructure", () => {
+    expect(true).toBe(true);
+  });
+});

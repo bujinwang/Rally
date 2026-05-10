@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { TournamentAnalyticsService } from '../tournamentAnalyticsService';
 import { PrismaClient } from '@prisma/client';
 

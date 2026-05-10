@@ -40,7 +40,7 @@ describe('MVP Sessions Route Validation', () => {
       expect(functionCode).toContain('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789');
       expect(functionCode).toContain('Math.floor(Math.random()');
       expect(functionCode).toContain('chars.charAt');
-      expect(functionCode).toContain('length === 6');
+      expect(functionCode).toContain('i < 6');
     }
   });
 
