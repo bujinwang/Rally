@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useRoute } from '@react-navigation/native';
+import { useSelector } from 'react-redux';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '../i18n/LanguageContext';
