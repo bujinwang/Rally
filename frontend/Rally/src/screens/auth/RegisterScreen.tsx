@@ -61,7 +61,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps='handled' showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>🏸 {t.common.appName}</Text>
           <Text style={styles.subtitle}>{t.auth.registerTitle}</Text>
@@ -156,6 +156,8 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     padding: 20,
+    paddingTop: 60,
+    minHeight: "100%",
   },
   header: {
     alignItems: 'center',
