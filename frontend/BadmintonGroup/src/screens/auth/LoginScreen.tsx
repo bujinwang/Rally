@@ -14,12 +14,14 @@ import { useDispatch, useSelector } from 'react-redux';
 import { loginUser, clearError, socialLogin } from '../../store/slices/authSlice';
 import DeviceService from '../../services/deviceService';
 import SocialLoginButtons from '../../components/SocialLoginButtons';
+import { useTranslation } from '../../i18n/LanguageContext';
 
 interface LoginScreenProps {
   navigation: any;
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const dispatch = useDispatch();
@@ -27,7 +29,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert(t.common.error, 'Please fill in all fields');
       return;
     }
 
@@ -61,14 +63,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.header}>
-          <Text style={styles.title}>🏸 Badminton Group</Text>
-          <Text style={styles.subtitle}>Welcome back!</Text>
+          <Text style={styles.title}>🏸 {t.common.appName}</Text>
+          <Text style={styles.subtitle}>{t.auth.loginTitle}</Text>
         </View>
 
         <View style={styles.form}>
           <TextInput
             style={styles.input}
-            placeholder="Email"
+            placeholder={t.auth.email}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -78,7 +80,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
           <TextInput
             style={styles.input}
-            placeholder="Password"
+            placeholder={t.auth.password}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -91,14 +93,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             disabled={isLoading}
           >
             <Text style={styles.buttonText}>
-              {isLoading ? 'Logging in...' : 'Login'}
+              {isLoading ? t.auth.loggingIn : t.auth.login}
             </Text>
           </TouchableOpacity>
 
           {/* Social login divider */}
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or continue with</Text>
+            <Text style={styles.dividerText}>{t.auth.orContinue}</Text>
             <View style={styles.dividerLine} />
           </View>
 
@@ -120,7 +122,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             onPress={() => navigation.navigate('Register')}
           >
             <Text style={styles.linkText}>
-              Don't have an account? Sign up
+              {t.auth.noAccount}
             </Text>
           </TouchableOpacity>
         </View>
