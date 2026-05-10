@@ -59,7 +59,7 @@ const RootNavigator = () => {
               .default.getItem('userId');
             const deviceId = await require('@react-native-async-storage/async-storage')
               .default.getItem('@badminton_device_id');
-            await notificationService.registerPushToken(userId || '', deviceId || '');
+            await notificationService.registerPushToken(deviceId || '');
           }
         } catch (e) {
           console.warn('Push notification init skipped:', e);
