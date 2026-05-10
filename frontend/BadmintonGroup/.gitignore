@@ -66,6 +66,12 @@ yarn-error.log
 # testing
 /coverage
 
+# Expo web build output
+dist/
+
+# Production env (may contain secrets)
+.env.production
+
 # Yarn
 .yarn/*
 !.yarn/patches
