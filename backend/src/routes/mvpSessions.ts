@@ -9,6 +9,7 @@ import { PasswordUtils } from '../utils/password';
 import { createRateLimiters } from '../middleware/rateLimit';
 import { notifySessionSubscribers } from '../utils/notificationHelper';
 import { emitPlayerJoined } from '../socket/notificationHandlers';
+import { messagingService } from '../services/messagingService';
 
 const rateLimiters = createRateLimiters();
 
@@ -396,6 +397,15 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
       // Don't fail the request if socket emission fails
     }
 
+    // Auto-create session group chat
+    try {
+      await messagingService.getOrCreateSessionChat(
+        session.id,
+        session.ownerName,
+        session.ownerDeviceId || session.ownerName
+      );
+    } catch (e) { console.warn('Auto-chat creation failed:', e); }
+
     res.status(201).json({
       success: true,
       data: {
@@ -655,6 +665,11 @@ router.post('/join/:shareCode', joinSessionValidation, async (req: Request, res:
       message: 'Successfully joined session',
       timestamp: new Date().toISOString()
     });
+
+    // Auto-add player to session group chat
+    try {
+      await messagingService.getOrCreateSessionChat(session.id, name, deviceId);
+    } catch (e) { console.warn('Auto-chat add failed:', e); }
 
     // Emit Socket.IO event to notify all connected clients about the session update
     try {
