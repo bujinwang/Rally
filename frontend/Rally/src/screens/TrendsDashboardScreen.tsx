@@ -4,7 +4,7 @@ import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   ActivityIndicator, Dimensions, Alert,
 } from 'react-native';
-import { LineChart, BarChart, PieChart } from 'react-native-chart-kit';
+import { LineChart, BarChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
 import statisticsApi from '../services/statisticsApi';
 

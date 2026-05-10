@@ -1944,6 +1944,18 @@ router.delete('/:shareCode/games/:gameId', requireOrganizer('modify_pairings'), 
         where: { sessionId: session.id, name: { in: losers } },
         data: { losses: { decrement: 1 } }
       });
+
+      // Recalculate winRate for all affected players
+      const affected = await prisma.mvpPlayer.findMany({
+        where: { sessionId: session.id, name: { in: allPlayers } }
+      });
+      for (const p of affected) {
+        const wr = p.gamesPlayed > 0 ? p.wins / p.gamesPlayed : 0;
+        await prisma.mvpPlayer.update({
+          where: { id: p.id },
+          data: { winRate: wr }
+        });
+      }
     }
 
     // Delete the game
@@ -3371,7 +3383,7 @@ router.put('/:shareCode/players/:playerId/status', requireOrganizerOrSelf('updat
  * Check-in a player (mark as arrived)
  * PUT /:shareCode/players/:playerId/check-in
  */
-router.put('/:shareCode/players/:playerId/check-in', async (req, res) => {
+router.put('/:shareCode/players/:playerId/check-in', requireOrganizer('modify_pairings'), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
 
@@ -3430,7 +3442,7 @@ router.put('/:shareCode/players/:playerId/check-in', async (req, res) => {
  * Undo check-in for a player
  * PUT /:shareCode/players/:playerId/check-out
  */
-router.put('/:shareCode/players/:playerId/check-out', async (req, res) => {
+router.put('/:shareCode/players/:playerId/check-out', requireOrganizer('modify_pairings'), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
 

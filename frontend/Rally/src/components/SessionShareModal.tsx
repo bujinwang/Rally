@@ -8,6 +8,7 @@ import {
   Alert,
   Share,
   Clipboard,
+  Linking,
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
