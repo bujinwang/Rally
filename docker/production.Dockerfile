@@ -1,5 +1,5 @@
 # ── Stage 1: Build backend ─────────────────────────────────────
-FROM node:18-alpine AS backend-builder
+FROM node:26-alpine AS backend-builder
 
 RUN apk add --no-cache python3 make g++ git
 
@@ -11,7 +11,7 @@ RUN npm run build
 RUN npm prune --production
 
 # ── Stage 2: Build frontend web ────────────────────────────────
-FROM node:18-alpine AS frontend-builder
+FROM node:26-alpine AS frontend-builder
 
 WORKDIR /app
 COPY frontend/Rally/package*.json ./
@@ -24,7 +24,7 @@ ENV EXPO_PUBLIC_ENVIRONMENT=production
 RUN npx expo export --platform web --output-dir dist/web
 
 # ── Stage 3: Production ────────────────────────────────────────
-FROM node:18-alpine AS production
+FROM node:26-alpine AS production
 
 RUN apk add --no-cache dumb-init curl \
     && addgroup -g 1001 -S nodejs \
