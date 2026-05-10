@@ -732,7 +732,7 @@ router.put(
         team1Player2: match.team1Player2,
         team2Player1: match.team2Player1,
         team2Player2: match.team2Player2,
-        winnerTeam: oldWinnerTeam
+        winnerTeam: oldWinnerTeam ?? 0
       }, true); // true = revert
 
       await updatePlayerMatchStatistics(session.id, {
@@ -857,7 +857,7 @@ router.delete(
         team1Player2: match.team1Player2,
         team2Player1: match.team2Player1,
         team2Player2: match.team2Player2,
-        winnerTeam: match.winnerTeam
+        winnerTeam: match.winnerTeam ?? 0
       }, true); // true = revert
 
       // Reset match to in-progress (removes score)
