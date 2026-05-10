@@ -42,6 +42,11 @@ import AddFriendScreen from '../screens/AddFriendScreen';
 import ConversationListScreen from '../screens/ConversationListScreen';
 import ChatScreen from '../screens/ChatScreen';
 
+// Community Discovery screens (Epic 4 Story 4.4)
+import CommunityLeaderboardScreen from '../screens/CommunityLeaderboardScreen';
+import VenueDirectoryScreen from '../screens/VenueDirectoryScreen';
+import PlayerSearchScreen from '../screens/PlayerSearchScreen';
+
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
 const SessionsStack = createNativeStackNavigator();
@@ -244,6 +249,22 @@ function ProfileStackNavigator() {
         name="AddFriend"
         component={AddFriendScreen}
         options={{ title: 'Add Friend' }}
+      />
+      {/* Community Discovery (Epic 4 Story 4.4) */}
+      <ProfileStack.Screen
+        name="CommunityLeaderboard"
+        component={CommunityLeaderboardScreen}
+        options={{ title: 'Leaderboard' }}
+      />
+      <ProfileStack.Screen
+        name="VenueDirectory"
+        component={VenueDirectoryScreen}
+        options={{ title: 'Venues' }}
+      />
+      <ProfileStack.Screen
+        name="PlayerSearch"
+        component={PlayerSearchScreen}
+        options={{ title: 'Find Players' }}
       />
     </ProfileStack.Navigator>
   );

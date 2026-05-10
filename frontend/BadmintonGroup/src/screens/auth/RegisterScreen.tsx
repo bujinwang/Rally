@@ -11,7 +11,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { registerUser, clearError } from '../../store/slices/authSlice';
+import { registerUser, clearError, socialLogin } from '../../store/slices/authSlice';
+import SocialLoginButtons from '../../components/SocialLoginButtons';
 
 interface RegisterScreenProps {
   navigation: any;
@@ -110,6 +111,26 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
             </Text>
           </TouchableOpacity>
 
+          {/* Social login divider */}
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or sign up with</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* Google / WeChat OAuth buttons */}
+          <SocialLoginButtons
+            onLoginSuccess={(data) => {
+              dispatch(socialLogin({
+                user: data.user,
+                tokens: data.tokens,
+              }));
+            }}
+            onLoginError={(error) => {
+              console.error('Social login error:', error);
+            }}
+          />
+
           <TouchableOpacity
             style={styles.linkButton}
             onPress={() => navigation.navigate('Login')}
@@ -181,6 +202,21 @@ const styles = StyleSheet.create({
   linkText: {
     color: '#007AFF',
     fontSize: 16,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 15,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e0e0e0',
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    fontSize: 13,
+    color: '#999',
   },
 });
 

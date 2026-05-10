@@ -117,6 +117,19 @@ const authSlice = createSlice({
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.isLoading = action.payload;
     },
+    /** Handle OAuth/social login result — set user, tokens, and auth flag */
+    socialLogin: (state, action: PayloadAction<{ user: User; tokens: Tokens }>) => {
+      const { user, tokens } = action.payload;
+      state.user = user;
+      state.tokens = tokens;
+      state.isAuthenticated = true;
+      state.error = null;
+      state.isLoading = false;
+      AsyncStorage.setItem('accessToken', tokens.accessToken);
+      AsyncStorage.setItem('refreshToken', tokens.refreshToken);
+      AsyncStorage.setItem('userId', user.id);
+      AsyncStorage.setItem('userName', user.name);
+    },
   },
   extraReducers: (builder) => {
     // Login
@@ -195,5 +208,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { logout, clearError, setLoading } = authSlice.actions;
+export const { logout, clearError, setLoading, socialLogin } = authSlice.actions;
 export default authSlice.reducer;
