@@ -13,6 +13,7 @@ import {
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { userApi, UserProfile } from '../services/userApi';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface RouteParams {
   userId: string;
@@ -23,6 +24,7 @@ export default function UserProfileScreen() {
   const navigation = useNavigation();
   const { userId } = route.params as RouteParams;
 
+  const { t } = useTranslation();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -38,7 +40,7 @@ export default function UserProfileScreen() {
       setProfile(data);
     } catch (error) {
       console.error('Error loading profile:', error);
-      Alert.alert('Error', 'Failed to load user profile');
+      Alert.alert(t.common.error, 'Failed to load user profile');
     } finally {
       setLoading(false);
     }
@@ -62,7 +64,7 @@ export default function UserProfileScreen() {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Loading profile...</Text>
+        <Text style={styles.loadingText}>{t.common.loading}</Text>
       </View>
     );
   }
@@ -73,7 +75,7 @@ export default function UserProfileScreen() {
         <Ionicons name="alert-circle-outline" size={64} color="#999" />
         <Text style={styles.errorText}>Profile not found</Text>
         <TouchableOpacity style={styles.retryButton} onPress={loadProfile}>
-          <Text style={styles.retryButtonText}>Retry</Text>
+          <Text style={styles.retryButtonText}>{t.common.retry}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -113,12 +115,12 @@ export default function UserProfileScreen() {
           <View style={styles.actionButtons}>
             <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
               <Ionicons name="pencil" size={20} color="#007AFF" />
-              <Text style={styles.editButtonText}>Edit Profile</Text>
+              <Text style={styles.editButtonText}>{t.profile.edit}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity style={styles.settingsButton} onPress={handleSettings}>
               <Ionicons name="settings-outline" size={20} color="#007AFF" />
-              <Text style={styles.settingsButtonText}>Settings</Text>
+              <Text style={styles.settingsButtonText}>{t.profile.settings}</Text>
             </TouchableOpacity>
           </View>
         )}

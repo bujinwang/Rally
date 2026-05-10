@@ -22,6 +22,7 @@ import { selectRealTimeStatus } from '../store/slices/realTimeSlice';
 import { DEVICE_ID_KEY } from '../config/api';
 import { sessionApi } from '../services/sessionApi';
 import { StatusManager } from '../components/StatusManager';
+import { useTranslation } from '../i18n/LanguageContext';
 
 const API_BASE_URL = 'http://localhost:3001/api/v1';
 
@@ -122,6 +123,7 @@ interface SessionData {
 export default function SessionDetailScreen() {
   const route = useRoute();
   const navigation = useNavigation();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [sessionData, setSessionData] = useState<SessionData | null>(null);
   const [shareCode, setShareCode] = useState<string>('');
