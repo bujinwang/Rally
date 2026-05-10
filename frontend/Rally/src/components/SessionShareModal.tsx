@@ -117,6 +117,28 @@ export default function SessionShareModal({
     }
   };
 
+  const handleShareWhatsApp = () => {
+    const timeRange = formatTimeRange();
+    const playersList = buildPlayersList();
+    const loc = location || 'Location TBD';
+    const shareCardUrl = `https://badminton-group.app/s/${shareCode}`;
+    const text = `🏸 ${sessionName}\n📅 ${sessionDate} ⏰ ${timeRange}\n📍 ${loc}\n${playersList ? '👥 ' + playersList + '\n' : ''}\n🔗 ${shareCardUrl}`;
+    const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    Linking.openURL(waUrl).catch(() => {
+      Alert.alert('WhatsApp not installed', 'Share via link instead');
+    });
+  };
+
+  const handleCopyShareCard = async () => {
+    const shareCardUrl = `https://badminton-group.app/s/${shareCode}`;
+    try {
+      await Clipboard.setString(shareCardUrl);
+      Alert.alert('Copied!', 'Share card link copied — opens with QR code and session details');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to copy');
+    }
+  };
+
   return (
     <Modal
       visible={visible}
@@ -213,9 +235,21 @@ export default function SessionShareModal({
           {/* Action Buttons */}
           <View style={styles.actions}>
             <TouchableOpacity onPress={handleShare} style={styles.shareButton}>
-              <Ionicons name="share" size={20} color="white" />
-              <Text style={styles.shareButtonText}>Share Session</Text>
+              <Ionicons name="share-outline" size={20} color="white" />
+              <Text style={styles.shareButtonText}>Share</Text>
             </TouchableOpacity>
+            
+            <View style={styles.platformRow}>
+              <TouchableOpacity onPress={handleShareWhatsApp} style={styles.whatsappButton}>
+                <Ionicons name="logo-whatsapp" size={20} color="white" />
+                <Text style={styles.platformButtonText}>WhatsApp</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity onPress={handleCopyShareCard} style={styles.shareCardButton}>
+                <Ionicons name="link" size={18} color="#007AFF" />
+                <Text style={styles.shareCardButtonText}>Share Card</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </TouchableOpacity>
       </TouchableOpacity>

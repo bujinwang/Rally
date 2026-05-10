@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { rankingService } from '../services/rankingService';
+import { updateRankingsAfterMatch } from '../services/rankingService';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -215,7 +215,7 @@ router.post('/detailed', async (req: Request, res: Response) => {
 
     // Update rankings
     try {
-      await rankingService.updateRatingsAfterMatch(match.id);
+      await updateRankingsAfterMatch(match.id, 1);
     } catch (rankingError) {
       console.error('Error updating rankings after match:', rankingError);
     }
@@ -401,7 +401,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Update rankings after match
     try {
-      await rankingService.updateRatingsAfterMatch(match.id);
+      await updateRankingsAfterMatch(match.id, 1);
     } catch (rankingError) {
       console.error('Error updating rankings after match:', rankingError);
       // Don't fail the match recording if ranking update fails
