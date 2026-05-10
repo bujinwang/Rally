@@ -177,13 +177,12 @@ export const useMessaging = (options: UseMessagingOptions = {}): UseMessagingRet
         threadId,
         userId: userIdRef.current
       });
-
-      return () => {
-        if (socketRef.current) {
-          socketRef.current.emit('messaging:leave-thread', { threadId });
-        }
-      };
     }
+    return () => {
+      if (socketRef.current && threadId) {
+        socketRef.current.emit('messaging:leave-thread', { threadId });
+      }
+    };
   }, [threadId, isConnected]);
 
   /**

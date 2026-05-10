@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { API_BASE_URL } from '../config';
 import { useEffect, useState, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';

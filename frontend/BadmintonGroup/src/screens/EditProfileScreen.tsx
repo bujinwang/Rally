@@ -54,7 +54,7 @@ export default function EditProfileScreen() {
           onPress: () => navigation.goBack()
         }
       ]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating profile:', error);
       Alert.alert('Error', error.message || 'Failed to update profile');
     } finally {

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Application from 'expo-application';

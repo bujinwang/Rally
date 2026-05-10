@@ -78,14 +78,17 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
-    // Detect system preference
+    let mq: MediaQueryList | undefined;
+    let handler: ((e: MediaQueryListEvent) => void) | undefined;
     if (typeof window !== 'undefined' && window.matchMedia) {
-      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      mq = window.matchMedia('(prefers-color-scheme: dark)');
       setIsDark(mq.matches);
-      const handler = (e: MediaQueryListEvent) => setIsDark(e.matches);
+      handler = (e: MediaQueryListEvent) => setIsDark(e.matches);
       mq.addEventListener('change', handler);
-      return () => mq.removeEventListener('change', handler);
     }
+    return () => {
+      if (mq && handler) mq.removeEventListener('change', handler);
+    };
   }, []);
 
   const toggleTheme = useCallback(() => setIsDark(d => !d), []);

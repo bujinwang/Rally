@@ -37,14 +37,15 @@ export default function AddFriendScreen() {
   }, []);
 
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
     if (searchQuery.trim().length >= 2) {
-      const timer = setTimeout(() => {
+      timer = setTimeout(() => {
         searchUsers();
       }, 500);
-      return () => clearTimeout(timer);
     } else {
       setSearchResults([]);
     }
+    return () => { if (timer) clearTimeout(timer); };
   }, [searchQuery]);
 
   const loadSuggestions = async () => {
@@ -52,7 +53,7 @@ export default function AddFriendScreen() {
       setLoadingSuggestions(true);
       const data = await friendsApi.getFriendSuggestions(10);
       setSuggestions(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading suggestions:', error);
     } finally {
       setLoadingSuggestions(false);
@@ -65,8 +66,8 @@ export default function AddFriendScreen() {
     try {
       setSearching(true);
       const results = await userApi.searchUsers(searchQuery);
-      setSearchResults(results);
-    } catch (error) {
+      setSearchResults(results as any);
+    } catch (error: any) {
       console.error('Error searching users:', error);
       Alert.alert('Error', 'Failed to search users');
     } finally {
@@ -87,7 +88,7 @@ export default function AddFriendScreen() {
       setSuggestions(prev => prev.map(updateUser));
       
       Alert.alert('Success', `Friend request sent to ${userName}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending friend request:', error);
       Alert.alert('Error', error.message || 'Failed to send friend request');
     } finally {

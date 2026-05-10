@@ -58,7 +58,7 @@ export default function ShareButton({
       const sdkShareData = {
         type,
         entityId,
-        message,
+        message: title || '',
         url: shareUrl || '',
         title: preview?.title || title,
         preview,

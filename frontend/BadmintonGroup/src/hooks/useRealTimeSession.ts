@@ -44,7 +44,7 @@ export const useRealTimeSession = ({
       setIsRefreshing(true);
       console.log(`🔄 Manual refresh triggered for session: ${sessionId}`);
       await realTimeService.refreshSession(sessionId, enableOptimisticUpdates);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Manual refresh failed:', error);
     } finally {
       setIsRefreshing(false);
@@ -58,7 +58,7 @@ export const useRealTimeSession = ({
     try {
       console.log(`▶️ Starting auto-refresh for session: ${sessionId}`);
       await realTimeService.startSessionAutoRefresh(sessionId);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to start auto-refresh:', error);
     }
   }, [sessionId, sessionStatus.isActive]);
@@ -95,20 +95,19 @@ export const useRealTimeSession = ({
       const handleSessionUpdate = (eventData: { sessionId: string; session: any }) => {
         if (eventData?.sessionId === sessionId) {
           console.log(`📊 Session data updated via DeviceEventEmitter for: ${sessionId}`);
-          // Component will re-render due to Redux state changes or props updates
         }
       };
 
       subscription = DeviceEventEmitter.addListener('sessionDataUpdated', handleSessionUpdate);
-      
-      return () => {
-        if (subscription) {
-          subscription.remove();
-        }
-      };
-    } catch (error) {
+    } catch (error: any) {
       console.log('DeviceEventEmitter not available:', error.message);
     }
+    
+    return () => {
+      if (subscription) {
+        subscription.remove();
+      }
+    };
   }, [sessionId]);
 
   return {

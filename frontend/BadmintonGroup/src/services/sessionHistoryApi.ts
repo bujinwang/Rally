@@ -22,7 +22,7 @@ export interface PlayerStats {
   wins: number;
   losses: number;
   winRate: number;
-  status: 'ACTIVE' | 'RESTING' | 'LEFT';
+  status?: 'ACTIVE' | 'RESTING' | 'LEFT';
 }
 
 export interface GameResult {
@@ -45,7 +45,7 @@ export interface GameSet {
   team1Score: number;
   team2Score: number;
   winnerTeam?: number;
-  isCompleted: boolean;
+  isCompleted?: boolean;
 }
 
 export interface SessionHistoryResponse {
