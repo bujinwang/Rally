@@ -4,6 +4,7 @@ export const SPORTS = {
   tennis:      { name: 'Tennis',      icon: '🎾', players: 4 },
   table_tennis:{ name: 'Table Tennis',icon: '🏓', players: 4 },
   volleyball:  { name: 'Volleyball',  icon: '🏐', players: 12 },
+  guandan:     { name: 'Guandan',     icon: '🃏', players: 4 },
 } as const;
 
 export type SportKey = keyof typeof SPORTS;
