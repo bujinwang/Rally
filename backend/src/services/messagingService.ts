@@ -356,6 +356,25 @@ export class MessagingService {
       sender: { id: row.sender_id, name: row.sender_name }
     }));
   }
+
+  /**
+   * Get or create a chat thread for a session.
+   * Thread participants = all current session players.
+   */
+  async getOrCreateSessionChat(sessionId: string, playerName: string, playerDeviceId: string) {
+    const session = await prisma.mvpSession.findUnique({
+      where: { id: sessionId },
+      include: { players: { select: { name: true, deviceId: true } } },
+    });
+    if (!session) throw new Error('Session not found');
+
+    const participants = session.players.map(p => p.deviceId).filter(Boolean) as string[];
+    if (!participants.includes(playerDeviceId)) participants.push(playerDeviceId);
+
+    const title = `💬 ${session.name}`;
+    return this.createThread({ participants, title });
+  }
+
 }
 
 export const messagingService = new MessagingService();

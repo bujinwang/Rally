@@ -1034,6 +1034,16 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={[styles.primaryActionButton, { backgroundColor: '#25D366' }]}
+            onPress={() => navigation.navigate('MessagesTab', {
+              screen: 'Chat',
+              params: { threadId: sessionData?.id },
+            })}
+          >
+            <Text style={styles.primaryActionText}>💬 Chat</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[styles.primaryActionButton, { backgroundColor: '#FF6B35' }]}
             onPress={() => {
               (navigation as any).navigate('MatchRecording', {
