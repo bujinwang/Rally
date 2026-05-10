@@ -632,10 +632,11 @@ model UserSettings {
 
 // Sessions (Badminton Games/Sessions)
 model Session {
-  id      String @id @default(cuid())
-  name    String // City + Date + Time format
-  ownerId String
-  owner   User   @relation("SessionOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  id        String @id @default(cuid())
+  name      String // City + Date + Time format
+  ownerId   String
+  owner     User   @relation("SessionOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  shareCode String @unique // Short code for sharing
 
   // Session Details
   scheduledAt DateTime

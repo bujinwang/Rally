@@ -1,9 +1,18 @@
-import express from 'express';
+import express, { Request } from 'express';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { TournamentAnalyticsService } from '../services/tournamentAnalyticsService';
 import { prisma } from '../config/database';
 // import { validationMiddleware } from '../middleware/validation'; // Not implemented
 // import { z } from 'zod'; // Not installed
+
+interface AuthRequest extends Request {
+  user?: {
+    id: string;
+    name?: string;
+    email?: string;
+    role: string;
+  };
+}
 
 const router = express.Router();
 
@@ -28,7 +37,7 @@ router.get(
         where: {
           id: tournamentId,
           OR: [
-            { organizerName: req.user?.name || 'Unknown' }, // Get from req.user when auth is properly set up
+            { organizer: (req as AuthRequest).user?.name || 'Unknown' },
             { visibility: 'PUBLIC' },
           ],
         },
@@ -90,7 +99,7 @@ router.post(
     try {
       const { id } = req.params;
       const { rating, comments } = req.body;
-      const playerId = req.user?.id || 'temp-user-id'; // Get from req.user when auth is properly set up
+      const playerId = (req as AuthRequest).user?.id || 'temp-user-id'; // Get from req.user when auth is properly set up
       const tournamentId = id as string;
 
       // Verify player participated in tournament
