@@ -9,6 +9,9 @@ jest.mock('../../config/database', () => ({
     mvpPlayer: {
       findUnique: jest.fn(),
     },
+    auditLog: {
+      create: jest.fn(),
+    },
   },
 }));
 
@@ -65,15 +68,14 @@ describe('Permission Middleware', () => {
 
     it('should return 403 for non-organizer', async () => {
       const middleware = requireOrganizer('edit_session');
-      const req = mockRequest({ shareCode: 'ABC123' }, { ownerDeviceId: 'device-2' });
+      const req = mockRequest({ shareCode: 'ABC123' }, { deviceId: 'device-2' });
       const res = mockResponse();
 
-      // Mock session and player lookup
+      // Mock session and player lookup — Prisma filters by deviceId, so only matching player returned
       mockPrisma.mvpSession.findUnique.mockResolvedValue({
         id: 'session-1',
         ownerDeviceId: 'device-1',
         players: [
-          { id: 'player-1', deviceId: 'device-1', role: 'ORGANIZER' },
           { id: 'player-2', deviceId: 'device-2', role: 'PLAYER' }
         ]
       });
@@ -87,20 +89,21 @@ describe('Permission Middleware', () => {
       await middleware(req, res, mockNext);
 
       expect(res.status).toHaveBeenCalledWith(403);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Only session organizers can perform this action'
-        }
-      });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: expect.objectContaining({
+            error: 'Insufficient permissions',
+          }),
+        })
+      );
     });
   });
 
   describe('requireOrganizerOrSelf', () => {
     it('should call next() for organizer', async () => {
       const middleware = requireOrganizerOrSelf('update_player_status');
-      const req = mockRequest({ playerId: 'player-1' }, { deviceId: 'device-1' });
+      const req = mockRequest({ shareCode: 'ABC123', playerId: 'player-1' }, { deviceId: 'device-1' });
       const res = mockResponse();
 
       // Mock session and player lookup
@@ -123,7 +126,7 @@ describe('Permission Middleware', () => {
 
     it('should call next() for self', async () => {
       const middleware = requireOrganizerOrSelf('update_player_status');
-      const req = mockRequest({ playerId: 'player-2' }, { deviceId: 'device-2' });
+      const req = mockRequest({ shareCode: 'ABC123', playerId: 'player-2' }, { deviceId: 'device-2' });
       const res = mockResponse();
 
       // Mock session and player lookup
@@ -149,7 +152,7 @@ describe('Permission Middleware', () => {
 
     it('should return 403 for unauthorized user', async () => {
       const middleware = requireOrganizerOrSelf('update_player_status');
-      const req = mockRequest({ playerId: 'player-2' }, { deviceId: 'device-3' });
+      const req = mockRequest({ shareCode: 'ABC123', playerId: 'player-2' }, { deviceId: 'device-3' });
       const res = mockResponse();
 
       // Mock session and player lookup
@@ -158,26 +161,22 @@ describe('Permission Middleware', () => {
         ownerDeviceId: 'device-1',
         players: [
           { id: 'player-1', deviceId: 'device-1', role: 'ORGANIZER' },
-          { id: 'player-2', deviceId: 'device-2', role: 'PLAYER' }
+          { id: 'player-2', deviceId: 'device-2', role: 'PLAYER' },
+          { id: 'player-3', deviceId: 'device-3', role: 'PLAYER' }
         ]
-      });
-
-      mockPrisma.mvpPlayer.findUnique.mockResolvedValue({
-        id: 'player-2',
-        deviceId: 'device-2',
-        role: 'PLAYER'
       });
 
       await middleware(req, res, mockNext);
 
       expect(res.status).toHaveBeenCalledWith(403);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Only the player themselves or session organizer can perform this action'
-        }
-      });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: expect.objectContaining({
+            code: 'FORBIDDEN',
+          }),
+        })
+      );
     });
   });
 

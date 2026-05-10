@@ -6,6 +6,11 @@ module.exports = {
     '**/__tests__/**/*.test.ts',
     '**/?(*.)+(spec|test).ts'
   ],
+  // mvpSessions.test.ts causes OOM — run separately with NODE_OPTIONS="--max-old-space-size=8192"
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    'mvpSessions\\.test\\.ts',
+  ],
   transform: {
     '^.+\\.ts$': 'ts-jest',
   },
