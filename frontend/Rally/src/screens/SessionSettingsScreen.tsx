@@ -129,6 +129,11 @@ export default function SessionSettingsScreen() {
   };
 
   const handleSave = async () => {
+    if (!basicInfo.name.trim()) {
+      Alert.alert('Validation', 'Session name is required');
+      return;
+    }
+
     setSaving(true);
     const basicOk = await saveBasicInfo();
     const configOk = await saveConfig();

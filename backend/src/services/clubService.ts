@@ -32,33 +32,34 @@ export interface ClubWithStats {
  * Create a new club. Creator becomes first admin + member.
  */
 export async function createClub(input: CreateClubInput) {
-  const club = await prisma.club.create({
-    data: {
-      name: input.name,
-      description: input.description || null,
-      location: input.location || null,
-      sportTypes: input.sportTypes,
-      ownerDeviceId: input.ownerDeviceId,
-      adminIds: [input.ownerDeviceId],
-      contactEmail: input.contactEmail || null,
-      contactPhone: input.contactPhone || null,
-      wechatGroup: input.wechatGroup || null,
-      logoUrl: input.logoUrl || null,
-      isPublic: input.isPublic ?? true,
-    },
-  });
+  return prisma.$transaction(async (tx) => {
+    const club = await tx.club.create({
+      data: {
+        name: input.name,
+        description: input.description || null,
+        location: input.location || null,
+        sportTypes: input.sportTypes,
+        ownerDeviceId: input.ownerDeviceId,
+        adminIds: [input.ownerDeviceId],
+        contactEmail: input.contactEmail || null,
+        contactPhone: input.contactPhone || null,
+        wechatGroup: input.wechatGroup || null,
+        logoUrl: input.logoUrl || null,
+        isPublic: input.isPublic ?? true,
+      },
+    });
 
-  // Add owner as first member with ADMIN role
-  await prisma.clubMember.create({
-    data: {
-      clubId: club.id,
-      deviceId: input.ownerDeviceId,
-      name: input.ownerName,
-      role: 'ADMIN',
-    },
-  });
+    await tx.clubMember.create({
+      data: {
+        clubId: club.id,
+        deviceId: input.ownerDeviceId,
+        name: input.ownerName,
+        role: 'ADMIN',
+      },
+    });
 
-  return club;
+    return club;
+  });
 }
 
 /**
