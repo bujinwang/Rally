@@ -18,7 +18,7 @@ export class ApiService {
   private baseURL: string;
   private timeout: number = 10000; // 10 seconds
 
-  constructor(baseURL: string = 'http://localhost:3001/api/v1') {
+  constructor(baseURL: string = API_BASE_URL) {
     this.baseURL = baseURL;
   }
 

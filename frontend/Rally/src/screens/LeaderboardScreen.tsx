@@ -10,8 +10,9 @@ import {
   Alert
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import { API_BASE_URL } from '../config/api';
 
-const API_BASE_URL = 'http://localhost:3001/api/v1';
+
 
 interface LeaderboardPlayer {
   rank: number;

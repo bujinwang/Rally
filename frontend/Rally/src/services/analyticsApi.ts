@@ -10,7 +10,7 @@ import {
   AnalyticsFilters
 } from '../types/analytics';
 
-const API_BASE_URL = 'http://localhost:3001/api/v1';
+import { API_BASE_URL } from '../config/api';
 
 class AnalyticsApiService {
   private static readonly BASE_URL = `${API_BASE_URL}/analytics`;

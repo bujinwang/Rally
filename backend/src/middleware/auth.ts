@@ -16,12 +16,6 @@ export const authenticateToken = async (
   next: NextFunction
 ): Promise<void | Response> => {
   try {
-    // MVP / development mode — allow unauthenticated requests with guest user
-    if (process.env.MVP_MODE === 'true' || process.env.NODE_ENV === 'development') {
-      req.user = { id: 'guest', email: null, role: 'PLAYER' };
-      return next();
-    }
-
     const authHeader = req.headers.authorization;
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 

@@ -23,40 +23,7 @@ interface Player {
   restPreference?: number;
 }
 
-const mockPlayers: Player[] = [
-  { 
-    id: '1', name: 'Alice', gamesPlayed: 5, status: 'ACTIVE',
-    priority: 15, queueRank: 6, restStatus: 'Ready to play', restGamesRemaining: 0 
-  },
-  { 
-    id: '2', name: 'Bob', gamesPlayed: 4, status: 'ACTIVE',
-    priority: 25, queueRank: 4, restStatus: 'Ready (waited 2 games)', restGamesRemaining: 0
-  },
-  { 
-    id: '3', name: 'Charlie', gamesPlayed: 3, status: 'ACTIVE',
-    priority: -50, queueRank: 8, restStatus: 'Resting 1 more game', restGamesRemaining: 1
-  },
-  { 
-    id: '4', name: 'Diana', gamesPlayed: 3, status: 'ACTIVE',
-    priority: 35, queueRank: 2, restStatus: 'Ready to play', restGamesRemaining: 0
-  },
-  { 
-    id: '5', name: 'Eve', gamesPlayed: 2, status: 'ACTIVE',
-    priority: 45, queueRank: 1, restStatus: 'Ready (waited 1 game)', restGamesRemaining: 0
-  },
-  { 
-    id: '6', name: 'Frank', gamesPlayed: 2, status: 'ACTIVE',
-    priority: 40, queueRank: 3, restStatus: 'Ready to play', restGamesRemaining: 0
-  },
-  { 
-    id: '7', name: 'Grace', gamesPlayed: 4, status: 'ACTIVE',
-    priority: 20, queueRank: 5, restStatus: 'Ready to play', restGamesRemaining: 0
-  },
-  { 
-    id: '8', name: 'Henry', gamesPlayed: 1, status: 'ACTIVE',
-    priority: 55, queueRank: 7, restStatus: 'Just played', restGamesRemaining: 1
-  },
-];
+
 
 const PlayerItem = ({ 
   player, 
@@ -126,7 +93,7 @@ const PlayerItem = ({
 );
 
 const RotationScreen = () => {
-  const [players, setPlayers] = useState<Player[]>(mockPlayers);
+  const [players, setPlayers] = useState<Player[]>([]);
   
   // Sort players by queue rank for display
   const sortedPlayers = [...players].sort((a, b) => (a.queueRank || 0) - (b.queueRank || 0));

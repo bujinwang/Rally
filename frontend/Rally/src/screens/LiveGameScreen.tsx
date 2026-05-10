@@ -22,13 +22,14 @@ import { DEVICE_ID_KEY } from '../config/api';
 import sessionApi from '../services/sessionApi';
 import socketService from '../services/socketService';
 import { 
+import { API_BASE_URL } from '../config/api';
   EnhancedQueueItem, 
   UpNextBanner, 
   useEnhancedQueue,
   hapticService
 } from '../components';
 
-const API_BASE_URL = 'http://localhost:3001/api/v1';
+
 
 interface Player {
   id: string;

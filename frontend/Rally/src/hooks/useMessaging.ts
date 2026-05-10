@@ -3,7 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Message } from '../services/messagingApi';
 
-const SOCKET_URL = 'http://localhost:3001'; // Update with your backend URL
+const SOCKET_URL = API_BASE_URL; // Update with your backend URL
 
 interface UseMessagingOptions {
   threadId?: string;

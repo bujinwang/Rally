@@ -75,7 +75,7 @@ export default function CreateSessionScreen() {
   const loadTemplates = async () => {
     if (!deviceId) return;
     try {
-      const res = await fetch(`http://localhost:3001/api/v1/session-templates/${deviceId}`);
+      const res = await fetch(`${API_BASE_URL}/session-templates/${deviceId}`);
       const data = await res.json();
       if (data.success) setTemplates(data.data.templates);
     } catch { /* no templates yet */ }

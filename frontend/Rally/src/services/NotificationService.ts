@@ -219,7 +219,7 @@ class NotificationService {
     }
 
     try {
-      const API_BASE_URL = 'http://localhost:3001/api/v1';
+      import { API_BASE_URL } from '../config/api';
       const response = await fetch(`${API_BASE_URL}/notifications/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -248,7 +248,7 @@ class NotificationService {
    */
   async subscribeToSession(shareCode: string, deviceId: string) {
     try {
-      const API_BASE_URL = 'http://localhost:3001/api/v1';
+      import { API_BASE_URL } from '../config/api';
       const response = await fetch(`${API_BASE_URL}/notifications/${shareCode}/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -273,7 +273,7 @@ class NotificationService {
    */
   async unsubscribeFromSession(shareCode: string, deviceId: string) {
     try {
-      const API_BASE_URL = 'http://localhost:3001/api/v1';
+      import { API_BASE_URL } from '../config/api';
       const response = await fetch(`${API_BASE_URL}/notifications/${shareCode}/unsubscribe`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
