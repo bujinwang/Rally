@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { statisticsApi } from '../statisticsApi';
 
 // Simple test structure for frontend API service

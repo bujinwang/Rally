@@ -33,10 +33,10 @@ export const InAppNotification: React.FC<InAppNotificationProps> = ({
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
     if (notification) {
       setVisible(true);
       
-      // Slide in
       Animated.spring(slideAnim, {
         toValue: 0,
         tension: 50,
@@ -44,13 +44,11 @@ export const InAppNotification: React.FC<InAppNotificationProps> = ({
         useNativeDriver: true,
       }).start();
 
-      // Auto dismiss after duration
-      const timer = setTimeout(() => {
+      timer = setTimeout(() => {
         handleDismiss();
       }, notification.duration || 4000);
-
-      return () => clearTimeout(timer);
     }
+    return () => { if (timer) clearTimeout(timer); };
   }, [notification]);
 
   const handleDismiss = () => {

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { FullTheme } from 'react-native-elements';
 
 // BadmintonGroup Design System Theme

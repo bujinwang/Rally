@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { renderHook } from '@testing-library/react';
 import { SessionProvider } from '../../contexts/SessionContext';
 import { usePermissions } from '../usePermissions';

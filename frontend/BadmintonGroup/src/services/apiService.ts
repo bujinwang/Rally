@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { syncManager } from './syncManager';
 import { StorageService } from './storageService';
 

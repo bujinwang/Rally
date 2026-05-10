@@ -36,7 +36,7 @@ export default function FriendRequestsScreen() {
       ]);
       setReceivedRequests(received);
       setSentRequests(sent);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading friend requests:', error);
       Alert.alert('Error', 'Failed to load friend requests');
     } finally {
@@ -59,7 +59,7 @@ export default function FriendRequestsScreen() {
       setReceivedRequests(prev => prev.filter(r => r.id !== requestId));
       
       Alert.alert('Success', 'Friend request accepted!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error accepting request:', error);
       Alert.alert('Error', error.message || 'Failed to accept friend request');
     } finally {
@@ -85,7 +85,7 @@ export default function FriendRequestsScreen() {
               setReceivedRequests(prev => prev.filter(r => r.id !== requestId));
               
               Alert.alert('Success', 'Friend request declined');
-            } catch (error) {
+            } catch (error: any) {
               console.error('Error declining request:', error);
               Alert.alert('Error', error.message || 'Failed to decline friend request');
             } finally {
@@ -114,7 +114,7 @@ export default function FriendRequestsScreen() {
               setSentRequests(prev => prev.filter(r => r.id !== requestId));
               
               Alert.alert('Success', 'Friend request cancelled');
-            } catch (error) {
+            } catch (error: any) {
               console.error('Error cancelling request:', error);
               Alert.alert('Error', error.message || 'Failed to cancel friend request');
             } finally {

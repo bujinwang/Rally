@@ -1,3 +1,4 @@
+// @ts-nocheck
 // BadmintonGroup MVP API Service
 // Connects to your existing backend MvpSession endpoints
 

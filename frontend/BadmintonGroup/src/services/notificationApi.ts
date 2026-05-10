@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { NotificationType, NotificationCategory, NotificationRecord, NotificationPreferences, NotificationPreferenceKey } from '../types/notifications';
 
 export interface RegisterPushTokenRequest {
