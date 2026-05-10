@@ -58,6 +58,9 @@ router.get('/s/:shareCode', async (req: Request, res: Response) => {
   <meta property="og:description" content="${cardDesc}" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="${joinUrl}" />
+  <meta property="og:image" content="${appUrl}/api/s/${shareCode}/og-image" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
   <meta property="og:site_name" content="Rally" />
   <meta property="og:locale" content="en_US" />
 
@@ -173,6 +176,13 @@ router.get('/s/:shareCode', async (req: Request, res: Response) => {
     </div>
 
     <div class="card-body">
+      ${playerCount > 0 ? `
+      <div style="text-align:center; margin-bottom:16px;">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(joinUrl)}" 
+             alt="Scan to join" width="180" height="180" style="border-radius:12px;" />
+        <div style="font-size:12px; color:#999; margin-top:6px;">📱 Scan QR to join</div>
+      </div>
+      ` : ''}
       <div class="info-row">
         <span class="info-icon">📅</span>
         <div>

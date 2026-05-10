@@ -80,14 +80,6 @@ export default function SessionHistoryScreen() {
     if (!loading && deviceId) {
       fetchSessionHistory(deviceId);
     }
-    setRefreshing(false);
-  };
-  
-  // Update data when filter or sort changes
-  useEffect(() => {
-    if (!loading && deviceId) {
-      fetchSessionHistory(deviceId);
-    }
   }, [filter, sortBy, deviceId]);
 
   const getFilteredAndSortedSessions = () => {

@@ -7,6 +7,7 @@ import userRoutes from './users';
 import mvpSessionRoutes from './mvpSessions';
 import sessionHistoryRoutes from './sessionHistory';
 import sessionTemplateRoutes from './sessionTemplates';
+import sessionSuggestionRoutes from './sessionSuggestions';
 import searchRoutes from './search';
 import playerStatusRoutes from './playerStatus';
 import scoringRoutes from './scoring';
@@ -25,6 +26,9 @@ import friendsRoutes from './friends';
 import messagingRoutes from './messaging';
 import challengesRoutes from './challenges';
 import matchSchedulingRoutes from './matchScheduling';
+import sessionInsightsRoutes from './sessionInsights';
+import sessionCostRoutes from './sessionCosts';
+import clubRoutes from './clubs';
 // Equipment routes — equipment inventory, reservations, maintenance
 import equipmentRoutes from './equipment';
 // Court booking routes disabled (depends on payment service)
@@ -51,12 +55,14 @@ router.get('/', (req, res) => {
 console.log('📍 Registering routes:');
 console.log('  - /auth');
 router.use('/auth', authRoutes);
-// console.log('  - /sessions');
-// router.use('/sessions', sessionRoutes); // Temporarily disabled
 console.log('  - /users');
 router.use('/users', userRoutes);
 console.log('  - /mvp-sessions');
 router.use('/mvp-sessions', mvpSessionRoutes);
+console.log('  - /session-templates');
+router.use('/session-templates', sessionTemplateRoutes);
+console.log('  - /session-suggestions');
+router.use('/session-suggestions', sessionSuggestionRoutes);
 console.log('  - /player-status');
 router.use('/player-status', playerStatusRoutes);
 console.log('  - /scoring');
@@ -73,8 +79,6 @@ console.log('  - /tournaments');
 router.use('/tournaments', tournamentRoutes);
 console.log('  - /session-history');
 router.use('/session-history', sessionHistoryRoutes);
-router.use('/session-templates', sessionTemplateRoutes);
-console.log('  - /session-templates');
 console.log('  - /search');
 router.use('/search', searchRoutes);
 console.log('  - /matches');
@@ -97,6 +101,12 @@ console.log('  - /challenges');
 router.use('/challenges', challengesRoutes);
 console.log('  - /match-scheduling');
 router.use('/match-scheduling', matchSchedulingRoutes);
+console.log('  - /session-insights');
+router.use('/session-insights', sessionInsightsRoutes);
+console.log('  - /session-costs');
+router.use('/session-costs', sessionCostRoutes);
+console.log('  - /clubs');
+router.use('/clubs', clubRoutes);
 // Equipment routes — inventory, reservations, check-out/return, maintenance
 console.log('  - /equipment');
 router.use('/equipment', equipmentRoutes);

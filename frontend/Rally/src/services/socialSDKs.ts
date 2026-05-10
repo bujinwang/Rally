@@ -1,9 +1,8 @@
-// Social SDK Integrations for Rally
-// Note: These integrations require installing the respective SDK packages
-
-// TODO: Install required packages:
+// Social sharing for Rally
+// WhatsApp (URL scheme), Twitter (web intent), native share sheet
+// Facebook/Twitter native SDK integration requires package installation:
 // npm install react-native-fbsdk-next @react-native-twitter-signin/twitter-signin
-// npm install expo-linking expo-web-browser
+// Until then, all platforms fall back to native Share API or URL schemes.
 
 import { Share, Linking, Platform } from 'react-native';
 
@@ -27,7 +26,7 @@ export class SocialSDKService {
    */
   async shareToFacebook(data: SocialShareData) {
     try {
-      // TODO: Uncomment when SDK is installed
+      // Native SDK requires react-native-fbsdk-next — using fallback until installed
       /*
       const ShareDialog = require('react-native-fbsdk-next').ShareDialog;
 
@@ -66,7 +65,7 @@ export class SocialSDKService {
    */
   async shareToTwitter(data: SocialShareData) {
     try {
-      // TODO: Uncomment when SDK is installed
+      // Native SDK requires @react-native-twitter-signin — using web intent fallback
       /*
       const { TwitterSignin } = require('@react-native-twitter-signin/twitter-signin');
 

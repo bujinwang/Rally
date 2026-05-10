@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { rankingService } from '../services/rankingService';
+import * as rankingService from '../services/rankingService';
 
 const router = Router();
 
@@ -38,9 +38,8 @@ router.get('/session/:sessionId', async (req, res) => {
     const { sessionId } = req.params;
     const minMatches = parseInt(req.query.minMatches as string) || 0;
 
-    // Get players ordered by ranking points - Feature not yet implemented
-    // const players = await rankingService.getSessionRankings(sessionId, minMatches);
-    const players: any[] = [];
+    // Get players ordered by ranking points
+    const players = await rankingService.getSessionRankings(sessionId, minMatches);
 
     res.json({
       success: true,
@@ -65,9 +64,7 @@ router.get('/global', async (req, res) => {
     const minMatches = parseInt(req.query.minMatches as string) || 5;
     const limit = parseInt(req.query.limit as string) || 100;
 
-    // Feature not yet implemented
-    // const rankings = await rankingService.getGlobalRankings(minMatches, limit);
-    const rankings: any[] = [];
+    const rankings = await rankingService.getGlobalRankings(minMatches, limit);
 
     res.json({
       success: true,
@@ -91,9 +88,7 @@ router.post('/update/:matchId', async (req, res) => {
   try {
     const { matchId } = req.params;
 
-    // Use the available method instead
-    // const updates = await rankingService.updateRankingsAfterDetailedMatch(matchId);
-    const updates: any[] = [];
+    const updates = await rankingService.updateRankingsAfterMatch(matchId, 1);
 
     res.json({
       success: true,
@@ -116,9 +111,7 @@ router.post('/update/:matchId', async (req, res) => {
  */
 router.post('/decay', async (req, res) => {
   try {
-    // Feature not yet implemented
-    // await rankingService.applyWeeklyDecay();
-    // Placeholder response
+    await rankingService.applyWeeklyDecay();
 
     res.json({
       success: true,

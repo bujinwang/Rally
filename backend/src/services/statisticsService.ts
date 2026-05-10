@@ -474,6 +474,125 @@ class StatisticsService {
       throw new Error('Failed to calculate performance trends');
     }
   }
+
+  async getPlayerStreaks(playerId: string): Promise<{
+    currentStreak: { type: 'W' | 'L'; count: number };
+    bestWinStreak: number;
+    bestLossStreak: number;
+    recentForm: string[];
+  }> {
+    const matches = await prisma.match.findMany({
+      where: { OR: [{ player1Id: playerId }, { player2Id: playerId }] },
+      orderBy: { recordedAt: 'desc' }
+    });
+
+    let bestWin = 0, bestLoss = 0, currentWin = 0, currentLoss = 0;
+    const recentForm: string[] = [];
+    let currentType: 'W' | 'L' = 'W';
+
+    for (const m of matches) {
+      const won = m.winnerId === playerId;
+      recentForm.push(won ? 'W' : 'L');
+      if (recentForm.length === 1) currentType = won ? 'W' : 'L';
+      if (won) { currentWin++; currentLoss = 0; if (currentWin > bestWin) bestWin = currentWin; }
+      else { currentLoss++; currentWin = 0; if (currentLoss > bestLoss) bestLoss = currentLoss; }
+    }
+
+    return {
+      currentStreak: { type: currentType, count: currentType === 'W' ? currentWin : currentLoss },
+      bestWinStreak: bestWin,
+      bestLossStreak: bestLoss,
+      recentForm: recentForm.slice(0, 10)
+    };
+  }
+
+  async getPlayerPercentiles(playerId: string): Promise<{
+    winRate: number; winRatePercentile: number;
+    gamesPlayed: number; gamesPlayedPercentile: number;
+    totalPlayersCompared: number;
+  }> {
+    const player = await prisma.mvpPlayer.findUnique({ where: { id: playerId } });
+    if (!player) throw new Error('Player not found');
+
+    const allPlayers = await prisma.mvpPlayer.findMany({
+      where: { gamesPlayed: { gt: 0 } },
+      select: { id: true, wins: true, gamesPlayed: true }
+    });
+
+    const pRate = player.gamesPlayed > 0 ? player.wins / player.gamesPlayed : 0;
+    const total = allPlayers.length;
+    const belowWR = allPlayers.filter(p => (p.gamesPlayed > 0 ? p.wins / p.gamesPlayed : 0) < pRate).length;
+    const belowGP = allPlayers.filter(p => p.gamesPlayed < player.gamesPlayed).length;
+
+    return {
+      winRate: Math.round(pRate * 100),
+      winRatePercentile: total > 0 ? Math.round((belowWR / total) * 100) : 0,
+      gamesPlayed: player.gamesPlayed,
+      gamesPlayedPercentile: total > 0 ? Math.round((belowGP / total) * 100) : 0,
+      totalPlayersCompared: total
+    };
+  }
+
+  async getSessionHeatmap(sessionId: string): Promise<{
+    courts: Array<{ name: string; gamesPlayed: number; totalDuration: number }>;
+    hourlyActivity: Array<{ hour: number; games: number }>;
+  }> {
+    const games = await prisma.mvpGame.findMany({
+      where: { sessionId, status: 'COMPLETED' }
+    });
+
+    const courtMap: Record<string, { games: number; duration: number }> = {};
+    for (const g of games) {
+      const name = (g as any).courtName || 'Court 1';
+      if (!courtMap[name]) courtMap[name] = { games: 0, duration: 0 };
+      courtMap[name].games++;
+      if (g.startTime && g.endTime) {
+        courtMap[name].duration += (g.endTime.getTime() - g.startTime.getTime()) / 60000;
+      }
+    }
+
+    const hourMap: Record<number, number> = {};
+    for (let h = 0; h < 24; h++) hourMap[h] = 0;
+    for (const g of games) {
+      if (g.startTime) hourMap[g.startTime.getHours()]++;
+    }
+
+    return {
+      courts: Object.entries(courtMap).map(([name, d]) => ({ name, gamesPlayed: d.games, totalDuration: Math.round(d.duration) })),
+      hourlyActivity: Object.entries(hourMap).map(([h, g]) => ({ hour: parseInt(h), games: g }))
+    };
+  }
+
+  async getHeadToHead(p1Id: string, p2Id: string): Promise<{
+    player1: { id: string; name: string; wins: number };
+    player2: { id: string; name: string; wins: number };
+    totalMatches: number;
+    recentMatches: Array<{ winner: string; score: string; date: string }>;
+  }> {
+    const [p1, p2] = await Promise.all([
+      prisma.mvpPlayer.findUnique({ where: { id: p1Id } }),
+      prisma.mvpPlayer.findUnique({ where: { id: p2Id } })
+    ]);
+
+    const matches = await prisma.match.findMany({
+      where: { OR: [{ player1Id: p1Id, player2Id: p2Id }, { player1Id: p2Id, player2Id: p1Id }] },
+      orderBy: { recordedAt: 'desc' }
+    });
+
+    let p1w = 0, p2w = 0;
+    const recent = matches.slice(0, 5).map(m => {
+      const isP1 = m.winnerId === p1Id;
+      if (isP1) p1w++; else p2w++;
+      return { winner: isP1 ? (p1?.name || 'P1') : (p2?.name || 'P2'), score: m.scoreType || 'N/A', date: m.recordedAt.toISOString().split('T')[0] };
+    });
+
+    return {
+      player1: { id: p1Id, name: p1?.name || 'Player 1', wins: p1w },
+      player2: { id: p2Id, name: p2?.name || 'Player 2', wins: p2w },
+      totalMatches: matches.length,
+      recentMatches: recent
+    };
+  }
 }
 
 // Export singleton instance

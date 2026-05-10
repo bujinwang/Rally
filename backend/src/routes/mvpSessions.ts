@@ -243,7 +243,8 @@ const createSessionValidation = [
   body('invitationRequired').optional().isBoolean().withMessage('Invitation required must be true/false'),
   body('sport').optional().isIn(['badminton','pickleball','tennis','table_tennis','volleyball']).withMessage('Invalid sport'),
   body('depositRequired').optional().isBoolean().withMessage('Deposit required must be true/false'),
-  body('depositAmount').optional().isFloat({ min: 0 }).withMessage('Deposit amount must be positive')
+  body('depositAmount').optional().isFloat({ min: 0 }).withMessage('Deposit amount must be positive'),
+  body('invitePlayerNames').optional().isArray().withMessage('Invite player names must be an array'),
 ];
 
 const joinSessionValidation = [
@@ -331,6 +332,21 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
         role: 'ORGANIZER'
       }
     });
+
+    // Auto-invite regular players as PENDING
+    const inviteNames: string[] = sessionData.invitePlayerNames || [];
+    if (inviteNames.length > 0) {
+      await prisma.mvpPlayer.createMany({
+        data: inviteNames
+          .filter((name: string) => name !== sessionData.organizerName)
+          .map((name: string) => ({
+            sessionId: session.id,
+            name,
+            status: 'PENDING' as const,
+            role: 'PLAYER' as const,
+          })),
+      });
+    }
 
     // Fetch the session with players to return complete data
     const sessionWithPlayers = await prisma.mvpSession.findUnique({

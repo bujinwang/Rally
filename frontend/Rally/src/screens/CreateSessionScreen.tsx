@@ -14,6 +14,7 @@ import {
   Modal
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useRoute } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -29,15 +30,24 @@ interface SessionFormData {
   organizerName: string;
 }
 
+interface PrefillData {
+  location?: string;
+  invitePlayerNames?: string[];
+  predictedDate?: string;
+}
+
 export default function CreateSessionScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation();
+  const route = useRoute<any>();
+  const prefill: PrefillData | undefined = route.params?.prefill;
   const [loading, setLoading] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [createdSession, setCreatedSession] = useState<any>(null);
   const [templates, setTemplates] = useState<any[]>([]);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [deviceId, setDeviceId] = useState('');
+  const [invitePlayerNames, setInvitePlayerNames] = useState<string[]>([]);
 
   useEffect(() => {
     const init = async () => {
@@ -46,6 +56,21 @@ export default function CreateSessionScreen() {
     };
     init();
   }, []);
+
+  // Pre-fill form from suggestion
+  useEffect(() => {
+    if (prefill) {
+      if (prefill.location) {
+        setFormData(prev => ({ ...prev, location: prefill.location! }));
+      }
+      if (prefill.invitePlayerNames) {
+        setInvitePlayerNames(prefill.invitePlayerNames);
+      }
+      if (prefill.predictedDate) {
+        setFormData(prev => ({ ...prev, scheduledAt: new Date(prefill.predictedDate!) }));
+      }
+    }
+  }, [prefill]);
 
   const loadTemplates = async () => {
     if (!deviceId) return;
@@ -169,7 +194,8 @@ export default function CreateSessionScreen() {
         dateTime: formData.scheduledAt.toISOString(),
         location: formData.location.trim(),
         maxPlayers: formData.maxPlayers,
-        organizerName: formData.organizerName.trim()
+        organizerName: formData.organizerName.trim(),
+        invitePlayerNames,
       };
 
       const result = await sessionApi.createSession(requestData);
@@ -356,6 +382,9 @@ export default function CreateSessionScreen() {
           shareCode={createdSession.shareCode}
           sessionName={createdSession.name}
           sessionDate={formatDateTime(new Date(createdSession.scheduledAt))}
+          scheduledAt={createdSession.scheduledAt}
+          location={createdSession.location}
+          players={createdSession.players}
           organizerSecret={createdSession.organizerSecret}
         />
       )}

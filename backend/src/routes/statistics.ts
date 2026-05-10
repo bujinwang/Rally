@@ -197,4 +197,110 @@ router.get('/trends/:playerId', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/statistics/player/:playerId/streaks
+ * Get win/loss streaks for a player
+ */
+router.get('/player/:playerId/streaks', async (req: Request, res: Response) => {
+  try {
+    const { playerId } = req.params;
+
+    const streaks = await statisticsService.getPlayerStreaks(playerId);
+
+    res.json({
+      success: true,
+      data: streaks,
+      message: 'Player streaks retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching streaks:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch streaks' }
+    });
+  }
+});
+
+/**
+ * GET /api/statistics/player/:playerId/percentiles
+ * Get percentile rankings for a player
+ */
+router.get('/player/:playerId/percentiles', async (req: Request, res: Response) => {
+  try {
+    const { playerId } = req.params;
+
+    const percentiles = await statisticsService.getPlayerPercentiles(playerId);
+
+    res.json({
+      success: true,
+      data: percentiles,
+      message: 'Player percentiles retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching percentiles:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch percentiles' }
+    });
+  }
+});
+
+/**
+ * GET /api/statistics/session/:sessionId/heatmap
+ * Get court usage heatmap data for a session
+ */
+router.get('/session/:sessionId/heatmap', async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params;
+
+    const heatmap = await statisticsService.getSessionHeatmap(sessionId);
+
+    res.json({
+      success: true,
+      data: heatmap,
+      message: 'Session heatmap retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching heatmap:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch heatmap' }
+    });
+  }
+});
+
+/**
+ * GET /api/statistics/head-to-head
+ * Compare two players head-to-head
+ */
+router.get('/head-to-head', async (req: Request, res: Response) => {
+  try {
+    const { player1Id, player2Id } = req.query;
+
+    if (!player1Id || !player2Id) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'player1Id and player2Id required' }
+      });
+    }
+
+    const h2h = await statisticsService.getHeadToHead(
+      player1Id as string,
+      player2Id as string
+    );
+
+    res.json({
+      success: true,
+      data: h2h,
+      message: 'Head-to-head stats retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching head-to-head:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch head-to-head stats' }
+    });
+  }
+});
+
 export default router;
