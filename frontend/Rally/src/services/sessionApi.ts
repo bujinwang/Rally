@@ -8,6 +8,7 @@ export interface CreateSessionRequest {
   location?: string;
   maxPlayers?: number;
   organizerName: string;
+  sport?: string; // badminton, pickleball, tennis, table_tennis, volleyball, guandan, hiking
   invitePlayerNames?: string[];
 }
 
@@ -17,6 +18,7 @@ export interface SessionData {
   scheduledAt: string;
   location?: string;
   maxPlayers: number;
+  sport?: string;
   skillLevel?: string;
   cost?: number;
   description?: string;
