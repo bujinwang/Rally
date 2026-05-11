@@ -341,6 +341,9 @@ model MvpPlayer {
   checkedIn   Boolean   @default(false) // Whether player has checked in
   checkedInAt DateTime? // When player checked in
 
+  // Sport preferences
+  preferredSports String[] // e.g. ["badminton", "tennis", "pickleball"]
+
   TournamentFeedback    TournamentFeedback[]
 
   @@unique([sessionId, name]) // Prevent duplicate names in same session

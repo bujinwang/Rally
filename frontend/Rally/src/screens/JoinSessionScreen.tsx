@@ -34,6 +34,7 @@ interface SessionData {
     gamesPlayed: number;
     wins: number;
     losses: number;
+    preferredSports?: string[];
     joinedAt: string;
   }>;
   createdAt: string;
@@ -48,6 +49,7 @@ export default function JoinSessionScreen() {
   const [sessionData, setSessionData] = useState<SessionData | null>(null);
   const [shareCode, setShareCode] = useState<string>('');
   const [showClaimModal, setShowClaimModal] = useState(false);
+  const [preferredSports, setPreferredSports] = useState<string[]>([]);
 
   useEffect(() => {
     // Extract share code from route params or URL
@@ -100,7 +102,8 @@ export default function JoinSessionScreen() {
         },
         body: JSON.stringify({
           name: playerName.trim(),
-          deviceId: await DeviceService.getDeviceId()
+          deviceId: await DeviceService.getDeviceId(),
+          preferredSports,
         }),
       });
 
@@ -228,6 +231,37 @@ export default function JoinSessionScreen() {
       <View style={styles.joinSection}>
         <Text style={styles.joinTitle}>Join this session</Text>
         
+        <Text style={styles.label}>Sports you play</Text>
+        <View style={styles.sportRow}>
+          {[
+            { key: 'badminton', icon: '🏸', label: 'Badminton' },
+            { key: 'pickleball', icon: '🥒', label: 'Pickleball' },
+            { key: 'tennis', icon: '🎾', label: 'Tennis' },
+            { key: 'table_tennis', icon: '🏓', label: 'Ping Pong' },
+            { key: 'volleyball', icon: '🏐', label: 'Volleyball' },
+            { key: 'guandan', icon: '🃏', label: 'Guandan' },
+            { key: 'hiking', icon: '🥾', label: 'Hiking' },
+          ].map(s => {
+            const selected = preferredSports.includes(s.key);
+            return (
+              <TouchableOpacity
+                key={s.key}
+                style={[styles.sportPill, selected && styles.sportPillActive]}
+                onPress={() => {
+                  setPreferredSports(prev =>
+                    selected ? prev.filter(x => x !== s.key) : [...prev, s.key]
+                  );
+                }}
+              >
+                <Text style={styles.sportIcon}>{s.icon}</Text>
+                <Text style={[styles.sportLabel, selected && styles.sportLabelActive]}>
+                  {s.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
         <Text style={styles.label}>Your Name *</Text>
         <TextInput
           style={styles.input}
@@ -451,5 +485,37 @@ const styles = StyleSheet.create({
     color: '#ff6b35',
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  sportRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 16,
+  },
+  sportPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 4,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  sportPillActive: {
+    backgroundColor: '#E3F2FD',
+    borderColor: '#007AFF',
+  },
+  sportIcon: {
+    fontSize: 14,
+  },
+  sportLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+  },
+  sportLabelActive: {
+    color: '#007AFF',
   },
 });
