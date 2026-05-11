@@ -131,17 +131,18 @@ export default function SessionShareModal({
     });
   };
 
-  /** WeChat share — URL at top so WeChat detects it as a card link */
+  /** Share to WeChat — URL at top so WeChat detects it as a share card */
   const handleShareWeChat = async () => {
     const timeRange = formatTimeRange();
     const playersList = buildPlayersList();
     const loc = location || 'Location TBD';
     const shareCardUrl = `https://badminton-group.app/s/${shareCode}`;
-    const text = `${shareCardUrl}\n\n🏸 ${sessionName}\n📅 ${sessionDate} ⏰ ${timeRange}\n📍 ${loc}${playersList ? '\n👥 ' + playersList : ''}\n💯 Code: ${shortShareCode}`;
+    // URL must be on its own line at the top for WeChat to auto-scrape OG tags
+    const text = `${shareCardUrl}\n\n🏸 ${sessionName}\n📅 ${sessionDate}  ·  ⏰ ${timeRange}\n📍 ${loc}${playersList ? '\n👥 ' + playersList : ''}\n\n💯 Code: ${shortShareCode}`;
     try {
-      await Share.share({ message: text });
-    } catch (error) {
-      Alert.alert('Error', 'Failed to share');
+      await Share.share({ message: text, title: `🏸 ${sessionName}` });
+    } catch {
+      Alert.alert('Error', 'Could not share to WeChat');
     }
   };
 
