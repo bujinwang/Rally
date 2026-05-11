@@ -446,3 +446,45 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 });
+  inviteSection: {
+    marginBottom: 20,
+    padding: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+  },
+  inviteHint: {
+    fontSize: 12,
+    color: '#999',
+    marginBottom: 12,
+    marginTop: -8,
+  },
+  inviteRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  inviteInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    backgroundColor: '#fff',
+  },
+  inviteSendBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#34C759',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 4,
+  },
+  inviteSendText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+});
