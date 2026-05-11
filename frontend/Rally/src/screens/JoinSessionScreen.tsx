@@ -241,6 +241,7 @@ export default function JoinSessionScreen() {
             { key: 'volleyball', icon: '🏐', label: 'Volleyball' },
             { key: 'guandan', icon: '🃏', label: 'Guandan' },
             { key: 'hiking', icon: '🥾', label: 'Hiking' },
+            { key: 'golf', icon: '⛳', label: 'Golf' },
           ].map(s => {
             const selected = preferredSports.includes(s.key);
             return (

@@ -385,6 +385,7 @@ export default function CreateSessionScreen() {
               { key: 'volleyball', icon: '🏐', label: 'Volleyball' },
               { key: 'guandan', icon: '🃏', label: 'Guandan' },
               { key: 'hiking', icon: '🥾', label: 'Hiking' },
+              { key: 'golf', icon: '⛳', label: 'Golf' },
             ].map(s => (
               <TouchableOpacity
                 key={s.key}

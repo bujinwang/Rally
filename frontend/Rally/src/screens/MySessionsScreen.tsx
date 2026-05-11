@@ -142,7 +142,7 @@ export default function MySessionsScreen() {
   const getSportIcon = (sport: string) => {
     const icons: Record<string, string> = {
       badminton: '🏸', pickleball: '🥒', tennis: '🎾',
-      table_tennis: '🏓', volleyball: '🏐', guandan: '🃏', hiking: '🥾',
+      table_tennis: '🏓', volleyball: '🏐', guandan: '🃏', hiking: '🥾', golf: '⛳',
     };
     return icons[sport] || '🏸';
   };
