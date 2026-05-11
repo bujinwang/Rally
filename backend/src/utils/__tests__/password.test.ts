@@ -1,4 +1,4 @@
-import { PasswordUtils } from '../../utils/password';
+import { PasswordUtils } from '../password';
 
 describe('PasswordUtils', () => {
   it('hashes a password and returns a salt+hash', async () => {
