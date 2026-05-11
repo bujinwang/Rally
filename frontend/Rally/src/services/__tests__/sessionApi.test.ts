@@ -8,7 +8,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   removeItem: jest.fn().mockResolvedValue(undefined),
 }));
 
-jest.mock('../../services/deviceService', () => ({
+jest.mock('../deviceService', () => ({
   __esModule: true,
   default: {
     getDeviceId: jest.fn().mockResolvedValue('device-test-123'),
