@@ -74,9 +74,22 @@ router.get(
   async (req, res) => {
     try {
       const { format, limit = 10 } = req.query;
-      const tournamentIds: string[] = []; // Query based on user access, placeholder
 
-      const trends = await TournamentAnalyticsService.compareTournamentFormats(tournamentIds.slice(0, Number(limit)));
+      // Query tournaments accessible to the user
+      const tournaments = await prisma.tournament.findMany({
+        where: {
+          OR: [
+            { visibility: 'PUBLIC' },
+            { organizer: (req as AuthRequest).user?.name || '' },
+          ],
+        },
+        select: { id: true },
+        orderBy: { startDate: 'desc' },
+        take: Number(limit),
+      });
+      const tournamentIds = tournaments.map(t => t.id);
+
+      const trends = await TournamentAnalyticsService.compareTournamentFormats(tournamentIds);
 
       res.json({
         trends,

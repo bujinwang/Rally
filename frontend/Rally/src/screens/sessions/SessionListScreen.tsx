@@ -18,7 +18,7 @@ interface Session {
   isOwner: boolean;
 }
 
- = [
+const sessions: Session[] = [
   {
     id: '1',
     name: '北京羽毛球会 - 8/25 14:00',

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
@@ -12,8 +11,8 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const CHART_WIDTH = SCREEN_WIDTH - 40;
 
 interface Props {
-  playerId: string;
-  playerName: string;
+  playerId?: string;
+  playerName?: string;
   sessionId?: string;
 }
 
@@ -27,7 +26,7 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'heatmap', label: 'Activity', icon: 'time' },
 ];
 
-export default function TrendsDashboardScreen({ playerId, playerName, sessionId }: Props) {
+export default function TrendsDashboardScreen({ playerId = '', playerName = '', sessionId }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('trends');
   const [loading, setLoading] = useState(true);
 

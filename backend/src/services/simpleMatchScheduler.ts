@@ -63,54 +63,40 @@ export class SimpleMatchScheduler {
         }
       }
 
-      // For now, we'll store scheduling info as JSON in the description field
-      // This is a temporary solution until proper models are available
-      const schedulingData = {
-        scheduledAt: data.scheduledAt.toISOString(),
-        duration: data.duration || 60,
-        location: data.location,
-        courtName: data.courtName,
-        matchType: data.matchType,
-        status: 'SCHEDULED',
-        reminderSent: false
-      };
-
-      const match = await prisma.mvpMatch.create({
+      const match = await prisma.scheduledMatch.create({
         data: {
           sessionId: data.sessionId,
-          matchNumber: 1, // Will be updated with proper numbering
-          team1Player1: data.player1Id,
-          team1Player2: '',
-          team2Player1: data.player2Id || '',
-          team2Player2: '',
-          winnerTeam: 0, // Not determined yet
-          status: 'IN_PROGRESS',
+          title: data.title,
+          description: data.description,
+          scheduledAt: data.scheduledAt,
+          duration: data.duration || 60,
+          location: data.location,
           courtName: data.courtName,
-          // Store scheduling data in description for now
-          // In a real implementation, this would be in a separate table
-        }
+          player1Id: data.player1Id,
+          player2Id: data.player2Id,
+          matchType: data.matchType,
+          status: 'SCHEDULED',
+          createdBy: data.createdBy,
+        },
       });
 
-      // Create a simple scheduled match object
-      const scheduledMatch: SimpleScheduledMatch = {
+      return {
         id: match.id,
-        sessionId: data.sessionId,
-        title: data.title,
-        description: data.description,
-        scheduledAt: data.scheduledAt,
-        duration: data.duration || 60,
-        location: data.location,
-        courtName: data.courtName,
-        player1Id: data.player1Id,
-        player2Id: data.player2Id,
-        matchType: data.matchType,
-        status: 'SCHEDULED',
-        createdBy: data.createdBy,
+        sessionId: match.sessionId,
+        title: match.title,
+        description: match.description || undefined,
+        scheduledAt: match.scheduledAt,
+        duration: match.duration,
+        location: match.location || undefined,
+        courtName: match.courtName || undefined,
+        player1Id: match.player1Id,
+        player2Id: match.player2Id || undefined,
+        matchType: match.matchType as 'SINGLES' | 'DOUBLES',
+        status: 'SCHEDULED' as const,
+        createdBy: match.createdBy,
         createdAt: match.createdAt,
-        updatedAt: match.updatedAt
+        updatedAt: match.updatedAt,
       };
-
-      return scheduledMatch;
     } catch (error) {
       console.error('Error creating scheduled match:', error);
       throw error;
@@ -122,9 +108,27 @@ export class SimpleMatchScheduler {
    */
   static async getScheduledMatchesForSession(sessionId: string): Promise<SimpleScheduledMatch[]> {
     try {
-      // For now, return empty array since we're using MVP models
-      // In a real implementation, this would query the scheduled matches table
-      return [];
+      const matches = await prisma.scheduledMatch.findMany({
+        where: { sessionId, status: { not: 'CANCELLED' } },
+        orderBy: { scheduledAt: 'asc' },
+      });
+      return matches.map(m => ({
+        id: m.id,
+        sessionId: m.sessionId,
+        title: m.title,
+        description: m.description || undefined,
+        scheduledAt: m.scheduledAt,
+        duration: m.duration,
+        location: m.location || undefined,
+        courtName: m.courtName || undefined,
+        player1Id: m.player1Id,
+        player2Id: m.player2Id || undefined,
+        matchType: m.matchType as 'SINGLES' | 'DOUBLES',
+        status: m.status as SimpleScheduledMatch['status'],
+        createdBy: m.createdBy,
+        createdAt: m.createdAt,
+        updatedAt: m.updatedAt,
+      }));
     } catch (error) {
       console.error('Error fetching scheduled matches:', error);
       throw new Error('Failed to fetch scheduled matches');
@@ -136,9 +140,35 @@ export class SimpleMatchScheduler {
    */
   static async getScheduledMatchesForPlayer(playerId: string): Promise<SimpleScheduledMatch[]> {
     try {
-      // For now, return empty array since we're using MVP models
-      // In a real implementation, this would query the scheduled matches table
-      return [];
+      const matches = await prisma.scheduledMatch.findMany({
+        where: {
+          OR: [
+            { player1Id: playerId },
+            { player2Id: playerId },
+            { player3Id: playerId },
+            { player4Id: playerId },
+          ],
+          status: { not: 'CANCELLED' },
+        },
+        orderBy: { scheduledAt: 'asc' },
+      });
+      return matches.map(m => ({
+        id: m.id,
+        sessionId: m.sessionId,
+        title: m.title,
+        description: m.description || undefined,
+        scheduledAt: m.scheduledAt,
+        duration: m.duration,
+        location: m.location || undefined,
+        courtName: m.courtName || undefined,
+        player1Id: m.player1Id,
+        player2Id: m.player2Id || undefined,
+        matchType: m.matchType as 'SINGLES' | 'DOUBLES',
+        status: m.status as SimpleScheduledMatch['status'],
+        createdBy: m.createdBy,
+        createdAt: m.createdAt,
+        updatedAt: m.updatedAt,
+      }));
     } catch (error) {
       console.error('Error fetching player matches:', error);
       throw new Error('Failed to fetch player matches');

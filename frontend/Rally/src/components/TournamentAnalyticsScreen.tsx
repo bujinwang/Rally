@@ -50,7 +50,7 @@ const TournamentAnalyticsScreen: React.FC = () => {
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
-      const response = await tournamentApi.getTournamentAnalytics(tournamentId);
+      const response = await tournamentApi.getTournamentStats(tournamentId);
       setAnalytics(response.data);
       setError(null);
     } catch (err) {
