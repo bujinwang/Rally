@@ -34,7 +34,7 @@ export class MessagingService {
     // Create new thread
     const threadId = crypto.randomUUID();
     await prisma.$queryRaw`
-      INSERT INTO message_threads (id, participants, title, last_message_at)
+      INSERT INTO message_threads (id, participants, title, "lastMessageAt")
       VALUES (${threadId}, ${data.participants}, ${data.title || null}, NOW())
     `;
 
@@ -71,7 +71,7 @@ export class MessagingService {
     // Update thread's last message timestamp
     await prisma.$queryRaw`
       UPDATE message_threads
-      SET last_message_at = NOW()
+      SET "lastMessageAt" = NOW()
       WHERE id = ${data.threadId}
     `;
 
@@ -145,14 +145,14 @@ export class MessagingService {
         )
       LEFT JOIN mvp_players p ON m.sender_id = p.id
       WHERE ${userId} = ANY(mt.participants)
-      ORDER BY mt.last_message_at DESC
+      ORDER BY mt."lastMessageAt" DESC
     ` as any[];
 
     return threads.map(row => ({
       id: row.id,
       participants: row.participants,
       title: row.title,
-      lastMessageAt: new Date(row.last_message_at),
+      lastMessageAt: new Date(row.lastMessageAt),
       lastMessage: row.last_message_content ? {
         content: row.last_message_content,
         sentAt: new Date(row.last_message_time),
@@ -316,7 +316,7 @@ export class MessagingService {
       id: thread.id,
       participants: thread.participants,
       title: thread.title,
-      lastMessageAt: new Date(thread.last_message_at),
+      lastMessageAt: new Date(thread.lastMessageAt),
       messageCount: parseInt(thread.message_count) || 0
     };
   }
