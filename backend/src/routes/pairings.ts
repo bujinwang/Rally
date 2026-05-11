@@ -67,8 +67,17 @@ router.post('/sessions/:sessionId/pairings', requireRole(['OWNER', 'ORGANIZER'])
     // Generate pairings using the service
     const pairingResult = await PairingService.generatePairings(sessionId, algorithm);
 
-    // Store pairings in database (we'll need to create a pairings table)
-    // For now, return the result directly
+    // Persist pairings in session configuration
+    await prisma.mvpSessionConfiguration.upsert({
+      where: { sessionId },
+      create: {
+        sessionId,
+        customRules: { pairings: pairingResult, generatedAt: new Date().toISOString() } as any,
+      },
+      update: {
+        customRules: { pairings: pairingResult, generatedAt: new Date().toISOString() } as any,
+      },
+    });
 
     // Send push + socket notification
     try {
@@ -163,8 +172,20 @@ router.get('/sessions/:sessionId/pairings', async (req: AuthRequest, res) => {
       });
     }
 
-    // For now, generate fresh pairings (in production, we'd store and retrieve)
-    const pairingResult = await PairingService.generatePairings(sessionId, 'fair');
+    // Retrieve stored pairings, fall back to generating fresh if none exist
+    const config = await prisma.mvpSessionConfiguration.findUnique({ where: { sessionId } });
+    const stored = config?.customRules as any;
+    let pairingResult = stored?.pairings;
+
+    if (!pairingResult) {
+      pairingResult = await PairingService.generatePairings(sessionId, 'fair');
+      // Persist the fallback result
+      await prisma.mvpSessionConfiguration.upsert({
+        where: { sessionId },
+        create: { sessionId, customRules: { pairings: pairingResult, generatedAt: new Date().toISOString() } as any },
+        update: { customRules: { pairings: pairingResult, generatedAt: new Date().toISOString() } as any },
+      });
+    }
 
     res.json({
       success: true,
@@ -255,7 +276,19 @@ router.put('/sessions/:sessionId/pairings/:pairingId', requireRole(['OWNER', 'OR
       });
     }
 
-    // For now, return the adjusted pairing (in production, we'd store it)
+    // Update stored pairings with the adjustment
+    const config = await prisma.mvpSessionConfiguration.findUnique({ where: { sessionId } });
+    const stored = config?.customRules as any;
+    if (stored?.pairings) {
+      const pairings = stored.pairings.pairings as any[];
+      const idx = pairings.findIndex((p: any) => p.id === pairingId);
+      if (idx >= 0) pairings[idx] = manualPairing;
+      await prisma.mvpSessionConfiguration.update({
+        where: { sessionId },
+        data: { customRules: { ...stored, pairings: { ...stored.pairings, pairings }, generatedAt: new Date().toISOString() } as any },
+      });
+    }
+
     res.json({
       success: true,
       data: {
@@ -319,7 +352,17 @@ router.delete('/sessions/:sessionId/pairings', requireRole(['OWNER', 'ORGANIZER'
       });
     }
 
-    // For now, just return success (in production, we'd clear stored pairings)
+    // Clear stored pairings
+    const config = await prisma.mvpSessionConfiguration.findUnique({ where: { sessionId } });
+    if (config?.customRules) {
+      const stored = config.customRules as any;
+      delete stored.pairings;
+      await prisma.mvpSessionConfiguration.update({
+        where: { sessionId },
+        data: { customRules: stored },
+      });
+    }
+
     res.json({
       success: true,
       message: 'Pairings cleared successfully',

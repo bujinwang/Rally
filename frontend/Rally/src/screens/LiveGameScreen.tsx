@@ -21,8 +21,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEVICE_ID_KEY } from '../config/api';
 import sessionApi from '../services/sessionApi';
 import socketService from '../services/socketService';
-import { 
 import { API_BASE_URL } from '../config/api';
+import { 
   EnhancedQueueItem, 
   UpNextBanner, 
   useEnhancedQueue,
@@ -351,21 +351,7 @@ export default function LiveGameScreen() {
       
       // Check if current user is the owner
       const storedDeviceId = await sessionApi.getDeviceId();
-      console.log('Owner check - stored deviceId:', storedDeviceId);
-      console.log('Owner check - session ownerDeviceId:', session.ownerDeviceId);
       setIsOwner(session.ownerDeviceId === storedDeviceId);
-      
-      // Temporary fallback - if no ownerDeviceId match, check if user is first player (for testing)
-      if (session.ownerDeviceId !== storedDeviceId && session.players.length > 0) {
-        const firstPlayer = session.players[0];
-        console.log('Fallback owner check - first player deviceId:', firstPlayer.deviceId);
-        if (firstPlayer.deviceId === storedDeviceId) {
-          setIsOwner(true);
-        }
-      }
-      
-      // TEMPORARY: Force owner mode for testing (remove this line in production)
-      setIsOwner(true);
       
     } catch (error) {
       console.error('Fetch session data error:', error);

@@ -31,6 +31,7 @@ import MatchDetailsScreen from '../screens/MatchDetailsScreen';
 import MatchHistoryScreen from '../screens/MatchHistoryScreen';
 import GolfScorecardScreen from '../screens/GolfScorecardScreen';
 import SessionSettingsScreen from '../screens/SessionSettingsScreen';
+import SessionRecapScreen from '../screens/SessionRecapScreen';
 
 // User Profile screens (Epic 4 Story 4.1)
 import UserProfileScreen from '../screens/UserProfileScreen';
@@ -109,6 +110,11 @@ function HomeStackNavigator() {
         options={{ title: 'Session History' }}
       />
       <HomeStack.Screen
+        name="SessionRecap"
+        component={SessionRecapScreen}
+        options={{ title: 'Session Recap' }}
+      />
+      <HomeStack.Screen
         name="RotationQueue"
         component={RotationScreen}
         options={{ title: 'Fair Play Queue' }}
@@ -161,6 +167,11 @@ function SessionsStackNavigator() {
         name="SessionHistory"
         component={SessionHistoryScreen}
         options={{ title: 'Session History' }}
+      />
+      <SessionsStack.Screen
+        name="SessionRecap"
+        component={SessionRecapScreen}
+        options={{ title: 'Session Recap' }}
       />
       <SessionsStack.Screen
         name="RotationQueue"

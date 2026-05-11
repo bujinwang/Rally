@@ -61,8 +61,11 @@ export async function generateBracket(tournamentId: string, players: TournamentP
     throw new Error('Tournament must have power of 2 players for single elimination');
   }
 
-  // Simple seeding: sort by ID for now (in real impl, use skill level)
-  const seededPlayers = players.sort((a, b) => a.id.localeCompare(b.id));
+  // Seed by win rate, then total matches played
+  const seededPlayers = players.sort((a, b) => {
+    if (a.winRate !== b.winRate) return (b.winRate || 0) - (a.winRate || 0);
+    return (b.totalMatches || 0) - (a.totalMatches || 0);
+  });
 
   // Create rounds (log2(n) rounds for n players)
   const numRounds = Math.log2(players.length);

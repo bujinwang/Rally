@@ -2,36 +2,87 @@ import { prisma } from '../config/database';
 
 /**
  * Regular group detection: finds groups of players who play together repeatedly,
- * and suggests creating a new session when it's been a while since their last game.
+ * detects MULTIPLE recurring days per group, and suggests one session per habit day.
+ *
+ * Example: a group that plays Mondays 7pm AND Fridays 8pm produces TWO suggestions.
  */
 
 export interface RegularGroupSuggestion {
-  id: string;                    // unique key for this group (hash of player names)
+  id: string;                    // unique key: group_hash + dayOfWeek
   playerNames: string[];         // all player names (including organizer)
   location: string | null;       // most common location
   sport: string;                 // most common sport for this group
-  dayOfWeek: number;             // most common day (0=Sun, 6=Sat)
-  typicalTime: string;           // typical start time (HH:MM)
-  sessionCount: number;          // how many times they've played together
+  dayOfWeek: number;             // this suggestion's specific day (0=Sun, 6=Sat)
+  recurringDays: number[];       // ALL days this group regularly plays (for context)
+  typicalTime: string;           // typical start time FOR THIS DAY (HH:MM)
+  sessionCount: number;          // total sessions (all days)
+  daySessionCount: number;       // sessions on THIS specific day
+  daysSinceLastSession: number;  // days since they last played (any day)
   lastSessionDate: string;       // ISO date of last session
-  daysSinceLastSession: number;  // days since they last played
   lastSessionName: string;       // name of the most recent session
 }
 
-interface PlayerSet {
-  id: string;
+interface SessionRecord {
+  name: string;
+  scheduledAt: Date;
+  location: string | null;
+  sport: string;
+}
+
+interface DayCluster {
+  dayOfWeek: number;
+  sessions: SessionRecord[];
+  typicalHour: number;     // average hour for this day
+  typicalMinute: number;   // average minute for this day
+}
+
+interface PlayerGroupData {
   names: string[];
-  sessions: Array<{
-    name: string;
-    scheduledAt: Date;
-    location: string | null;
-    sport: string;
-  }>;
+  sessions: SessionRecord[];
+  dayClusters: DayCluster[];
+}
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** Minimum fraction of group sessions that a day must appear in to be "recurring" */
+const RECURRING_DAY_THRESHOLD = 0.25; // at least 25% of sessions
+const MIN_DAY_OCCURRENCES = 2;        // absolute minimum
+
+/**
+ * Cluster sessions by day-of-week.
+ * Each cluster gets its own typical time (average start hour/minute for that day).
+ */
+function clusterSessionsByDay(sessions: SessionRecord[]): DayCluster[] {
+  const dayMap = new Map<number, SessionRecord[]>();
+
+  for (const s of sessions) {
+    const day = s.scheduledAt.getDay();
+    if (!dayMap.has(day)) dayMap.set(day, []);
+    dayMap.get(day)!.push(s);
+  }
+
+  const clusters: DayCluster[] = [];
+  for (const [day, daySessions] of Array.from(dayMap.entries())) {
+    // Average start time for this day
+    const totalMinutes = daySessions.reduce(
+      (sum, s) => sum + s.scheduledAt.getHours() * 60 + s.scheduledAt.getMinutes(),
+      0,
+    );
+    const avgMin = Math.round(totalMinutes / daySessions.length);
+    clusters.push({
+      dayOfWeek: day,
+      sessions: daySessions,
+      typicalHour: Math.floor(avgMin / 60),
+      typicalMinute: avgMin % 60,
+    });
+  }
+
+  return clusters;
 }
 
 /**
  * Get session suggestions for a device ID based on past patterns.
- * Returns groups that have played together at least twice.
+ * Returns one suggestion per recurring day per player group.
  */
 export async function getSessionSuggestions(
   ownerDeviceId: string,
@@ -43,7 +94,7 @@ export async function getSessionSuggestions(
     where: {
       ownerDeviceId,
       status: { in: ['COMPLETED', 'ACTIVE'] },
-      scheduledAt: { lt: new Date() }, // only past/future scheduled, not too far
+      scheduledAt: { lt: new Date() },
     },
     include: {
       players: {
@@ -52,33 +103,25 @@ export async function getSessionSuggestions(
       },
     },
     orderBy: { scheduledAt: 'desc' },
-    take: 50, // last 50 sessions
+    take: 50,
   });
 
   if (pastSessions.length < 2) return [];
 
-  // 2. Group sessions by player set similarity
-  const playerGroups: Map<string, PlayerSet> = new Map();
+  // 2. Group sessions by player set
+  const groups = new Map<string, PlayerGroupData>();
 
   for (const session of pastSessions) {
-    const playerNames = session.players
-      .map(p => p.name)
-      .sort();
+    const playerNames = session.players.map(p => p.name).sort();
+    if (playerNames.length < 2) continue;
 
-    if (playerNames.length < 2) continue; // need at least 2 players
-
-    // Create a stable key from sorted player names
     const key = playerNames.join('|');
 
-    if (!playerGroups.has(key)) {
-      playerGroups.set(key, {
-        id: key,
-        names: playerNames,
-        sessions: [],
-      });
+    if (!groups.has(key)) {
+      groups.set(key, { names: playerNames, sessions: [], dayClusters: [] });
     }
 
-    playerGroups.get(key)!.sessions.push({
+    groups.get(key)!.sessions.push({
       name: session.name,
       scheduledAt: session.scheduledAt,
       location: session.location,
@@ -86,41 +129,42 @@ export async function getSessionSuggestions(
     });
   }
 
-  // 3. Filter to groups with >= minOccurrences and extract patterns
+  // 3. For each group, find recurring day clusters
   const suggestions: RegularGroupSuggestion[] = [];
 
-  for (const [key, group] of Array.from(playerGroups.entries())) {
+  for (const [key, group] of Array.from(groups.entries())) {
     if (group.sessions.length < minOccurrences) continue;
 
-    const latestSession = group.sessions[0]; // most recent (sorted desc)
+    const latestSession = group.sessions[0];
     const daysSince = Math.floor(
       (Date.now() - latestSession.scheduledAt.getTime()) / (1000 * 60 * 60 * 24),
     );
 
-    // Skip if they just played recently
     if (daysSince < minDaysSinceLast) continue;
 
-    // Find most common day of week
-    const dayCounts = new Map<number, number>();
-    for (const s of group.sessions) {
-      const day = s.scheduledAt.getDay();
-      dayCounts.set(day, (dayCounts.get(day) || 0) + 1);
-    }
-    let bestDay = 0;
-    let bestDayCount = 0;
-    for (const [day, count] of Array.from(dayCounts.entries())) {
-      if (count > bestDayCount) {
-        bestDayCount = count;
-        bestDay = day;
+    // Cluster by day of week
+    const clusters = clusterSessionsByDay(group.sessions);
+
+    // Determine which days are "recurring" (appear in enough sessions)
+    const totalSessions = group.sessions.length;
+    const recurringDays: number[] = [];
+    for (const c of clusters) {
+      const ratio = c.sessions.length / totalSessions;
+      if (c.sessions.length >= MIN_DAY_OCCURRENCES && ratio >= RECURRING_DAY_THRESHOLD) {
+        recurringDays.push(c.dayOfWeek);
       }
     }
 
-    // Find typical time (average hour from all sessions)
-    const hours = group.sessions.map(s => s.scheduledAt.getHours());
-    const avgHour = Math.round(hours.reduce((a, b) => a + b, 0) / hours.length);
-    const typicalTime = `${String(avgHour).padStart(2, '0')}:00`;
+    // If no day meets the threshold, use all days with ≥ MIN_DAY_OCCURRENCES
+    if (recurringDays.length === 0) {
+      for (const c of clusters) {
+        if (c.sessions.length >= MIN_DAY_OCCURRENCES) {
+          recurringDays.push(c.dayOfWeek);
+        }
+      }
+    }
 
-    // Most common location
+    // Most common location (across all sessions)
     const locCounts = new Map<string, number>();
     for (const s of group.sessions) {
       const loc = s.location || 'Unknown';
@@ -149,29 +193,41 @@ export async function getSessionSuggestions(
       }
     }
 
-    suggestions.push({
-      id: `group_${Buffer.from(key).toString('base64').slice(0, 16)}`,
-      playerNames: group.names,
-      location: bestLocation,
-      sport: bestSport,
-      dayOfWeek: bestDay,
-      typicalTime,
-      sessionCount: group.sessions.length,
-      lastSessionDate: latestSession.scheduledAt.toISOString(),
-      daysSinceLastSession: daysSince,
-      lastSessionName: latestSession.name,
-    });
+    const baseId = `group_${Buffer.from(key).toString('base64').slice(0, 16)}`;
+
+    // Produce one suggestion per recurring day
+    for (const day of recurringDays) {
+      const cluster = clusters.find(c => c.dayOfWeek === day)!;
+      const typicalTime = `${String(cluster.typicalHour).padStart(2, '0')}:${String(cluster.typicalMinute).padStart(2, '0')}`;
+
+      // The "last session" for this day is the most recent session ON that day
+      const lastOnDay = cluster.sessions[0]; // sessions already sorted desc
+
+      suggestions.push({
+        id: `${baseId}_${day}`,
+        playerNames: group.names,
+        location: bestLocation,
+        sport: bestSport,
+        dayOfWeek: day,
+        recurringDays,
+        typicalTime,
+        sessionCount: totalSessions,
+        daySessionCount: cluster.sessions.length,
+        daysSinceLastSession: daysSince,
+        lastSessionDate: latestSession.scheduledAt.toISOString(),
+        lastSessionName: latestSession.name,
+      });
+    }
   }
 
-  // Sort: most urgent first (longest since last game)
+  // Sort: most urgent first (longest since last game), then by group
   suggestions.sort((a, b) => b.daysSinceLastSession - a.daysSinceLastSession);
 
   return suggestions;
 }
 
 /**
- * Detect the next likely session time based on past patterns.
- * Returns the upcoming occurrence of the typical day+time.
+ * Predict the next occurrence of a specific day-of-week + time pattern.
  */
 export function predictNextSessionTime(
   dayOfWeek: number,
@@ -181,10 +237,9 @@ export function predictNextSessionTime(
   const now = new Date();
   const next = new Date(now);
 
-  // Find the next occurrence of the target day
   const currentDay = now.getDay();
   let daysUntil = dayOfWeek - currentDay;
-  if (daysUntil <= 0) daysUntil += 7; // next week
+  if (daysUntil <= 0) daysUntil += 7;
 
   next.setDate(next.getDate() + daysUntil);
   next.setHours(hours || 18, minutes || 0, 0, 0);
