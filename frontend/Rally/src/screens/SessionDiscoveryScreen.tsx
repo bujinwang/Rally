@@ -205,13 +205,14 @@ const SessionDiscoveryScreen: React.FC = () => {
   // Handle session join
   const handleJoinSession = useCallback(async (session: DiscoveryResult) => {
     try {
-      // For MVP, we'll use a simple device ID
-      const deviceId = `device_${Date.now()}`;
-      const playerName = 'Player'; // In real app, this would come from user profile
+      const DeviceService = require('../services/deviceService').default;
+      const identity = await DeviceService.getIdentity();
+      const myDeviceId = identity.deviceId;
+      const playerName = identity.lastUsedName || 'Player';
 
       await discoveryApi.joinSessionFromDiscovery(session.id, {
         playerName,
-        deviceId,
+        deviceId: myDeviceId,
       });
 
       Alert.alert(

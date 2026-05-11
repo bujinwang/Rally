@@ -5,6 +5,7 @@ export interface DiscoveryFilters {
   latitude?: number;
   longitude?: number;
   radius?: number;
+  location?: string;
   startTime?: string;
   endTime?: string;
   skillLevel?: string;

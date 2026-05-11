@@ -5,85 +5,127 @@ import * as Application from 'expo-application';
 import { Platform } from 'react-native';
 
 const DEVICE_ID_STORAGE_KEY = '@badminton_device_id';
+const USER_PREFS_KEY = '@badminton_user_prefs';
+
+export interface DeviceIdentity {
+  deviceId: string;
+  lastUsedName: string;
+  platform: string;
+  isStable: boolean; // true if based on hardware identifiers
+}
 
 export class DeviceService {
   private static cachedDeviceId: string | null = null;
 
   /**
-   * Get or generate a persistent device identifier
-   * This is used for MVP player identification without authentication
+   * Get or generate a persistent, deterministic device identifier.
+   *
+   * Priority:
+   *   1. Stored ID from AsyncStorage (fast path)
+   *   2. Deterministic hash of hardware/installation identifiers
+   *   3. Random UUID fallback (non-deterministic, last resort)
    */
   static async getDeviceId(): Promise<string> {
-    // Return cached value if available
-    if (this.cachedDeviceId) {
-      return this.cachedDeviceId;
-    }
+    if (this.cachedDeviceId) return this.cachedDeviceId;
 
     try {
-      // Try to get existing device ID from storage
-      const storedDeviceId = await AsyncStorage.getItem(DEVICE_ID_STORAGE_KEY);
-      
-      if (storedDeviceId) {
-        this.cachedDeviceId = storedDeviceId;
-        return storedDeviceId;
+      const stored = await AsyncStorage.getItem(DEVICE_ID_STORAGE_KEY);
+      if (stored) {
+        this.cachedDeviceId = stored;
+        return stored;
       }
 
-      // Generate new device ID if none exists
-      const newDeviceId = await this.generateDeviceId();
-      
-      // Store for future use
-      await AsyncStorage.setItem(DEVICE_ID_STORAGE_KEY, newDeviceId);
-      this.cachedDeviceId = newDeviceId;
-      
-      console.log('📱 Generated new device ID:', newDeviceId);
-      return newDeviceId;
+      const newId = await this.generateDeviceId();
+      await AsyncStorage.setItem(DEVICE_ID_STORAGE_KEY, newId);
+      this.cachedDeviceId = newId;
+      console.log('📱 Device ID:', newId);
+      return newId;
     } catch (error) {
       console.error('Error getting device ID:', error);
-      // Fallback to session-only ID
       return this.generateFallbackId();
     }
   }
 
   /**
-   * Generate a unique device identifier based on device characteristics
+   * Get the full device identity (deviceId + saved user name).
+   */
+  static async getIdentity(): Promise<DeviceIdentity> {
+    const deviceId = await this.getDeviceId();
+
+    let lastUsedName = '';
+    let isStable = true;
+    try {
+      const prefs = await AsyncStorage.getItem(USER_PREFS_KEY);
+      if (prefs) {
+        const parsed = JSON.parse(prefs);
+        lastUsedName = parsed.lastUsedName || '';
+      }
+      // Check if the stored ID is a fallback (starts with platform-fallback)
+      isStable = !deviceId.includes('-fallback-');
+    } catch {
+      // ignore
+    }
+
+    return {
+      deviceId,
+      lastUsedName,
+      platform: Platform.OS,
+      isStable,
+    };
+  }
+
+  /**
+   * Save the last-used name alongside the device ID.
+   */
+  static async saveUserName(name: string): Promise<void> {
+    try {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      const existing = await AsyncStorage.getItem(USER_PREFS_KEY);
+      const prefs = existing ? JSON.parse(existing) : {};
+      prefs.lastUsedName = trimmed;
+      await AsyncStorage.setItem(USER_PREFS_KEY, JSON.stringify(prefs));
+    } catch {
+      // non-critical
+    }
+  }
+
+  /**
+   * Generate a deterministic device identifier from hardware/installation sources.
    */
   private static async generateDeviceId(): Promise<string> {
     const components: string[] = [];
 
     try {
-      // Platform-specific identifiers
+      // ── Platform-specific hardware identifiers (most stable) ──
       if (Platform.OS === 'ios') {
-        // iOS: Use vendorId if available (persists across app reinstalls)
         const vendorId = await Application.getIosIdForVendorAsync();
-        if (vendorId) {
-          components.push(`ios-${vendorId}`);
-        }
+        if (vendorId) components.push(`ios-vendor:${vendorId}`);
       } else if (Platform.OS === 'android') {
-        // Android: Use androidId (unique per device)
         const androidId = Application.androidId;
-        if (androidId) {
-          components.push(`android-${androidId}`);
-        }
+        if (androidId) components.push(`android-id:${androidId}`);
       }
 
-      // Add installation ID (changes on app reinstall)
+      // ── Application identity ──
       const installationId = Constants.installationId;
+      if (installationId) components.push(`install:${installationId}`);
+
+      const appVersion = Application.nativeApplicationVersion;
+      if (appVersion) components.push(`app:${appVersion}`);
+
+      const buildNumber = Application.nativeBuildVersion;
+      if (buildNumber) components.push(`build:${buildNumber}`);
+
+      if (components.length >= 2) {
+        // We have at least a hardware ID + installation ID — good enough
+        return `${Platform.OS}-${this.djb2Hash(components.join('|'))}`;
+      }
+
+      // ── Fallback: installationId only ──
       if (installationId) {
-        components.push(installationId);
+        return `${Platform.OS}-install-${this.djb2Hash(installationId)}`;
       }
 
-      // Add device name if available
-      const deviceName = await Application.getApplicationName();
-      if (deviceName) {
-        components.push(deviceName);
-      }
-
-      // If we have components, hash them together
-      if (components.length > 0) {
-        return this.hashComponents(components);
-      }
-
-      // Fallback: generate random ID
       return this.generateFallbackId();
     } catch (error) {
       console.error('Error generating device ID:', error);
@@ -92,24 +134,22 @@ export class DeviceService {
   }
 
   /**
-   * Hash components to create a shorter, consistent device ID
+   * DJB2 hash — returns a short alphanumeric fingerprint.
    */
-  private static hashComponents(components: string[]): string {
-    const combined = components.join('-');
-    // Simple hash function (DJB2)
+  private static djb2Hash(input: string): string {
     let hash = 5381;
-    for (let i = 0; i < combined.length; i++) {
-      hash = ((hash << 5) + hash) + combined.charCodeAt(i);
-      hash = hash & hash; // Convert to 32-bit integer
+    for (let i = 0; i < input.length; i++) {
+      hash = ((hash << 5) + hash) + input.charCodeAt(i);
+      hash = hash & 0xffffffff; // 32-bit
     }
-    
-    // Convert to base36 and add platform prefix
-    const hashStr = Math.abs(hash).toString(36);
-    return `${Platform.OS}-${hashStr}-${Date.now().toString(36)}`;
+
+    // Base36 for compactness, ensure positive
+    return (hash >>> 0).toString(36);
   }
 
   /**
-   * Generate a fallback random ID (not persistent across app restarts without storage)
+   * Non-deterministic fallback (generates a new random ID each time).
+   * Only used when no hardware identifiers are available.
    */
   private static generateFallbackId(): string {
     const timestamp = Date.now().toString(36);
@@ -118,7 +158,7 @@ export class DeviceService {
   }
 
   /**
-   * Get device information for debugging/analytics
+   * Get device information for debugging/analytics.
    */
   static async getDeviceInfo() {
     try {
@@ -141,7 +181,7 @@ export class DeviceService {
   }
 
   /**
-   * Reset device ID (useful for testing or privacy)
+   * Reset device ID (for testing/privacy).
    */
   static async resetDeviceId(): Promise<string> {
     try {
@@ -151,18 +191,6 @@ export class DeviceService {
     } catch (error) {
       console.error('Error resetting device ID:', error);
       throw error;
-    }
-  }
-
-  /**
-   * Check if device ID is stored
-   */
-  static async hasStoredDeviceId(): Promise<boolean> {
-    try {
-      const stored = await AsyncStorage.getItem(DEVICE_ID_STORAGE_KEY);
-      return stored !== null;
-    } catch (error) {
-      return false;
     }
   }
 }

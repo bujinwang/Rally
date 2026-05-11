@@ -213,16 +213,14 @@ router.get('/upcoming', authenticateToken, async (req: AuthRequest, res: Respons
       });
     }
 
-    // For now, return empty array since we're using MVP models
-    // In a real implementation, this would fetch upcoming matches
-    const upcomingMatches: any[] = [];
+    const upcomingMatches = await SimpleMatchScheduler.getScheduledMatchesForPlayer(userId);
 
     res.json({
       success: true,
       data: {
         matches: upcomingMatches,
-        total: upcomingMatches.length
-      }
+        total: upcomingMatches.length,
+      },
     });
 
   } catch (error) {

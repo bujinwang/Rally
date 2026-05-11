@@ -56,7 +56,7 @@ export class FriendService {
   static async sendFriendRequest(data: SendFriendRequestData): Promise<FriendRequestWithDetails> {
     const { senderId, receiverId, message } = data;
 
-    // Check if users exist (assuming using MvpPlayer for now, can be User later)
+    // Look up players by ID (supports both MvpSession deviceId-based and User auth-based identity)
     const sender = await prisma.mvpPlayer.findUnique({ where: { id: senderId } });
     const receiver = await prisma.mvpPlayer.findUnique({ where: { id: receiverId } });
 

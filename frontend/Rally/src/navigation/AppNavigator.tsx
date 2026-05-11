@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -39,7 +38,7 @@ const linking = {
 const AppNavigator = () => {
   return (
     <Provider store={store}>
-      <NavigationContainer linking={linking}>
+      <NavigationContainer linking={linking as any}>
         <RootNavigator />
       </NavigationContainer>
     </Provider>

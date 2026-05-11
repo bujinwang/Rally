@@ -59,11 +59,13 @@ const TournamentDetailScreen: React.FC = () => {
           onPress: async () => {
             try {
               setRegistering(true);
+              const DeviceService = require('../services/deviceService').default;
+              const identity = await DeviceService.getIdentity();
               await tournamentApi.registerPlayer(tournamentId, {
-                playerName: 'Player', // In MVP, we'll use a default name
+                playerName: identity.lastUsedName || 'Player',
                 email: undefined,
                 phone: undefined,
-                deviceId: 'device_' + Date.now(), // Generate a simple device ID
+                deviceId: identity.deviceId,
                 skillLevel: 'intermediate',
               });
               Alert.alert('Success', 'Successfully registered for tournament!');

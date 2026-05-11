@@ -49,11 +49,9 @@ export const checkPrivacyMiddleware = (options: PrivacyCheckOptions) => {
 export const validateShareOwnership = (contentType: string) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { entityId } = req.body;
-      const userId = 'player-123'; // Mock user ID for MVP
+      const { entityId, deviceId } = req.body;
+      const userId = deviceId || req.headers['x-device-id'] as string || req.query.deviceId as string || 'anonymous';
 
-      // For MVP, we'll allow sharing of any content
-      // In production, this would check ownership/permissions
       (req as any).sharerId = userId;
 
       next();

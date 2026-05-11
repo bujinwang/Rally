@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request } from 'express';
 import { sharingService } from '../services/sharingService';
 import { validate } from '../utils/validation';
 import { checkPrivacyMiddleware, validateShareOwnership, generatePreviewMiddleware } from '../utils/privacyMiddleware';
@@ -6,24 +6,32 @@ import Joi from 'joi';
 
 const router = Router();
 
+/** Extract deviceId from request body, query, or X-Device-ID header */
+function getDeviceId(req: Request): string {
+  return req.body.deviceId || req.query.deviceId || req.headers['x-device-id'] as string || '';
+}
+
 // Validation schemas
 const shareEntitySchema = Joi.object({
   type: Joi.string().valid('session', 'match', 'achievement').required(),
-  entityId: Joi.string().uuid().required(),
+  entityId: Joi.string().required(),
   platform: Joi.string().valid('twitter', 'facebook', 'whatsapp', 'copy_link').required(),
-  message: Joi.string().max(500).optional()
+  deviceId: Joi.string().optional(),
+  message: Joi.string().max(500).optional(),
 });
 
 const connectSocialSchema = Joi.object({
   provider: Joi.string().valid('google', 'facebook', 'twitter').required(),
   providerId: Joi.string().required(),
-  providerData: Joi.object().optional()
+  deviceId: Joi.string().optional(),
+  providerData: Joi.object().optional(),
 });
 
 const updatePrivacySchema = Joi.object({
+  deviceId: Joi.string().optional(),
   session_share: Joi.string().valid('public', 'friends', 'private').optional(),
   stats_share: Joi.string().valid('public', 'friends', 'private').optional(),
-  achievements_share: Joi.string().valid('public', 'friends', 'private').optional()
+  achievements_share: Joi.string().valid('public', 'friends', 'private').optional(),
 });
 
 /**
@@ -38,30 +46,29 @@ router.post('/share',
   async (req, res) => {
   try {
     const { type, entityId, platform, message } = req.body;
-    const sharerId = (req as any).sharerId || 'player-123'; // From middleware or mock
+    const sharerId = getDeviceId(req) || 'anonymous';
 
     const result = await sharingService.shareEntity(sharerId, {
       type,
       entityId,
       platform,
-      message
+      message,
     });
 
-    // Include social preview if generated
     const response = {
       ...result,
-      preview: (req as any).socialPreview
+      preview: (req as any).socialPreview,
     };
 
     res.status(201).json({
       success: true,
       data: response,
-      message: 'Content shared successfully'
+      message: 'Content shared successfully',
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: error instanceof Error ? error.message : 'Failed to share content'
+      message: error instanceof Error ? error.message : 'Failed to share content',
     });
   }
 });
@@ -75,20 +82,17 @@ router.get('/feed', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = parseInt(req.query.offset as string) || 0;
-    const userId = req.query.userId as string; // Optional for personalized feed
+    const userId = req.query.userId as string;
 
     const feed = await sharingService.getCommunityFeed(userId, limit, offset);
 
     res.json({
       success: true,
       data: feed,
-      message: 'Community feed retrieved successfully'
+      message: 'Community feed retrieved successfully',
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to retrieve community feed'
-    });
+    res.status(500).json({ success: false, message: 'Failed to retrieve community feed' });
   }
 });
 
@@ -100,23 +104,27 @@ router.get('/feed', async (req, res) => {
 router.post('/connect', validate(connectSocialSchema), async (req, res) => {
   try {
     const { provider, providerId, providerData } = req.body;
-    const playerId = 'player-123'; // Mock user ID for MVP
+    const playerId = getDeviceId(req);
+
+    if (!playerId) {
+      return res.status(400).json({ success: false, message: 'Device ID is required' });
+    }
 
     const connection = await sharingService.connectSocialAccount(playerId, {
       provider,
       providerId,
-      providerData
+      providerData,
     });
 
     res.status(201).json({
       success: true,
       data: connection,
-      message: 'Social account connected successfully'
+      message: 'Social account connected successfully',
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: error instanceof Error ? error.message : 'Failed to connect social account'
+      message: error instanceof Error ? error.message : 'Failed to connect social account',
     });
   }
 });
@@ -128,7 +136,11 @@ router.post('/connect', validate(connectSocialSchema), async (req, res) => {
  */
 router.get('/connections', async (req, res) => {
   try {
-    const playerId = 'player-123'; // Mock user ID for MVP
+    const playerId = getDeviceId(req);
+
+    if (!playerId) {
+      return res.status(400).json({ success: false, message: 'Device ID is required' });
+    }
 
     const connections = await sharingService.getSocialConnections(playerId);
 
@@ -136,13 +148,10 @@ router.get('/connections', async (req, res) => {
       success: true,
       data: connections,
       count: connections.length,
-      message: 'Social connections retrieved successfully'
+      message: 'Social connections retrieved successfully',
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to retrieve social connections'
-    });
+    res.status(500).json({ success: false, message: 'Failed to retrieve social connections' });
   }
 });
 
@@ -154,19 +163,23 @@ router.get('/connections', async (req, res) => {
 router.put('/privacy', validate(updatePrivacySchema), async (req, res) => {
   try {
     const settings = req.body;
-    const playerId = 'player-123'; // Mock user ID for MVP
+    const playerId = getDeviceId(req);
+
+    if (!playerId) {
+      return res.status(400).json({ success: false, message: 'Device ID is required' });
+    }
 
     const updatedSettings = await sharingService.updatePrivacySettings(playerId, settings);
 
     res.json({
       success: true,
       data: updatedSettings,
-      message: 'Privacy settings updated successfully'
+      message: 'Privacy settings updated successfully',
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: error instanceof Error ? error.message : 'Failed to update privacy settings'
+      message: error instanceof Error ? error.message : 'Failed to update privacy settings',
     });
   }
 });
@@ -178,20 +191,21 @@ router.put('/privacy', validate(updatePrivacySchema), async (req, res) => {
  */
 router.get('/privacy', async (req, res) => {
   try {
-    const playerId = 'player-123'; // Mock user ID for MVP
+    const playerId = getDeviceId(req);
+
+    if (!playerId) {
+      return res.status(400).json({ success: false, message: 'Device ID is required' });
+    }
 
     const settings = await sharingService.getPrivacySettings(playerId);
 
     res.json({
       success: true,
       data: settings,
-      message: 'Privacy settings retrieved successfully'
+      message: 'Privacy settings retrieved successfully',
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to retrieve privacy settings'
-    });
+    res.status(500).json({ success: false, message: 'Failed to retrieve privacy settings' });
   }
 });
 
@@ -202,20 +216,21 @@ router.get('/privacy', async (req, res) => {
  */
 router.get('/stats', async (req, res) => {
   try {
-    const playerId = 'player-123'; // Mock user ID for MVP
+    const playerId = getDeviceId(req);
+
+    if (!playerId) {
+      return res.status(400).json({ success: false, message: 'Device ID is required' });
+    }
 
     const stats = await sharingService.getShareStats(playerId);
 
     res.json({
       success: true,
       data: stats,
-      message: 'Sharing statistics retrieved successfully'
+      message: 'Sharing statistics retrieved successfully',
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to retrieve sharing statistics'
-    });
+    res.status(500).json({ success: false, message: 'Failed to retrieve sharing statistics' });
   }
 });
 
@@ -228,19 +243,17 @@ router.get('/preview/:type/:entityId', async (req, res) => {
   try {
     const { type, entityId } = req.params;
 
-    // Generate preview data
-    const service = sharingService as any; // Type workaround for now
-    const preview = await service.generateSocialPreview(type, entityId);
+    const preview = await (sharingService as any).generateSocialPreview(type, entityId);
 
     res.json({
       success: true,
       data: preview,
-      message: 'Social preview generated successfully'
+      message: 'Social preview generated successfully',
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: error instanceof Error ? error.message : 'Failed to generate social preview'
+      message: error instanceof Error ? error.message : 'Failed to generate social preview',
     });
   }
 });

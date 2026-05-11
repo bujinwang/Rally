@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useEffect, useState, useRef } from 'react';
 import { AppState, AppStateStatus, Platform } from 'react-native';
 import { notificationService, NotificationType } from '../services/NotificationService';

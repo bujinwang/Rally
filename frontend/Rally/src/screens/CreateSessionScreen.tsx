@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -13,14 +12,14 @@ import {
   KeyboardAvoidingView,
   Modal
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { useRoute } from '@react-navigation/native';
-import { useSelector } from 'react-redux';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '../i18n/LanguageContext';
 import sessionApi, { CreateSessionRequest } from '../services/sessionApi';
+import { API_BASE_URL } from '../config/api';
+import DeviceService from '../services/deviceService';
 import SessionShareModal from '../components/SessionShareModal';
 import socketService from '../services/socketService';
 
@@ -122,9 +121,12 @@ export default function CreateSessionScreen() {
 
   const loadStoredUserName = async () => {
     try {
-      const lastUsedName = await sessionApi.getLastOrganizerName();
-      if (lastUsedName) {
-        setFormData(prev => ({ ...prev, organizerName: lastUsedName }));
+      const identity = await DeviceService.getIdentity();
+      if (identity.lastUsedName) {
+        setFormData(prev => ({ ...prev, organizerName: identity.lastUsedName }));
+      }
+      if (identity.deviceId) {
+        setDeviceId(identity.deviceId);
       }
     } catch (error) {
       console.error('Error loading stored data:', error);
@@ -211,7 +213,7 @@ export default function CreateSessionScreen() {
       if (result.success) {
         console.log('Session created:', result.data.session);
         // Remember organizer name for next time
-        await sessionApi.saveLastOrganizerName(formData.organizerName.trim());
+        await DeviceService.saveUserName(formData.organizerName.trim());
         // Extract shareCode from shareLink if available, otherwise use session.shareCode
         const shareCode = result.data.shareLink
           ? result.data.shareLink.split('/').pop() || result.data.session.shareCode
@@ -219,7 +221,7 @@ export default function CreateSessionScreen() {
         setCreatedSession({
           ...result.data.session,
           shareCode,
-          organizerSecret: result.data.organizerSecret
+          organizerSecret: (result.data as any).organizerSecret
         });
         setShowShareModal(true);
       } else {

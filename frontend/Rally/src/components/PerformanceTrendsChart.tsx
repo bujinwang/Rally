@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { statisticsApi } from '../services/statisticsApi';
+import statisticsApi from '../services/statisticsApi';
 import { PerformanceTrend } from '../types/statistics';
 
 const { width } = Dimensions.get('window');
@@ -39,9 +39,7 @@ export const PerformanceTrendsChart: React.FC<PerformanceTrendsChartProps> = ({
     try {
       setLoading(true);
       setError(null);
-      const data = await statisticsApi.getPerformanceTrends(playerId, {
-        days: parseInt(selectedRange),
-      });
+      const data = await statisticsApi.getTrends(playerId, parseInt(selectedRange));
       setTrends(data);
     } catch (err: any) {
       setError(err.message || 'Failed to load trends');
