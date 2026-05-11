@@ -1,448 +1,183 @@
-/**
- * Pairings API Routes Test Specifications
- *
- * Comprehensive test specifications for the pairings API endpoints.
- * Tests cover authentication, authorization, data validation, and integration scenarios.
- */
+// @ts-nocheck
+import request from 'supertest';
+import express from 'express';
 
-export const pairingsApiTestSpecs = {
-  // POST /api/v1/pairings/sessions/:sessionId/pairings - Generate Pairings
-  generatePairings: [
-    {
-      description: 'Should generate fair pairings for organizer',
-      request: {
-        method: 'POST',
-        url: '/api/v1/pairings/sessions/test-session-123/pairings',
-        headers: {
-          'Authorization': 'Bearer organizer-token',
-          'Content-Type': 'application/json'
-        },
-        body: {
-          algorithm: 'fair'
-        }
-      },
-      sessionData: {
-        id: 'test-session-123',
-        ownerId: 'organizer-user-id',
-        players: [
-          { id: 'p1', name: 'Alice', status: 'ACTIVE', gamesPlayed: 0 },
-          { id: 'p2', name: 'Bob', status: 'ACTIVE', gamesPlayed: 1 },
-          { id: 'p3', name: 'Charlie', status: 'ACTIVE', gamesPlayed: 2 },
-          { id: 'p4', name: 'Diana', status: 'ACTIVE', gamesPlayed: 3 }
-        ]
-      },
-      expected: {
-        status: 200,
-        body: {
-          success: true,
-          data: {
-            pairings: [
-              {
-                id: 'pairing_1_1234567890', // Generated ID pattern
-                court: 1,
-                players: [
-                  { id: 'p1', name: 'Alice', position: 'left' },
-                  { id: 'p2', name: 'Bob', position: 'right' }
-                ],
-                createdAt: '2025-01-01T12:00:00.000Z'
-              },
-              {
-                id: 'pairing_2_1234567890', // Generated ID pattern
-                court: 2,
-                players: [
-                  { id: 'p3', name: 'Charlie', position: 'left' },
-                  { id: 'p4', name: 'Diana', position: 'right' }
-                ],
-                createdAt: '2025-01-01T12:00:00.000Z'
-              }
-            ],
-            fairnessScore: 90, // High score due to balanced games played
-            oddPlayerOut: undefined,
-            generatedAt: '2025-01-01T12:00:00.000Z'
-          },
-          message: 'Pairings generated successfully',
-          timestamp: '2025-01-01T12:00:00.000Z'
-        }
-      }
-    },
-    {
-      description: 'Should reject pairing generation for non-organizer',
-      request: {
-        method: 'POST',
-        url: '/api/v1/pairings/sessions/test-session-123/pairings',
-        headers: {
-          'Authorization': 'Bearer player-token',
-          'Content-Type': 'application/json'
-        },
-        body: {
-          algorithm: 'fair'
-        }
-      },
-      sessionData: {
-        id: 'test-session-123',
-        ownerId: 'different-organizer-id',
-        players: [
-          { id: 'p1', name: 'Alice', status: 'ACTIVE', gamesPlayed: 0 }
-        ]
-      },
-      expected: {
-        status: 403,
-        body: {
-          success: false,
-          error: {
-            code: 'FORBIDDEN',
-            message: 'Access denied to this session'
-          },
-          timestamp: expect.any(String)
-        }
-      }
-    },
-    {
-      description: 'Should handle insufficient players error',
-      request: {
-        method: 'POST',
-        url: '/api/v1/pairings/sessions/test-session-123/pairings',
-        headers: {
-          'Authorization': 'Bearer organizer-token',
-          'Content-Type': 'application/json'
-        },
-        body: {
-          algorithm: 'fair'
-        }
-      },
-      sessionData: {
-        id: 'test-session-123',
-        ownerId: 'organizer-user-id',
-        players: [
-          { id: 'p1', name: 'Alice', status: 'ACTIVE', gamesPlayed: 0 }
-        ]
-      },
-      expected: {
-        status: 400,
-        body: {
-          success: false,
-          error: {
-            code: 'INSUFFICIENT_PLAYERS',
-            message: 'Need at least 4 active players to generate pairings'
-          },
-          timestamp: '2025-01-01T12:00:00.000Z'
-        }
-      }
-    },
-    {
-      description: 'Should validate algorithm parameter',
-      request: {
-        method: 'POST',
-        url: '/api/v1/pairings/sessions/test-session-123/pairings',
-        headers: {
-          'Authorization': 'Bearer organizer-token',
-          'Content-Type': 'application/json'
-        },
-        body: {
-          algorithm: 'invalid_algorithm'
-        }
-      },
-      sessionData: {
-        id: 'test-session-123',
-        ownerId: 'organizer-user-id',
-        players: [
-          { id: 'p1', name: 'Alice', status: 'ACTIVE', gamesPlayed: 0 },
-          { id: 'p2', name: 'Bob', status: 'ACTIVE', gamesPlayed: 1 },
-          { id: 'p3', name: 'Charlie', status: 'ACTIVE', gamesPlayed: 2 },
-          { id: 'p4', name: 'Diana', status: 'ACTIVE', gamesPlayed: 3 }
-        ]
-      },
-      expected: {
-        status: 400,
-        body: {
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid input data',
-            details: ['"algorithm" must be one of [fair, random, skill_based]']
-          },
-          timestamp: '2025-01-01T12:00:00.000Z'
-        }
-      }
-    }
-  ],
+jest.mock('../../middleware/auth', () => ({ authenticateToken: (_r: any, _s: any, n: any) => n(), requireRole: () => (_r: any, _s: any, n: any) => n() }));
+jest.mock('../../utils/validation', () => ({ validate: () => (_r: any, _s: any, n: any) => n(), validatePairingRequest: (_r: any, _s: any, n: any) => n() }));
+jest.mock('../../server', () => ({ io: { on: jest.fn(), emit: jest.fn(), to: () => ({ emit: jest.fn() }) } }));
+jest.mock('../../socket/notificationHandlers', () => ({ emitPairingGenerated: jest.fn() }));
+jest.mock('../../utils/notificationHelper', () => ({ notifySessionSubscribers: jest.fn().mockResolvedValue(0) }));
 
-  // GET /api/v1/pairings/sessions/:sessionId/pairings - Get Pairings
-  getPairings: [
-    {
-      description: 'Should return current pairings for session participant',
-      request: {
-        method: 'GET',
-        url: '/api/v1/pairings/sessions/test-session-123/pairings',
-        headers: {
-          'Authorization': 'Bearer player-token'
-        }
-      },
-      sessionData: {
-        id: 'test-session-123',
-        ownerId: 'organizer-user-id',
-        players: [
-          { id: 'p1', name: 'Alice', status: 'ACTIVE', gamesPlayed: 0, userId: 'player-user-id' },
-          { id: 'p2', name: 'Bob', status: 'ACTIVE', gamesPlayed: 1 },
-          { id: 'p3', name: 'Charlie', status: 'ACTIVE', gamesPlayed: 2 },
-          { id: 'p4', name: 'Diana', status: 'ACTIVE', gamesPlayed: 3 }
-        ]
-      },
-      expected: {
-        status: 200,
-        body: {
-          success: true,
-          data: {
-            pairings: expect.any(Array),
-            fairnessScore: 85,
-            oddPlayerOut: undefined,
-            generatedAt: '2025-01-01T12:00:00.000Z'
-          },
-          timestamp: '2025-01-01T12:00:00.000Z'
-        }
-      }
-    },
-    {
-      description: 'Should reject access for non-participants',
-      request: {
-        method: 'GET',
-        url: '/api/v1/pairings/sessions/test-session-123/pairings',
-        headers: {
-          'Authorization': 'Bearer outsider-token'
-        }
-      },
-      sessionData: {
-        id: 'test-session-123',
-        ownerId: 'different-organizer-id',
-        players: [
-          { id: 'p1', name: 'Alice', status: 'ACTIVE', gamesPlayed: 0, userId: 'different-user-id' }
-        ]
-      },
-      expected: {
-        status: 403,
-        body: {
-          success: false,
-          error: {
-            code: 'FORBIDDEN',
-            message: 'Access denied to this session'
-          },
-          timestamp: '2025-01-01T12:00:00.000Z'
-        }
-      }
-    }
-  ],
+jest.mock('../../services/pairingService', () => ({
+  PairingService: {
+    generatePairings: jest.fn().mockResolvedValue({ pairings: [{ id: 'p1', court: 1, players: [{ id: 'u1' }, { id: 'u2' }] }], fairnessScore: 85 }),
+    validatePairing: jest.fn().mockReturnValue({ valid: true, errors: [] }),
+  },
+}));
 
-  // PUT /api/v1/pairings/sessions/:sessionId/pairings/:pairingId - Adjust Pairing
-  adjustPairing: [
-    {
-      description: 'Should allow organizer to adjust pairing',
-      request: {
-        method: 'PUT',
-        url: '/api/v1/pairings/sessions/test-session-123/pairings/pairing_123_456',
-        headers: {
-          'Authorization': 'Bearer organizer-token',
-          'Content-Type': 'application/json'
-        },
-        body: {
-          players: [
-            { id: 'p1', name: 'Alice' },
-            { id: 'p3', name: 'Charlie' }
-          ]
-        }
-      },
-      sessionData: {
-        id: 'test-session-123',
-        ownerId: 'organizer-user-id',
-        players: [
-          { id: 'p1', name: 'Alice', status: 'ACTIVE', gamesPlayed: 0 },
-          { id: 'p2', name: 'Bob', status: 'ACTIVE', gamesPlayed: 1 },
-          { id: 'p3', name: 'Charlie', status: 'ACTIVE', gamesPlayed: 2 }
-        ]
-      },
-      expected: {
-        status: 200,
-        body: {
-          success: true,
-          data: {
-            pairing: {
-              id: 'pairing_123_456',
-              court: 1,
-              players: [
-                { id: 'p1', name: 'Alice', position: 'left' },
-                { id: 'p3', name: 'Charlie', position: 'right' }
-              ]
-            },
-            message: 'Pairing adjusted successfully'
-          },
-          timestamp: '2025-01-01T12:00:00.000Z'
-        }
-      }
-    },
-    {
-      description: 'Should reject invalid pairing adjustments',
-      request: {
-        method: 'PUT',
-        url: '/api/v1/pairings/sessions/test-session-123/pairings/pairing_123_456',
-        headers: {
-          'Authorization': 'Bearer organizer-token',
-          'Content-Type': 'application/json'
-        },
-        body: {
-          players: [
-            { id: 'p1', name: 'Alice' },
-            { id: 'p1', name: 'Alice' } // Duplicate player
-          ]
-        }
-      },
-      sessionData: {
-        id: 'test-session-123',
-        ownerId: 'organizer-user-id',
-        players: [
-          { id: 'p1', name: 'Alice', status: 'ACTIVE', gamesPlayed: 0 }
-        ]
-      },
-      expected: {
-        status: 400,
-        body: {
-          success: false,
-          error: {
-            code: 'INVALID_PAIRING',
-            message: 'Invalid pairing adjustment',
-            details: ['Player Alice is already assigned to another pairing']
-          },
-          timestamp: '2025-01-01T12:00:00.000Z'
-        }
-      }
-    }
-  ],
+jest.mock('../../services/aiPairingService', () => ({
+  AIPairingService: {
+    generateAISuggestions: jest.fn().mockResolvedValue([{ id: 's1', score: 0.9 }]),
+    recordPairingFeedback: jest.fn().mockResolvedValue({}),
+    updatePlayerSkillLevels: jest.fn().mockResolvedValue({}),
+  },
+}));
 
-  // DELETE /api/v1/pairings/sessions/:sessionId/pairings - Clear Pairings
-  clearPairings: [
-    {
-      description: 'Should allow organizer to clear all pairings',
-      request: {
-        method: 'DELETE',
-        url: '/api/v1/pairings/sessions/test-session-123/pairings',
-        headers: {
-          'Authorization': 'Bearer organizer-token'
-        }
-      },
-      sessionData: {
-        id: 'test-session-123',
-        ownerId: 'organizer-user-id',
-        players: [
-          { id: 'p1', name: 'Alice', status: 'ACTIVE', gamesPlayed: 0 }
-        ]
-      },
-      expected: {
-        status: 200,
-        body: {
-          success: true,
-          message: 'Pairings cleared successfully',
-          timestamp: expect.any(String)
-        }
-      }
-    }
-  ]
+jest.mock('../../config/database', () => ({
+  prisma: {
+    session: { findUnique: jest.fn() },
+    mvpSessionConfiguration: { findUnique: jest.fn(), upsert: jest.fn(), update: jest.fn() },
+    mvpSession: { findUnique: jest.fn() },
+  },
+  connectDB: jest.fn(),
+}));
+
+import { prisma } from '../../config/database';
+import pairingsRouter from '../pairings';
+
+const makeApp = () => {
+  const app = express();
+  app.use(express.json());
+  app.use((r: any, _s: any, n: any) => { r.user = { id: 'u1', email: 'a@b.com', role: 'ORGANIZER' }; n(); });
+  app.use('/pairings', pairingsRouter);
+  return app;
 };
 
-/**
- * Integration Test Scenarios for Pairings API
- */
-export const pairingsApiIntegrationScenarios = [
-  {
-    scenario: 'Complete pairing workflow',
-    steps: [
-      '1. Create session with organizer and players',
-      '2. POST /pairings - Generate initial pairings',
-      '3. GET /pairings - Verify pairings are returned',
-      '4. PUT /pairings/:id - Adjust a pairing',
-      '5. GET /pairings - Verify adjustment is reflected',
-      '6. DELETE /pairings - Clear all pairings',
-      '7. GET /pairings - Verify pairings are cleared'
-    ]
-  },
-  {
-    scenario: 'Real-time pairing updates',
-    steps: [
-      '1. Multiple clients connect to session',
-      '2. Organizer generates pairings',
-      '3. Verify all clients receive pairings_updated event',
-      '4. Organizer adjusts pairing',
-      '5. Verify all clients receive pairing_adjusted event'
-    ]
-  },
-  {
-    scenario: 'Status integration with pairings',
-    steps: [
-      '1. Generate pairings with all ACTIVE players',
-      '2. Player requests REST status',
-      '3. Organizer approves REST request',
-      '4. Generate new pairings',
-      '5. Verify RESTING player is excluded',
-      '6. Wait for rest expiration',
-      '7. Generate pairings again',
-      '8. Verify player is included again'
-    ]
-  }
-];
+// Helper: mock session lookup with owner access
+function mockSessionOwned(sessionId = 's1') {
+  (prisma.session.findUnique as jest.Mock).mockResolvedValue({
+    id: sessionId, ownerId: 'u1', owner: { id: 'u1' },
+    sessionPlayers: [{ userId: 'u1' }],
+  });
+}
 
-/**
- * Performance Test Specifications
- */
-export const pairingsPerformanceTests = [
-  {
-    test: 'Large session pairing generation',
-    setup: 'Session with 20 ACTIVE players',
-    operation: 'POST /pairings with fair algorithm',
-    expected: 'Response within 2 seconds',
-    assertions: [
-      'Response time < 2000ms',
-      'All players paired appropriately',
-      'Fairness score calculated',
-      'No errors in pairing logic'
-    ]
-  },
-  {
-    test: 'Concurrent pairing requests',
-    setup: 'Multiple clients requesting pairings simultaneously',
-    operation: '10 concurrent POST /pairings requests',
-    expected: 'All requests handled without conflicts',
-    assertions: [
-      'No race conditions',
-      'Consistent pairing results',
-      'Proper error handling for conflicts'
-    ]
-  }
-];
+function mockSessionNotFound() {
+  (prisma.session.findUnique as jest.Mock).mockResolvedValue(null);
+}
 
-/**
- * Error Handling Test Cases
- */
-export const pairingsErrorScenarios = [
-  {
-    scenario: 'Database connection failure',
-    trigger: 'Database becomes unavailable during pairing generation',
-    expected: 'Graceful error response with retry suggestion'
-  },
-  {
-    scenario: 'Invalid session ID',
-    trigger: 'Request with non-existent session ID',
-    expected: '404 Not Found with appropriate error message'
-  },
-  {
-    scenario: 'Malformed request data',
-    trigger: 'Invalid JSON or missing required fields',
-    expected: '400 Bad Request with validation error details'
-  },
-  {
-    scenario: 'Authorization token expiry',
-    trigger: 'Expired JWT token in request',
-    expected: '401 Unauthorized with token refresh suggestion'
-  }
-];
-describe("pairings", () => {
-  it("should have test infrastructure", () => {
-    expect(true).toBe(true);
+describe('Pairings Routes', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  describe('POST /sessions/:sessionId/pairings', () => {
+    it('generates pairings', async () => {
+      mockSessionOwned();
+      (prisma.mvpSessionConfiguration.upsert as jest.Mock).mockResolvedValue({});
+
+      const res = await request(makeApp())
+        .post('/pairings/sessions/s1/pairings')
+        .send({ algorithm: 'fair' })
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.pairings).toBeDefined();
+    });
+
+    it('returns 404 for unknown session', async () => {
+      mockSessionNotFound();
+      await request(makeApp()).post('/pairings/sessions/bad/pairings').send({}).expect(404);
+    });
+  });
+
+  describe('GET /sessions/:sessionId/pairings', () => {
+    it('returns stored pairings', async () => {
+      mockSessionOwned();
+      (prisma.mvpSessionConfiguration.findUnique as jest.Mock).mockResolvedValue({
+        customRules: { pairings: { pairings: [{ id: 'p1' }], fairnessScore: 90 } },
+      });
+
+      const res = await request(makeApp()).get('/pairings/sessions/s1/pairings').expect(200);
+      expect(res.body.data.pairings).toBeDefined();
+    });
+
+    it('returns 403 for non-participant', async () => {
+      (prisma.session.findUnique as jest.Mock).mockResolvedValue({
+        id: 's1', ownerId: 'other', sessionPlayers: [],
+      });
+      await request(makeApp()).get('/pairings/sessions/s1/pairings').expect(403);
+    });
+  });
+
+  describe('PUT /sessions/:sessionId/pairings/:pairingId', () => {
+    it('adjusts a pairing', async () => {
+      mockSessionOwned();
+      (prisma.mvpSessionConfiguration.findUnique as jest.Mock).mockResolvedValue({
+        customRules: { pairings: { pairings: [{ id: 'p1', players: [] }], fairnessScore: 85 } },
+      });
+      (prisma.mvpSessionConfiguration.update as jest.Mock).mockResolvedValue({});
+
+      const res = await request(makeApp())
+        .put('/pairings/sessions/s1/pairings/p1')
+        .send({ players: [{ id: 'u2', name: 'Bob' }, { id: 'u3', name: 'Charlie' }] })
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+    });
+  });
+
+  describe('DELETE /sessions/:sessionId/pairings', () => {
+    it('clears pairings', async () => {
+      mockSessionOwned();
+      (prisma.mvpSessionConfiguration.findUnique as jest.Mock).mockResolvedValue({
+        customRules: { pairings: { pairings: [] }, other: 1 },
+      });
+      (prisma.mvpSessionConfiguration.update as jest.Mock).mockResolvedValue({});
+
+      const res = await request(makeApp()).delete('/pairings/sessions/s1/pairings').expect(200);
+      expect(res.body.success).toBe(true);
+    });
+  });
+
+  describe('POST /suggest', () => {
+    it('returns AI suggestions', async () => {
+      mockSessionOwned();
+
+      const res = await request(makeApp())
+        .post('/pairings/suggest')
+        .send({ sessionId: 's1', playerIds: ['u1', 'u2', 'u3', 'u4'] })
+        .expect(200);
+
+      expect(res.body.data).toHaveLength(1);
+    });
+
+    it('returns 400 when playerIds missing', async () => {
+      await request(makeApp()).post('/pairings/suggest').send({ sessionId: 's1' }).expect(400);
+    });
+  });
+
+  describe('GET /explain/:suggestionId', () => {
+    it('returns explanation', async () => {
+      const res = await request(makeApp()).get('/pairings/explain/sg1').expect(200);
+      expect(res.body.data.explanation).toBeDefined();
+      expect(res.body.data.confidence).toBeGreaterThan(0);
+    });
+  });
+
+  describe('POST /feedback', () => {
+    it('records feedback', async () => {
+      mockSessionOwned();
+
+      const res = await request(makeApp())
+        .post('/pairings/feedback')
+        .send({ sessionId: 's1', playerId: 'u1', partnerId: 'u2', feedback: 4 })
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+    });
+
+    it('returns 400 for invalid rating', async () => {
+      await request(makeApp())
+        .post('/pairings/feedback')
+        .send({ sessionId: 's1', playerId: 'u1', partnerId: 'u2', feedback: 6 })
+        .expect(400);
+    });
+  });
+
+  describe('POST /update-skills/:sessionId', () => {
+    it('updates skill levels', async () => {
+      mockSessionOwned();
+
+      const res = await request(makeApp()).post('/pairings/update-skills/s1').expect(200);
+      expect(res.body.success).toBe(true);
+    });
   });
 });
