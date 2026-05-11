@@ -100,18 +100,19 @@ export default function SessionShareModal({
       const playersList = buildPlayersList();
       const loc = location || 'Location TBD';
       
-      const message = `🏸 ${sessionName}\n` +
+      const shareCardUrl = `https://badminton-group.app/s/${shareCode}`;
+      const message = `${shareCardUrl}\n\n` +
+        `🏸 ${sessionName}\n` +
         `📅 ${sessionDate}\n` +
         `⏰ ${timeRange}\n` +
         `📍 ${loc}\n` +
         (playersList ? `👥 ${playersList}\n` : '') +
-        `\n🔗 Join: ${shareLink}\n` +
         `💯 Code: ${shortShareCode}`;
       
       await Share.share({
         message,
         title: `Rally: ${sessionName}`,
-        url: shareLink,
+        url: shareCardUrl,
       });
     } catch (error) {
       Alert.alert('Error', 'Failed to share session');
@@ -123,11 +124,25 @@ export default function SessionShareModal({
     const playersList = buildPlayersList();
     const loc = location || 'Location TBD';
     const shareCardUrl = `https://badminton-group.app/s/${shareCode}`;
-    const text = `🏸 ${sessionName}\n📅 ${sessionDate} ⏰ ${timeRange}\n📍 ${loc}\n${playersList ? '👥 ' + playersList + '\n' : ''}\n🔗 ${shareCardUrl}`;
+    const text = `🔗 ${shareCardUrl}\n\n🏸 ${sessionName}\n📅 ${sessionDate} ⏰ ${timeRange}\n📍 ${loc}\n${playersList ? '👥 ' + playersList : ''}`;
     const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
     Linking.openURL(waUrl).catch(() => {
       Alert.alert('WhatsApp not installed', 'Share via link instead');
     });
+  };
+
+  /** WeChat share — URL at top so WeChat detects it as a card link */
+  const handleShareWeChat = async () => {
+    const timeRange = formatTimeRange();
+    const playersList = buildPlayersList();
+    const loc = location || 'Location TBD';
+    const shareCardUrl = `https://badminton-group.app/s/${shareCode}`;
+    const text = `${shareCardUrl}\n\n🏸 ${sessionName}\n📅 ${sessionDate} ⏰ ${timeRange}\n📍 ${loc}${playersList ? '\n👥 ' + playersList : ''}\n💯 Code: ${shortShareCode}`;
+    try {
+      await Share.share({ message: text });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to share');
+    }
   };
 
   const handleCopyShareCard = async () => {
@@ -241,6 +256,11 @@ export default function SessionShareModal({
             </TouchableOpacity>
             
             <View style={styles.platformRow}>
+              <TouchableOpacity onPress={handleShareWeChat} style={styles.wechatButton}>
+                <Ionicons name="chatbubble-ellipses" size={18} color="white" />
+                <Text style={styles.platformButtonText}>WeChat</Text>
+              </TouchableOpacity>
+              
               <TouchableOpacity onPress={handleShareWhatsApp} style={styles.whatsappButton}>
                 <Ionicons name="logo-whatsapp" size={20} color="white" />
                 <Text style={styles.platformButtonText}>WhatsApp</Text>
@@ -449,6 +469,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginTop: 12,
+  },
+  wechatButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#07C160',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
+    flex: 1,
+    justifyContent: 'center',
   },
   whatsappButton: {
     flexDirection: 'row',

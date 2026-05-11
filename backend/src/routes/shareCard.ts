@@ -3,6 +3,75 @@ import { prisma } from '../config/database';
 
 const router = Router();
 
+// ── OG Image generator (for WeChat / WhatsApp rich preview) ──
+
+router.get('/s/:shareCode/og-image', async (req: Request, res: Response) => {
+  try {
+    const { shareCode } = req.params;
+
+    const session = await prisma.mvpSession.findUnique({
+      where: { shareCode },
+      select: { name: true, scheduledAt: true, location: true, maxPlayers: true, players: { select: { name: true, status: true } } },
+    });
+
+    if (!session) return res.status(404).send('Session not found');
+
+    const playerCount = session.players.length;
+    const activePlayers = session.players.filter(p => p.status === 'ACTIVE');
+    const date = new Date(session.scheduledAt);
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+    const dayShort = dayName.substring(0, 3);
+    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const playerNames = activePlayers.slice(0, 4).map(p => p.name).join(', ');
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a237e"/>
+      <stop offset="100%" stop-color="#0d47a1"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  
+  <!-- Badminton icon -->
+  <text x="600" y="100" text-anchor="middle" font-size="72">🏸</text>
+  
+  <!-- Session name -->
+  <text x="600" y="200" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="48" font-weight="bold" fill="white">
+    ${session.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')}
+  </text>
+  
+  <!-- Date & Time -->
+  <text x="600" y="275" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="36" fill="rgba(255,255,255,0.9)">
+    ${dayShort} ${dateStr} at ${timeStr}
+  </text>
+  
+  <!-- Location & Players -->
+  <text x="600" y="335" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="28" fill="rgba(255,255,255,0.7)">
+    📍 ${session.location || 'TBD'}  ·  👥 ${playerCount} players
+  </text>
+
+  ${playerNames ? `<text x="600" y="390" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="24" fill="rgba(255,255,255,0.6)">
+    ${playerNames}
+  </text>` : ''}
+  
+  <!-- Bottom bar -->
+  <rect x="0" y="500" width="1200" height="130" fill="rgba(0,0,0,0.15)"/>
+  <text x="600" y="565" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="28" fill="rgba(255,255,255,0.7)">
+    Scan to join · ${shareCode.toUpperCase()}
+  </text>
+</svg>`;
+
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.send(svg);
+  } catch (error) {
+    console.error('OG image error:', error);
+    res.status(500).send('Failed to generate preview');
+  }
+});
+
 // Shareable session card — optimized for WhatsApp / WeChat sharing
 router.get('/s/:shareCode', async (req: Request, res: Response) => {
   try {
@@ -41,10 +110,14 @@ router.get('/s/:shareCode', async (req: Request, res: Response) => {
       return '🔴';
     };
 
-    const appUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+    const appUrl = (process.env.FRONTEND_URL || process.env.API_URL || 'https://badminton-group.app').replace(/\/$/, '');
     const joinUrl = `${appUrl}/join/${shareCode}`;
-    const cardTitle = `🎯 Game Plan: ${session.name}`;
-    const cardDesc = `${dayName} at ${timeStr} · ${session.location || 'Location TBD'} · ${playerCount} players`;
+    const shareCardUrl = `${appUrl}/s/${shareCode}`;
+    const cardTitle = `${session.name}`;
+    const cardDesc = `${dayName} at ${timeStr} · ${session.location || 'Location TBD'}`;
+    const playerNames = session.players.filter(p => p.status === 'ACTIVE').slice(0, 5).map(p => p.name).join(' ');
+    const ogTitle = `${session.name} — ${dayName} ${timeStr} · ${session.location || ''}`;
+    const ogDesc = `${playerCount} players 🔸 ${playerNames || 'Join us!'}`;
 
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -54,11 +127,11 @@ router.get('/s/:shareCode', async (req: Request, res: Response) => {
   <title>${cardTitle}</title>
 
   <!-- Open Graph for WhatsApp / WeChat / Facebook rich preview -->
-  <meta property="og:title" content="${cardTitle}" />
-  <meta property="og:description" content="${cardDesc}" />
+  <meta property="og:title" content="${ogTitle}" />
+  <meta property="og:description" content="${ogDesc}" />
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="${joinUrl}" />
-  <meta property="og:image" content="${appUrl}/api/s/${shareCode}/og-image" />
+  <meta property="og:url" content="${shareCardUrl}" />
+  <meta property="og:image" content="${appUrl}/s/${shareCode}/og-image" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:site_name" content="Rally" />
@@ -66,8 +139,8 @@ router.get('/s/:shareCode', async (req: Request, res: Response) => {
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="${cardTitle}" />
-  <meta name="twitter:description" content="${cardDesc}" />
+  <meta name="twitter:title" content="${ogTitle}" />
+  <meta name="twitter:description" content="${ogDesc}" />
 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
