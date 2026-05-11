@@ -1232,7 +1232,7 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
                         {player.preferredSports.map((sport: string) => {
                           const icons: Record<string, string> = {
                             badminton: '🏸', pickleball: '🥒', tennis: '🎾',
-                            table_tennis: '🏓', volleyball: '🏐', guandan: '🃏', hiking: '🥾',
+                            table_tennis: '🏓', volleyball: '🏐', guandan: '🃏', hiking: '🥾', golf: '⛳',
                           };
                           return (
                             <View key={sport} style={styles.sportBadge}>
