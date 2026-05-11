@@ -139,6 +139,14 @@ export default function MySessionsScreen() {
     };
   }, []);
 
+  const getSportIcon = (sport: string) => {
+    const icons: Record<string, string> = {
+      badminton: '🏸', pickleball: '🥒', tennis: '🎾',
+      table_tennis: '🏓', volleyball: '🏐', guandan: '🃏', hiking: '🥾',
+    };
+    return icons[sport] || '🏸';
+  };
+
   const createNewSession = () => {
     // Navigate to the Home tab where CreateSession screen is located
     (navigation as any).navigate('Home', { 
@@ -197,7 +205,12 @@ export default function MySessionsScreen() {
               onPress={() => openSession(session)}
             >
               <View style={styles.sessionHeader}>
-                <Text style={styles.sessionName}>{session.name}</Text>
+                <View style={styles.sessionNameRow}>
+                  {session.sport && session.sport !== 'badminton' ? (
+                    <Text style={styles.sportIcon}>{getSportIcon(session.sport)}</Text>
+                  ) : null}
+                  <Text style={styles.sessionName}>{session.name}</Text>
+                </View>
                 <Text style={styles.shareCode}>{session.shareCode}</Text>
               </View>
               
@@ -334,12 +347,21 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 12,
   },
+  sessionNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
+    gap: 4,
+  },
+  sportIcon: {
+    fontSize: 18,
+  },
   sessionName: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
     flex: 1,
-    marginRight: 10,
   },
   shareCode: {
     fontSize: 12,

@@ -30,6 +30,7 @@ interface SessionFormData {
   location: string;
   maxPlayers: number;
   organizerName: string;
+  sport: string;
 }
 
 interface PrefillData {
@@ -105,7 +106,8 @@ export default function CreateSessionScreen() {
     scheduledAt: defaultDate,
     location: '',
     maxPlayers: 20,
-    organizerName: ''
+    organizerName: '',
+    sport: 'badminton',
   });
 
   useEffect(() => {
@@ -198,6 +200,7 @@ export default function CreateSessionScreen() {
         location: formData.location.trim(),
         maxPlayers: formData.maxPlayers,
         organizerName: formData.organizerName.trim(),
+        sport: formData.sport,
         invitePlayerNames,
       };
 
@@ -368,6 +371,29 @@ export default function CreateSessionScreen() {
             maxLength={2}
           />
 
+          <Text style={styles.label}>Sport</Text>
+          <View style={styles.sportRow}>
+            {[
+              { key: 'badminton', icon: '🏸', label: 'Badminton' },
+              { key: 'pickleball', icon: '🥒', label: 'Pickleball' },
+              { key: 'tennis', icon: '🎾', label: 'Tennis' },
+              { key: 'table_tennis', icon: '🏓', label: 'Ping Pong' },
+              { key: 'volleyball', icon: '🏐', label: 'Volleyball' },
+              { key: 'guandan', icon: '🃏', label: 'Guandan' },
+              { key: 'hiking', icon: '🥾', label: 'Hiking' },
+            ].map(s => (
+              <TouchableOpacity
+                key={s.key}
+                style={[styles.sportPill, formData.sport === s.key && styles.sportPillActive]}
+                onPress={() => setFormData(prev => ({ ...prev, sport: s.key }))}
+              >
+                <Text style={styles.sportIcon}>{s.icon}</Text>
+                <Text style={[styles.sportLabel, formData.sport === s.key && styles.sportLabelActive]}>
+                  {s.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
@@ -567,6 +593,38 @@ const styles = StyleSheet.create({
   },
   halfWidth: {
     width: '48%',
+  },
+  sportRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  sportPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 4,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  sportPillActive: {
+    backgroundColor: '#E3F2FD',
+    borderColor: '#007AFF',
+  },
+  sportIcon: {
+    fontSize: 16,
+  },
+  sportLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+  },
+  sportLabelActive: {
+    color: '#007AFF',
   },
   button: {
     flexDirection: 'row',
