@@ -66,7 +66,7 @@ router.post(
 
       // Validate score format (must be 2-0 or 2-1)
       const totalScore = team1Score + team2Score;
-      if (totalScore !== 2) {
+      if (totalScore !== 2 && totalScore !== 3) {
         return res.status(400).json({
           success: false,
           error: {
