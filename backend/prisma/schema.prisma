@@ -89,6 +89,7 @@ model MvpSession {
 
   // AI Pairing Relations
   pairingHistory PairingHistory[]
+  golfRounds     GolfRound[]
 
   // Performance indexes for discovery and filtering
   @@index([scheduledAt])
@@ -2800,6 +2801,90 @@ enum VenueType {
   HOTEL
   STADIUM
   OTHER
+}
+
+// ── Golf Scoring & Betting ──────────────────────────────────────────────────────
+
+model GolfRound {
+  id         String      @id @default(cuid())
+  sessionId  String
+  session    MvpSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  courseName String      @default("Unknown Course")
+  totalPar   Int         @default(72) // Standard par 72
+  status     GolfRoundStatus @default(IN_PROGRESS)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  scores GolfScore[]
+  bets   GolfBet[]
+
+  @@index([sessionId])
+  @@map("golf_rounds")
+}
+
+model GolfScore {
+  id         String    @id @default(cuid())
+  roundId    String
+  round      GolfRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  playerId   String
+  playerName String
+  handicap   Float     @default(0) // Player's handicap for this round
+
+  // 18 holes stored as JSON: [{hole:1, par:4, score:5, fairway:true, gir:false, putts:2}, ...]
+  holes      Json      @default("[]")
+
+  totalGross Int       @default(0) // Total strokes
+  totalNet   Int       @default(0) // Gross - handicap
+  front9Gross Int      @default(0)
+  front9Net   Int      @default(0)
+  back9Gross  Int      @default(0)
+  back9Net    Int      @default(0)
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([roundId, playerId])
+  @@index([roundId])
+  @@map("golf_scores")
+}
+
+model GolfBet {
+  id           String       @id @default(cuid())
+  roundId      String
+  round        GolfRound    @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  type         GolfBetType  @default(NASSAU)
+  description  String?      // e.g. "Front 9 Nassau — $10 per side"
+
+  // Participants: [{playerId, playerName, stake}]
+  participants Json
+
+  // Results: [{playerId, playerName, wonAmount, reason}]
+  results      Json?
+
+  totalPot     Float        @default(0)
+  settled      Boolean      @default(false)
+  settledAt    DateTime?
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([roundId])
+  @@map("golf_bets")
+}
+
+enum GolfRoundStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum GolfBetType {
+  NASSAU        // 3 bets: front 9, back 9, overall
+  SKINS         // Each hole is a separate bet
+  STROKE_PLAY   // Net score competition
+  MATCH_PLAY    // Head-to-head match play
+  LONGEST_DRIVE // Side bet
+  CLOSEST_TO_PIN
 }
 
 model AuditLog {
