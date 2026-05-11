@@ -14,6 +14,7 @@ import { connectDB } from './config/database';
 import { setupSocket } from './config/socket';
 import { setupRoutes } from './routes';
 import { errorHandler } from './middleware/errorHandler';
+import { scheduler } from './services/scheduler';
 import webSessionRoutes from './routes/webSession';
 import shareCardRoutes from './routes/shareCard';
 import adminRoutes from './routes/admin';
@@ -175,6 +176,9 @@ setupSocket(io);
 
 // Database connection
 connectDB();
+
+// Start background scheduler (session reminders, rest expiration, auto-complete)
+scheduler.start();
 
 const PORT = process.env.PORT || 3001;
 

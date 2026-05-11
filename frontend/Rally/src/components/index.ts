@@ -44,3 +44,6 @@ export { MessageInput } from './MessageInput';
 export { default as CommunityLeaderboardScreen } from '../screens/CommunityLeaderboardScreen';
 export { default as VenueDirectoryScreen } from '../screens/VenueDirectoryScreen';
 export { default as PlayerSearchScreen } from '../screens/PlayerSearchScreen';
+
+// Game Timer
+export { default as GameTimer } from './GameTimer';

@@ -469,6 +469,22 @@ class SessionApiService {
     }
   }
 
+  // ── Organizer Name Persistence ──────────────────────────────
+
+  async saveLastOrganizerName(name: string): Promise<void> {
+    try {
+      await AsyncStorage.setItem('last_organizer_name', name.trim());
+    } catch { /* storage not critical */ }
+  }
+
+  async getLastOrganizerName(): Promise<string> {
+    try {
+      return (await AsyncStorage.getItem('last_organizer_name')) || '';
+    } catch {
+      return '';
+    }
+  }
+
   // Claim ownership of a session (when ownerDeviceId is missing)
   async claimSessionOwnership(shareCode: string): Promise<SessionResponse> {
     try {

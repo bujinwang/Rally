@@ -264,7 +264,7 @@ export class OAuthService {
       user = await prisma.user.create({
         data: {
           name: profile.name,
-          email: profile.email || `${profile.provider}_${profile.providerId}@placeholder.local`,
+          email: profile.email || `${profile.provider}_${profile.providerId}@${profile.provider}.oauth`,
           avatarUrl: profile.avatarUrl,
         },
       });

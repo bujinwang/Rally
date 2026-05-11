@@ -122,9 +122,7 @@ export default function CreateSessionScreen() {
 
   const loadStoredUserName = async () => {
     try {
-      const storedName = await sessionApi.getDeviceId();
-      // Try to get the last used name from storage (we'll add this feature)
-      const lastUsedName = ''; // Placeholder for now
+      const lastUsedName = await sessionApi.getLastOrganizerName();
       if (lastUsedName) {
         setFormData(prev => ({ ...prev, organizerName: lastUsedName }));
       }
@@ -212,6 +210,8 @@ export default function CreateSessionScreen() {
 
       if (result.success) {
         console.log('Session created:', result.data.session);
+        // Remember organizer name for next time
+        await sessionApi.saveLastOrganizerName(formData.organizerName.trim());
         // Extract shareCode from shareLink if available, otherwise use session.shareCode
         const shareCode = result.data.shareLink
           ? result.data.shareLink.split('/').pop() || result.data.session.shareCode
@@ -399,6 +399,26 @@ export default function CreateSessionScreen() {
               </TouchableOpacity>
             ))}
           </View>
+
+          {invitePlayerNames.length > 0 && (
+            <View style={styles.inviteSection}>
+              <Text style={styles.inviteTitle}>
+                👥 {invitePlayerNames.length} players will be invited
+              </Text>
+              <View style={styles.inviteList}>
+                {invitePlayerNames.map((name, i) => (
+                  <View key={i} style={styles.inviteTag}>
+                    <Text style={styles.inviteTagText}>{name}</Text>
+                    <TouchableOpacity
+                      onPress={() => setInvitePlayerNames(prev => prev.filter((_, j) => j !== i))}
+                    >
+                      <Ionicons name="close-circle" size={16} color="#999" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
 
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
@@ -677,4 +697,39 @@ const styles = StyleSheet.create({
     marginTop: 12, paddingVertical: 12, alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 8,
   },
   modalCancelText: { fontSize: 15, color: '#666', fontWeight: '600' },
+  inviteSection: {
+    backgroundColor: '#F0F4FF',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: '#007AFF',
+  },
+  inviteTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007AFF',
+    marginBottom: 10,
+  },
+  inviteList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  inviteTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  inviteTagText: {
+    fontSize: 13,
+    color: '#333',
+    fontWeight: '500',
+  },
 });

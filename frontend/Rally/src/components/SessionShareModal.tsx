@@ -252,7 +252,7 @@ export default function SessionShareModal({
               </TouchableOpacity>
             </View>
           </View>
-        </TouchableOpacity>
+        </View>
       </TouchableOpacity>
     </Modal>
   );
@@ -445,45 +445,40 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
   },
-});
-  inviteSection: {
-    marginBottom: 20,
-    padding: 16,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-  },
-  inviteHint: {
-    fontSize: 12,
-    color: '#999',
-    marginBottom: 12,
-    marginTop: -8,
-  },
-  inviteRow: {
+  platformRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 8,
+    gap: 10,
+    marginTop: 12,
   },
-  inviteInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    backgroundColor: '#fff',
-  },
-  inviteSendBtn: {
+  whatsappButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#34C759',
+    backgroundColor: '#25D366',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
-    gap: 4,
+    gap: 6,
+    flex: 1,
+    justifyContent: 'center',
   },
-  inviteSendText: {
-    color: '#fff',
+  platformButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  shareCardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  shareCardButtonText: {
+    color: '#007AFF',
     fontSize: 14,
     fontWeight: '600',
   },
