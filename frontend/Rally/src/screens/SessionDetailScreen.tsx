@@ -44,6 +44,7 @@ interface Player {
   requestedAction?: 'rest' | 'leave';
   checkedIn?: boolean;
   checkedInAt?: string;
+  preferredSports?: string[];
 }
 
 interface Game {
@@ -1226,6 +1227,21 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
                       {index + 1}. {player.name}
                       {player.name === sessionData?.ownerName && ' ⭐'}
                     </Text>
+                    {player.preferredSports && player.preferredSports.length > 0 && (
+                      <View style={styles.sportBadgesRow}>
+                        {player.preferredSports.map((sport: string) => {
+                          const icons: Record<string, string> = {
+                            badminton: '🏸', pickleball: '🥒', tennis: '🎾',
+                            table_tennis: '🏓', volleyball: '🏐', guandan: '🃏', hiking: '🥾',
+                          };
+                          return (
+                            <View key={sport} style={styles.sportBadge}>
+                              <Text style={styles.sportBadgeText}>{icons[sport] || '🏸'}</Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    )}
                     <View style={styles.playerMetaRow}>
                       <Text style={styles.playerMeta}>
                         {player.joinedAt ? new Date(player.joinedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'Unknown'}
@@ -2161,6 +2177,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#757575',
     marginTop: 2,
+  },
+  sportBadgesRow: {
+    flexDirection: 'row',
+    gap: 4,
+    marginTop: 4,
+  },
+  sportBadge: {
+    backgroundColor: '#E3F2FD',
+    borderRadius: 10,
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#BBDEFB',
+  },
+  sportBadgeText: {
+    fontSize: 12,
   },
   playerStats: {
     flexDirection: 'row',

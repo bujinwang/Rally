@@ -252,7 +252,8 @@ const joinSessionValidation = [
   param('shareCode').isLength({ min: 1 }).withMessage('Share code is required'),
   body('name').isLength({ min: 1, max: 100 }).withMessage('Player name is required'),
   body('deviceId').optional().isLength({ max: 255 }),
-  body('skillLevel').optional().isInt({ min: 1, max: 10 }).withMessage('Skill level must be 1-10')
+  body('skillLevel').optional().isInt({ min: 1, max: 10 }).withMessage('Skill level must be 1-10'),
+  body('preferredSports').optional().isArray().withMessage('Preferred sports must be an array'),
 ];
 
 const claimSessionValidation = [
@@ -587,7 +588,7 @@ router.post('/join/:shareCode', joinSessionValidation, async (req: Request, res:
     }
 
     const { shareCode } = req.params;
-    const { name, deviceId, skillLevel } = req.body;
+    const { name, deviceId, skillLevel, preferredSports } = req.body;
 
     const session = await prisma.mvpSession.findUnique({
       where: { shareCode },
@@ -647,7 +648,8 @@ router.post('/join/:shareCode', joinSessionValidation, async (req: Request, res:
         name,
         deviceId,
         skillLevel: skillLevel || null,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        preferredSports: preferredSports || [],
       }
     });
 
@@ -658,7 +660,8 @@ router.post('/join/:shareCode', joinSessionValidation, async (req: Request, res:
           id: player.id,
           name: player.name,
           status: player.status,
-        skillLevel: player.skillLevel,
+          skillLevel: player.skillLevel,
+          preferredSports: player.preferredSports,
           joinedAt: player.joinedAt
         }
       },
@@ -1657,7 +1660,8 @@ router.post('/:shareCode/add-player', rateLimiters.api, requireOrganizer('add_pl
           id: player.id,
           name: player.name,
           status: player.status,
-        skillLevel: player.skillLevel,
+          skillLevel: player.skillLevel,
+          preferredSports: player.preferredSports,
           joinedAt: player.joinedAt
         }
       },
