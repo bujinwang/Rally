@@ -11,6 +11,7 @@ interface Suggestion {
   id: string;
   playerNames: string[];
   location: string | null;
+  sport: string;
   dayOfWeek: number;
   typicalTime: string;
   sessionCount: number;
@@ -56,6 +57,7 @@ export default function SessionSuggestions({ deviceId, style }: Props) {
     (navigation as any).navigate('CreateSession', {
       prefill: {
         location: suggestion.location,
+        sport: suggestion.sport,
         invitePlayerNames: suggestion.playerNames,
         predictedDate: suggestion.nextPredictedTime,
       },

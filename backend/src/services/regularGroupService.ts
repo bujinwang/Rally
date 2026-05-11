@@ -9,6 +9,7 @@ export interface RegularGroupSuggestion {
   id: string;                    // unique key for this group (hash of player names)
   playerNames: string[];         // all player names (including organizer)
   location: string | null;       // most common location
+  sport: string;                 // most common sport for this group
   dayOfWeek: number;             // most common day (0=Sun, 6=Sat)
   typicalTime: string;           // typical start time (HH:MM)
   sessionCount: number;          // how many times they've played together
@@ -24,6 +25,7 @@ interface PlayerSet {
     name: string;
     scheduledAt: Date;
     location: string | null;
+    sport: string;
   }>;
 }
 
@@ -80,6 +82,7 @@ export async function getSessionSuggestions(
       name: session.name,
       scheduledAt: session.scheduledAt,
       location: session.location,
+      sport: session.sport || 'badminton',
     });
   }
 
@@ -132,10 +135,25 @@ export async function getSessionSuggestions(
       }
     }
 
+    // Most common sport
+    const sportCounts = new Map<string, number>();
+    for (const s of group.sessions) {
+      sportCounts.set(s.sport, (sportCounts.get(s.sport) || 0) + 1);
+    }
+    let bestSport = 'badminton';
+    let bestSportCount = 0;
+    for (const [sport, count] of Array.from(sportCounts.entries())) {
+      if (count > bestSportCount) {
+        bestSportCount = count;
+        bestSport = sport;
+      }
+    }
+
     suggestions.push({
       id: `group_${Buffer.from(key).toString('base64').slice(0, 16)}`,
       playerNames: group.names,
       location: bestLocation,
+      sport: bestSport,
       dayOfWeek: bestDay,
       typicalTime,
       sessionCount: group.sessions.length,
