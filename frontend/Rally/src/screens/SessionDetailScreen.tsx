@@ -33,7 +33,7 @@ interface Player {
   id: string;
   name: string;
   deviceId: string;
-  status: 'ACTIVE' | 'RESTING' | 'LEFT' | 'confirmed' | 'pending' | 'active' | 'waiting';
+  status: 'ACTIVE' | 'RESTING' | 'LEFT' | 'PENDING' | 'confirmed' | 'pending' | 'active' | 'waiting';
   gamesPlayed: number;
   wins: number;
   losses: number;
