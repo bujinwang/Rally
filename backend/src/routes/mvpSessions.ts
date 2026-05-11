@@ -96,6 +96,140 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Session recap — MVP, top performers, game highlights.
+ * Must be registered BEFORE the generic /:shareCode route.
+ */
+router.get('/:shareCode/recap', async (req, res) => {
+  try {
+    const { shareCode } = req.params;
+
+    const session = await prisma.mvpSession.findUnique({
+      where: { shareCode },
+      include: {
+        players: {
+          where: { gamesPlayed: { gt: 0 } },
+          orderBy: { wins: 'desc' },
+        },
+        games: {
+          where: { status: 'COMPLETED' },
+          orderBy: { endTime: 'desc' },
+        },
+        matches: {
+          where: { status: 'COMPLETED' },
+          orderBy: { endTime: 'desc' },
+        },
+      },
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const activePlayers = session.players.filter(p => p.gamesPlayed > 0);
+    const allPlayers = session.players;
+
+    const mvp = activePlayers.length > 0 ? activePlayers[0] : null;
+
+    const topPerformers = activePlayers
+      .filter(p => p.gamesPlayed >= 2)
+      .sort((a: any, b: any) => (b.winRate || 0) - (a.winRate || 0))
+      .slice(0, 3)
+      .map((p: any) => ({
+        name: p.name,
+        wins: p.wins,
+        gamesPlayed: p.gamesPlayed,
+        winRate: p.winRate,
+      }));
+
+    const mostImproved = activePlayers
+      .filter((p: any) => (p.bestStreak || 0) > 0)
+      .sort((a: any, b: any) => (b.bestStreak || 0) - (a.bestStreak || 0))
+      .slice(0, 1)
+      .map((p: any) => ({
+        name: p.name,
+        bestStreak: p.bestStreak,
+        gamesPlayed: p.gamesPlayed,
+      }));
+
+    const longestGame = session.games
+      .filter((g: any) => g.duration)
+      .sort((a: any, b: any) => (b.duration || 0) - (a.duration || 0))
+      .slice(0, 1)
+      .map((g: any) => ({
+        gameNumber: g.gameNumber,
+        team1: `${g.team1Player1} & ${g.team1Player2 || ''}`,
+        team2: `${g.team2Player1} & ${g.team2Player2 || ''}`,
+        duration: g.duration,
+        score: `${g.team1FinalScore}-${g.team2FinalScore}`,
+      }));
+
+    const closestGame = session.games
+      .filter((g: any) => g.status === 'COMPLETED')
+      .sort((a: any, b: any) => {
+        const marginA = Math.abs(a.team1FinalScore - a.team2FinalScore);
+        const marginB = Math.abs(b.team1FinalScore - b.team2FinalScore);
+        return marginA - marginB;
+      })
+      .slice(0, 1)
+      .map((g: any) => ({
+        gameNumber: g.gameNumber,
+        team1: `${g.team1Player1} & ${g.team1Player2 || ''}`,
+        team2: `${g.team2Player1} & ${g.team2Player2 || ''}`,
+        score: `${g.team1FinalScore}-${g.team2FinalScore}`,
+        margin: Math.abs(g.team1FinalScore - g.team2FinalScore),
+      }));
+
+    const totalGames = session.games.length;
+    const totalMatches = session.matches.length;
+    const totalPlayers = allPlayers.length;
+    const activeCount = activePlayers.length;
+
+    const gamesWithDuration = session.games.filter((g: any) => g.duration);
+    const avgDuration = gamesWithDuration.length > 0
+      ? Math.round(gamesWithDuration.reduce((sum: number, g: any) => sum + (g.duration || 0), 0) / gamesWithDuration.length)
+      : 0;
+
+    res.json({
+      success: true,
+      data: {
+        sessionName: session.name,
+        sessionDate: session.scheduledAt,
+        location: session.location,
+        status: session.status,
+        sport: session.sport,
+        summary: {
+          totalGames,
+          totalMatches,
+          totalPlayers,
+          activePlayers: activeCount,
+          avgGameDuration: avgDuration,
+        },
+        mvp: mvp
+          ? { name: mvp.name, wins: mvp.wins, gamesPlayed: mvp.gamesPlayed, winRate: mvp.winRate }
+          : null,
+        topPerformers,
+        mostImproved: mostImproved.length > 0 ? mostImproved[0] : null,
+        longestGame: longestGame.length > 0 ? longestGame[0] : null,
+        closestGame: closestGame.length > 0 ? closestGame[0] : null,
+      },
+      message: 'Session recap generated',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Session recap error:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to generate session recap' },
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // Get session by share code
 router.get('/:shareCode', async (req, res) => {
   try {
@@ -2812,79 +2946,10 @@ router.get('/:shareCode/statistics', async (req, res) => {
   }
 });
 
-// Get session leaderboard
-/**
- * Session recap summary
- * GET /:shareCode/recap
- */
-router.get('/:shareCode/recap', async (req, res) => {
-  try {
-    const { shareCode } = req.params;
-
-    const session = await prisma.mvpSession.findFirst({
-      where: { shareCode },
-      include: {
-        players: { select: { id: true, name: true, gamesPlayed: true, wins: true, losses: true, status: true, checkedIn: true } },
-        games: { where: { status: 'COMPLETED' }, orderBy: { createdAt: 'desc' } },
-      }
-    });
-
-    if (!session) {
-      return res.status(404).json({ success: false, message: 'Session not found', timestamp: new Date().toISOString() });
-    }
-
-    const totalGames = session.games.length;
-    const totalPlayers = session.players.length;
-    const checkedInCount = session.players.filter(p => p.checkedIn).length;
-
-    // Top players by wins
-    const topPlayers = [...session.players]
-      .sort((a, b) => b.wins - a.wins)
-      .slice(0, 3)
-      .map(p => ({ name: p.name, wins: p.wins, games: p.gamesPlayed }));
-
-    // MVPs (best win rate, min 3 games)
-    const mvps = [...session.players]
-      .filter(p => p.gamesPlayed >= 3)
-      .sort((a, b) => {
-        const aRate = a.gamesPlayed > 0 ? a.wins / a.gamesPlayed : 0;
-        const bRate = b.gamesPlayed > 0 ? b.wins / b.gamesPlayed : 0;
-        return bRate - aRate;
-      })
-      .slice(0, 2)
-      .map(p => ({ name: p.name, winRate: p.gamesPlayed > 0 ? Math.round((p.wins / p.gamesPlayed) * 100) : 0 }));
-
-    // Recent games
-    const recentGames = session.games.slice(0, 5).map(g => ({
-      teams: `${g.team1Player1} & ${g.team1Player2} vs ${g.team2Player1} & ${g.team2Player2}`,
-      score: `${g.team1FinalScore}-${g.team2FinalScore}`,
-      winner: g.winnerTeam === 1 ? `${g.team1Player1} & ${g.team1Player2}` : `${g.team2Player1} & ${g.team2Player2}`,
-    }));
-
-    res.json({
-      success: true,
-      data: {
-        sessionName: session.name,
-        totalGames,
-        totalPlayers,
-        checkedInCount,
-        topPlayers,
-        mvps,
-        recentGames,
-      },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Recap error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error', timestamp: new Date().toISOString() });
-  }
-});
-
 router.get('/:shareCode/leaderboard', async (req, res) => {
   try {
     const { shareCode } = req.params;
-
-    const session = await prisma.mvpSession.findFirst({
+    const session = await prisma.mvpSession.findUnique({
       where: { shareCode }
     });
 
@@ -4312,152 +4377,6 @@ router.put('/:shareCode/players/:playerId/attendance', requireOrganizer('manage_
     res.json({ success: true, message: 'Attendance updated', timestamp: new Date().toISOString() });
   } catch (error) {
     res.status(500).json({ success: false, error: { message: 'Failed to update attendance' } });
-  }
-});
-
-/**
- * GET /:shareCode/recap
- * Session recap — MVP, top performers, fun stats after session ends.
- */
-router.get('/:shareCode/recap', async (req, res) => {
-  try {
-    const { shareCode } = req.params;
-
-    const session = await prisma.mvpSession.findUnique({
-      where: { shareCode },
-      include: {
-        players: {
-          where: { gamesPlayed: { gt: 0 } },
-          orderBy: { wins: 'desc' },
-        },
-        games: {
-          where: { status: 'COMPLETED' },
-          orderBy: { endTime: 'desc' },
-        },
-        matches: {
-          where: { status: 'COMPLETED' },
-          orderBy: { endTime: 'desc' },
-        },
-      },
-    });
-
-    if (!session) {
-      return res.status(404).json({
-        success: false,
-        error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' },
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    const activePlayers = session.players.filter(p => p.gamesPlayed > 0);
-    const allPlayers = session.players;
-
-    // MVP — most wins
-    const mvp = activePlayers.length > 0 ? activePlayers[0] : null;
-
-    // Top performers (top 3 by win rate among those who played >= 2 games)
-    const topPerformers = activePlayers
-      .filter(p => p.gamesPlayed >= 2)
-      .sort((a, b) => (b.winRate || 0) - (a.winRate || 0))
-      .slice(0, 3)
-      .map(p => ({
-        name: p.name,
-        wins: p.wins,
-        gamesPlayed: p.gamesPlayed,
-        winRate: p.winRate,
-      }));
-
-    // Most improved — best streak
-    const mostImproved = activePlayers
-      .filter(p => (p.bestStreak || 0) > 0)
-      .sort((a, b) => (b.bestStreak || 0) - (a.bestStreak || 0))
-      .slice(0, 1)
-      .map(p => ({
-        name: p.name,
-        bestStreak: p.bestStreak,
-        gamesPlayed: p.gamesPlayed,
-      }));
-
-    // Longest game (by duration)
-    const longestGame = session.games
-      .filter(g => g.duration)
-      .sort((a, b) => (b.duration || 0) - (a.duration || 0))
-      .slice(0, 1)
-      .map(g => ({
-        gameNumber: g.gameNumber,
-        team1: `${g.team1Player1} & ${g.team1Player2 || ''}`,
-        team2: `${g.team2Player1} & ${g.team2Player2 || ''}`,
-        duration: g.duration,
-        score: `${g.team1FinalScore}-${g.team2FinalScore}`,
-      }));
-
-    // Closest game (smallest score margin)
-    const closestGame = session.games
-      .filter(g => g.status === 'COMPLETED')
-      .sort((a, b) => {
-        const marginA = Math.abs(a.team1FinalScore - a.team2FinalScore);
-        const marginB = Math.abs(b.team1FinalScore - b.team2FinalScore);
-        return marginA - marginB;
-      })
-      .slice(0, 1)
-      .map(g => ({
-        gameNumber: g.gameNumber,
-        team1: `${g.team1Player1} & ${g.team1Player2 || ''}`,
-        team2: `${g.team2Player1} & ${g.team2Player2 || ''}`,
-        score: `${g.team1FinalScore}-${g.team2FinalScore}`,
-        margin: Math.abs(g.team1FinalScore - g.team2FinalScore),
-      }));
-
-    // Session totals
-    const totalGames = session.games.length;
-    const totalMatches = session.matches.length;
-    const totalPlayers = allPlayers.length;
-    const activeCount = activePlayers.length;
-
-    // Average game duration
-    const gamesWithDuration = session.games.filter(g => g.duration);
-    const avgDuration = gamesWithDuration.length > 0
-      ? Math.round(gamesWithDuration.reduce((sum, g) => sum + (g.duration || 0), 0) / gamesWithDuration.length)
-      : 0;
-
-    res.json({
-      success: true,
-      data: {
-        sessionName: session.name,
-        sessionDate: session.scheduledAt,
-        location: session.location,
-        status: session.status,
-        sport: session.sport,
-        summary: {
-          totalGames,
-          totalMatches,
-          totalPlayers,
-          activePlayers: activeCount,
-          avgGameDuration: avgDuration,
-        },
-        mvp: mvp
-          ? {
-              name: mvp.name,
-              wins: mvp.wins,
-              gamesPlayed: mvp.gamesPlayed,
-              winRate: mvp.winRate,
-            }
-          : null,
-        topPerformers,
-        mostImproved: mostImproved.length > 0 ? mostImproved[0] : null,
-        longestGame: longestGame.length > 0 ? longestGame[0] : null,
-        closestGame: closestGame.length > 0 ? closestGame[0] : null,
-      },
-      message: 'Session recap generated',
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error('Session recap error:', error);
-    res.status(500).json({
-      success: false,
-      error: { code: 'INTERNAL_ERROR', message: 'Failed to generate session recap' },
-      timestamp: new Date().toISOString(),
-    });
   }
 });
 
