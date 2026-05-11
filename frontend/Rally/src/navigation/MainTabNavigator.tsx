@@ -28,6 +28,7 @@ import PairingScreen from '../screens/pairing/PairingScreen';
 import MatchSchedulingScreen from '../screens/MatchSchedulingScreen';
 import CreateMatchScreen from '../screens/CreateMatchScreen';
 import MatchDetailsScreen from '../screens/MatchDetailsScreen';
+import MatchHistoryScreen from '../screens/MatchHistoryScreen';
 import SessionSettingsScreen from '../screens/SessionSettingsScreen';
 
 // User Profile screens (Epic 4 Story 4.1)
@@ -189,6 +190,11 @@ function SessionsStackNavigator() {
         name="MatchDetails"
         component={MatchDetailsScreen}
         options={{ title: 'Match Details' }}
+      />
+      <SessionsStack.Screen
+        name="MatchHistory"
+        component={MatchHistoryScreen}
+        options={{ title: 'Match History' }}
       />
     </SessionsStack.Navigator>
   );

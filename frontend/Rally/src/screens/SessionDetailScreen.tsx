@@ -24,6 +24,8 @@ import { sessionApi } from '../services/sessionApi';
 import { StatusManager } from '../components/StatusManager';
 import { useTranslation } from '../i18n/LanguageContext';
 import { API_BASE_URL } from '../config/api';
+import { useNotificationManager } from '../hooks/useNotificationManager';
+import { InAppNotification } from '../components/InAppNotification';
 
 
 
@@ -133,6 +135,12 @@ export default function SessionDetailScreen() {
   const [isNewSession, setIsNewSession] = useState(false);
   const [deviceId, setDeviceId] = useState<string>('');
   const [isOwner, setIsOwner] = useState(false);
+
+  // Notification manager — connects socket listeners for this session
+  const { inAppNotification, dismissInAppNotification } = useNotificationManager({
+    shareCode,
+    deviceId,
+  });
   const [showAddPlayer, setShowAddPlayer] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
   const [showCreateGame, setShowCreateGame] = useState(false);
@@ -965,6 +973,10 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
 
   return (
     <ScrollView style={styles.container}>
+      <InAppNotification
+        notification={inAppNotification}
+        onDismiss={dismissInAppNotification}
+      />
       {isNewSession && (
         <View style={styles.successCard}>
           <Text style={styles.successTitle}>🎉 Session Created!</Text>

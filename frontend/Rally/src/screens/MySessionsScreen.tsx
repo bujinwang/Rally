@@ -159,9 +159,18 @@ export default function MySessionsScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>My Sessions</Text>
-        <TouchableOpacity style={styles.createButton} onPress={createNewSession}>
-          <Text style={styles.createButtonText}>+ Create New</Text>
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            style={styles.historyButton}
+            onPress={() => (navigation as any).navigate('MatchHistory')}
+          >
+            <Ionicons name="time-outline" size={16} color="#007AFF" />
+            <Text style={styles.historyButtonText}>History</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.createButton} onPress={createNewSession}>
+            <Text style={styles.createButtonText}>+ Create New</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView 
@@ -244,6 +253,25 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  historyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    gap: 4,
+  },
+  historyButtonText: {
+    color: '#007AFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   createButton: {
     backgroundColor: '#007AFF',
