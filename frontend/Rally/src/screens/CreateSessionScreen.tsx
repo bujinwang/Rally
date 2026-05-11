@@ -35,6 +35,7 @@ interface SessionFormData {
 
 interface PrefillData {
   location?: string;
+  sport?: string;
   invitePlayerNames?: string[];
   predictedDate?: string;
 }
@@ -66,6 +67,9 @@ export default function CreateSessionScreen() {
     if (prefill) {
       if (prefill.location) {
         setFormData(prev => ({ ...prev, location: prefill.location! }));
+      }
+      if (prefill.sport) {
+        setFormData(prev => ({ ...prev, sport: prefill.sport! }));
       }
       if (prefill.invitePlayerNames) {
         setInvitePlayerNames(prefill.invitePlayerNames);

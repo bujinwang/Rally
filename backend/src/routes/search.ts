@@ -51,7 +51,8 @@ router.get('/', searchValidation, async (req: Request, res: Response) => {
           { name: { contains: query, mode: 'insensitive' } },
           { location: { contains: query, mode: 'insensitive' } },
           { description: { contains: query, mode: 'insensitive' } },
-          { ownerName: { contains: query, mode: 'insensitive' } }
+          { ownerName: { contains: query, mode: 'insensitive' } },
+          { sport: { contains: query, mode: 'insensitive' } },
         ]
       };
 

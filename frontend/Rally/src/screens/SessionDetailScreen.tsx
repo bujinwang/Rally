@@ -1209,7 +1209,7 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
             {sessionData.players
               .filter(player => player.status !== 'LEFT')
               .filter(player => playerStatusFilter === 'ALL' || player.status === playerStatusFilter)
-              .filter(player => !playerSearch || player.name.toLowerCase().includes(playerSearch.toLowerCase()))
+              .filter(player => !playerSearch || player.name.toLowerCase().includes(playerSearch.toLowerCase()) || (player.preferredSports || []).some((s: string) => s.toLowerCase().includes(playerSearch.toLowerCase())))
               .sort((a, b) => {
                 if (playerSort === 'name') return a.name.localeCompare(b.name);
                 if (playerSort === 'games') return (b.gamesPlayed || 0) - (a.gamesPlayed || 0);

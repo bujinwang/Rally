@@ -21,6 +21,7 @@ router.get('/', async (req: Request, res: Response) => {
       minPlayers,
       maxPlayers,
       courtType,
+      sport,
       limit,
       offset
     } = req.query;
@@ -37,6 +38,7 @@ router.get('/', async (req: Request, res: Response) => {
     if (minPlayers) filters.minPlayers = parseInt(minPlayers as string);
     if (maxPlayers) filters.maxPlayers = parseInt(maxPlayers as string);
     if (courtType) filters.courtType = courtType as string;
+    if (sport) filters.sport = sport as string;
     if (location) filters.location = location as string;
     if (limit) filters.limit = parseInt(limit as string);
     if (offset) filters.offset = parseInt(offset as string);
