@@ -29,6 +29,7 @@ import MatchSchedulingScreen from '../screens/MatchSchedulingScreen';
 import CreateMatchScreen from '../screens/CreateMatchScreen';
 import MatchDetailsScreen from '../screens/MatchDetailsScreen';
 import MatchHistoryScreen from '../screens/MatchHistoryScreen';
+import GolfScorecardScreen from '../screens/GolfScorecardScreen';
 import SessionSettingsScreen from '../screens/SessionSettingsScreen';
 
 // User Profile screens (Epic 4 Story 4.1)
@@ -195,6 +196,11 @@ function SessionsStackNavigator() {
         name="MatchHistory"
         component={MatchHistoryScreen}
         options={{ title: 'Match History' }}
+      />
+      <SessionsStack.Screen
+        name="GolfScorecard"
+        component={GolfScorecardScreen}
+        options={{ title: '⛳ Golf Scorecard' }}
       />
     </SessionsStack.Navigator>
   );

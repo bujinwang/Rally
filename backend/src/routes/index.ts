@@ -28,6 +28,9 @@ import matchSchedulingRoutes from './matchScheduling';
 import sessionInsightsRoutes from './sessionInsights';
 import sessionCostRoutes from './sessionCosts';
 import clubRoutes from './clubs';
+// Golf routes — scoring, betting, handicaps
+import golfRoutes from './golf';
+
 // Equipment routes — equipment inventory, reservations, maintenance
 import equipmentRoutes from './equipment';
 // Court booking routes disabled (depends on payment service)
@@ -105,6 +108,8 @@ router.use('/session-costs', sessionCostRoutes);
 console.log('  - /clubs');
 router.use('/clubs', clubRoutes);
 // Equipment routes — inventory, reservations, check-out/return, maintenance
+console.log('  - /golf');
+router.use('/golf', golfRoutes);
 console.log('  - /equipment');
 router.use('/equipment', equipmentRoutes);
 // Court booking routes disabled (not part of MVP)
