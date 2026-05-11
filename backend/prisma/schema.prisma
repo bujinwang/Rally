@@ -781,6 +781,7 @@ model SessionPlayer {
 enum UserRole {
   OWNER
   PLAYER
+  ADMIN
 }
 
 enum SessionStatus {
