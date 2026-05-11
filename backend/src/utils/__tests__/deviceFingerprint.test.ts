@@ -1,4 +1,4 @@
-import { generateDeviceFingerprint } from '../../utils/deviceFingerprint';
+import { generateDeviceFingerprint } from '../deviceFingerprint';
 
 describe('deviceFingerprint', () => {
   const mockReq = (overrides: any = {}) => ({

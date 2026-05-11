@@ -1,4 +1,4 @@
-import { validate } from '../../utils/validation';
+import { validate } from '../validation';
 import Joi from 'joi';
 import express from 'express';
 

@@ -13468,3 +13468,4 @@ backend/dist/utils/privacyMiddleware.d.ts
 backend/dist/utils/privacyMiddleware.d.ts.map
 backend/dist/utils/privacyMiddleware.js
 backend/dist/utils/privacyMiddleware.js.map
+backend/coverage/
