@@ -10,6 +10,7 @@ export interface CreateSessionRequest {
   organizerName: string;
   sport?: string; // badminton, pickleball, tennis, table_tennis, volleyball, guandan, hiking
   invitePlayerNames?: string[];
+  ownerDeviceId?: string; // device that owns/manages the session (organizer identity)
 }
 
 export interface SessionData {
@@ -82,10 +83,14 @@ class SessionApiService {
     this.baseUrl = API_BASE_URL;
   }
 
-  // Get common headers for API requests
-  private getHeaders(): HeadersInit {
+  // Get common headers for API requests. Always include the device id so
+  // device-gated (organizer) endpoints can identify the caller; several
+  // organizer routes reject requests that carry no device identity.
+  private async getHeaders(): Promise<HeadersInit> {
+    const deviceId = await this.getDeviceId();
     return {
       'Content-Type': 'application/json',
+      'x-device-id': deviceId,
     };
   }
 
@@ -106,14 +111,19 @@ class SessionApiService {
   // Create a new session
   async createSession(sessionRequest: CreateSessionRequest): Promise<SessionResponse> {
     try {
+      // The creator must be recorded as the owner device, otherwise the
+      // organizer loses all owner-gated controls (settings, manage players,
+      // terminate) and the ownership-claim fallback cannot recover it.
+      const deviceId = sessionRequest.ownerDeviceId || await this.getDeviceId();
       const requestData = {
         ...sessionRequest,
+        ownerDeviceId: deviceId,
         maxPlayers: sessionRequest.maxPlayers || 20,
       };
 
       const response = await fetch(`${this.baseUrl}/mvp-sessions`, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
         body: JSON.stringify(requestData),
       });
 
@@ -129,7 +139,7 @@ class SessionApiService {
     try {
       const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}`, {
         method: 'GET',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
       });
 
       return this.handleResponse<SessionResponse>(response);
@@ -144,7 +154,7 @@ class SessionApiService {
     try {
       const response = await fetch(`${this.baseUrl}/mvp-sessions?status=ACTIVE&limit=50`, {
         method: 'GET',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
       });
 
       return this.handleResponse<SessionsListResponse>(response);
@@ -161,7 +171,7 @@ class SessionApiService {
       
       const response = await fetch(`${this.baseUrl}/mvp-sessions/my-sessions/${deviceId}`, {
         method: 'GET',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
       });
 
       return this.handleResponse<SessionsListResponse>(response);
@@ -178,7 +188,7 @@ class SessionApiService {
       
       const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}/join`, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
         body: JSON.stringify({
           name: playerName,
           deviceId: deviceId,
@@ -199,7 +209,7 @@ class SessionApiService {
       
       const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}/leave`, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
         body: JSON.stringify({
           deviceId: deviceId,
         }),
@@ -217,7 +227,7 @@ class SessionApiService {
     try {
       const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}`, {
         method: 'PUT',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
         body: JSON.stringify(updates),
       });
 
@@ -233,7 +243,7 @@ class SessionApiService {
     try {
       const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}`, {
         method: 'PUT',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
         body: JSON.stringify({ status }),
       });
 
@@ -260,7 +270,7 @@ class SessionApiService {
     try {
       const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}/games`, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
         body: JSON.stringify(gameData),
       });
 
@@ -279,7 +289,7 @@ class SessionApiService {
     try {
       const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}/games/${gameId}/score`, {
         method: 'PUT',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
         body: JSON.stringify(scores),
       });
 
@@ -303,7 +313,7 @@ class SessionApiService {
     try {
       const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}/players/${playerId}/check-in`, {
         method: 'PUT',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
       });
       return this.handleResponse<ApiResponse<any>>(response);
     } catch (error) {
@@ -317,7 +327,7 @@ class SessionApiService {
     try {
       const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}/players/${playerId}/check-out`, {
         method: 'PUT',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
       });
       return this.handleResponse<ApiResponse<any>>(response);
     } catch (error) {
@@ -331,7 +341,7 @@ class SessionApiService {
     try {
       const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}/check-in-summary`, {
         method: 'GET',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
       });
       return this.handleResponse<ApiResponse<any>>(response);
     } catch (error) {
@@ -345,7 +355,7 @@ class SessionApiService {
     try {
       const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}/games/${gameId}`, {
         method: 'DELETE',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
       });
 
       return this.handleResponse<ApiResponse<null>>(response);
@@ -493,7 +503,7 @@ class SessionApiService {
       const deviceId = await this.getDeviceId();
       const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}`, {
         method: 'PUT',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
         body: JSON.stringify({ ownerDeviceId: deviceId }),
       });
 

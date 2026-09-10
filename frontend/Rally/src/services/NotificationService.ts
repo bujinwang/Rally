@@ -54,17 +54,22 @@ class NotificationService {
         return null;
       }
 
-      // Get push token (for production push notifications)
-      if (Platform.OS !== 'web') {
-        const token = await Notifications.getExpoPushTokenAsync({
-          projectId: process.env.EXPO_PUBLIC_PROJECT_ID || 'your-expo-project-id',
-        });
+      // Get push token (for production push notifications).
+      // Requires an EAS project id (a UUID); when it is not configured we skip
+      // token registration entirely instead of calling the API with a bogus id.
+      const projectId = process.env.EXPO_PUBLIC_PROJECT_ID;
+      const hasValidProjectId = !!projectId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId);
+
+      if (Platform.OS !== 'web' && hasValidProjectId) {
+        const token = await Notifications.getExpoPushTokenAsync({ projectId });
         this.pushToken = token.data;
-        
+
         // Save token to AsyncStorage
         await AsyncStorage.setItem('push_token', this.pushToken);
-        
+
         console.log('Push notification token:', this.pushToken);
+      } else if (Platform.OS !== 'web') {
+        console.warn('Push notifications disabled: EXPO_PUBLIC_PROJECT_ID is not a valid UUID');
       }
 
       // Setup notification listeners

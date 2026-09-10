@@ -56,12 +56,86 @@ export const hasPermission = (role: PlayerRole, action: PermissionAction): boole
   return PERMISSION_MATRIX[role][permissionKey] as boolean;
 };
 
+// Middleware to authorize the session organizer identified by device, keyed on
+// a :sessionId route param. Falls back to an authenticated OWNER/ORGANIZER user.
+export const requireSessionOwner = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { sessionId } = req.params;
+    const deviceId =
+      req.body?.deviceId ||
+      (req.headers?.['x-device-id'] as string);
+
+    // ownerDeviceId is no longer accepted from query params for security
+    // It should only be sent in the request body
+
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'MISSING_SESSION_ID', message: 'Session id is required' },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const session = await prisma.mvpSession.findUnique({ where: { id: sessionId } });
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const requesterDevice = deviceId;
+    if (requesterDevice && session.ownerDeviceId === requesterDevice) {
+      return next();
+    }
+
+    const role = (req as Request & { user?: { role?: string } }).user?.role;
+    if (role === 'OWNER' || role === 'ORGANIZER') {
+      return next();
+    }
+
+    return res.status(403).json({
+      success: false,
+      error: { code: 'FORBIDDEN', message: 'Only the session organizer can modify its configuration' },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('requireSessionOwner error:', error);
+    return res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to authorize organizer' },
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
 // Middleware to check if user has required role for a session
 export const requireRole = (requiredRole: PlayerRole, action: PermissionAction) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { shareCode } = req.params;
-      const { deviceId, ownerDeviceId } = req.body;
+      // Device identity can arrive in the body (POST/PUT) only; query params
+      // are no longer accepted for device identity security.
+      const deviceId =
+        req.body?.deviceId ||
+        (req.headers?.['x-device-id'] as string);
+
+      // ownerDeviceId is no longer accepted from query params for security
+      // const ownerDeviceId = ... (removed)
+
+      // Without any device identity the player lookup would match every player
+      // in the session (Prisma drops undefined filters), so reject instead.
+      if (!deviceId) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'MISSING_DEVICE_ID',
+            message: 'Device identifier is required'
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
 
       if (!shareCode) {
         return res.status(400).json({
@@ -80,7 +154,7 @@ export const requireRole = (requiredRole: PlayerRole, action: PermissionAction) 
         include: {
           players: {
             where: {
-              deviceId: deviceId || ownerDeviceId
+              deviceId: deviceId
             }
           }
         }
@@ -170,7 +244,7 @@ export const requireOrganizerOrSelf = (action: PermissionAction) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { shareCode, playerId } = req.params;
-      const { deviceId, ownerDeviceId } = req.body;
+      const { deviceId } = req.body;
 
       if (!shareCode) {
         return res.status(400).json({
@@ -203,7 +277,7 @@ export const requireOrganizerOrSelf = (action: PermissionAction) => {
       }
 
       // Find the requesting player
-      const requestingPlayer = session.players.find(p => p.deviceId === deviceId || p.deviceId === ownerDeviceId);
+      const requestingPlayer = session.players.find(p => p.deviceId === deviceId);
       const targetPlayer = session.players.find(p => p.id === playerId);
 
       if (!requestingPlayer) {

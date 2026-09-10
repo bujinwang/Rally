@@ -2,7 +2,7 @@ import express, { Response } from 'express';
 import { body, param, validationResult } from 'express-validator';
 import { SessionConfigService } from '../services/sessionConfigService';
 import { SessionConfiguration, DEFAULT_SESSION_CONFIG } from '../types/sessionConfig';
-import { requireRole } from '../middleware/auth';
+import { requireSessionOwner } from '../middleware/permissions';
 
 interface AuthRequest extends express.Request {
   user?: {
@@ -36,7 +36,8 @@ const validateConfiguration = [
 ];
 
 const validateSessionId = [
-  param('sessionId').isUUID().withMessage('Invalid session ID format'),
+  // Session ids are cuids, not UUIDs, so only require a non-empty string.
+  param('sessionId').isString().trim().notEmpty().withMessage('Invalid session ID format'),
 ];
 
 /**
@@ -79,7 +80,7 @@ router.get(
  */
 router.put(
   '/sessions/:sessionId/config',
-  requireRole(['OWNER', 'ORGANIZER']),
+  requireSessionOwner,
   validateSessionId,
   validateConfiguration,
   async (req: AuthRequest, res: Response) => {
@@ -118,7 +119,7 @@ router.put(
  */
 router.delete(
   '/sessions/:sessionId/config',
-  requireRole(['OWNER', 'ORGANIZER']),
+  requireSessionOwner,
   validateSessionId,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -214,7 +215,7 @@ router.get('/config/presets', async (req: AuthRequest, res: Response) => {
  */
 router.post(
   '/sessions/:sessionId/config/preset/:presetName',
-  requireRole(['OWNER', 'ORGANIZER']),
+  requireSessionOwner,
   validateSessionId,
   async (req: AuthRequest, res: Response) => {
     try {

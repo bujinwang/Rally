@@ -197,6 +197,77 @@ class DiscoveryApiService {
   }
 
   /**
+   * Get personalized session recommendations for a device
+   */
+  async getRecommendedSessions(
+    deviceId: string,
+    userLocation?: { latitude: number; longitude: number },
+    limit: number = 10
+  ): Promise<DiscoveryResult[]> {
+    try {
+      const queryParams = new URLSearchParams();
+
+      if (userLocation) {
+        queryParams.append('latitude', userLocation.latitude.toString());
+        queryParams.append('longitude', userLocation.longitude.toString());
+      }
+      queryParams.append('limit', limit.toString());
+
+      const url = `${this.baseUrl}/recommended/${deviceId}?${queryParams.toString()}`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const result: ApiResponse<DiscoveryResult[]> = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Failed to get recommendations');
+      }
+
+      return result.data!;
+    } catch (error) {
+      console.error('Get recommendations API error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get sessions near a coordinate, sorted by proximity
+   */
+  async getNearbySessions(
+    location: { latitude: number; longitude: number },
+    radius: number = 50,
+    limit: number = 20
+  ): Promise<DiscoveryResult[]> {
+    try {
+      const queryParams = new URLSearchParams({
+        latitude: location.latitude.toString(),
+        longitude: location.longitude.toString(),
+        radius: radius.toString(),
+        limit: limit.toString(),
+      });
+
+      const url = `${this.baseUrl}/nearby?${queryParams.toString()}`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const result: ApiResponse<{ sessions: DiscoveryResult[]; totalCount: number }> = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Failed to get nearby sessions');
+      }
+
+      return result.data!.sessions || [];
+    } catch (error) {
+      console.error('Get nearby sessions API error:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get detailed session information for discovery
    */
   async getSessionDetails(sessionId: string, userLocation?: { latitude: number; longitude: number }): Promise<DiscoveryResult> {

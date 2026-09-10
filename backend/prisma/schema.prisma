@@ -287,10 +287,6 @@ model MvpPlayer {
   rankingHistory PlayerRankingHistory[]
 
   // Social Features Relations
-  sentFriendRequests     FriendRequest[] @relation("FriendRequestSender")
-  receivedFriendRequests FriendRequest[] @relation("FriendRequestReceiver")
-  friendsAsPlayer        Friend[]        @relation("FriendPlayer")
-  friendsAsFriend        Friend[]        @relation("FriendFriend")
   sentChallenges         Challenge[]     @relation("ChallengeChallenger")
   receivedChallenges     Challenge[]     @relation("ChallengeChallenged")
 
@@ -704,6 +700,12 @@ model User {
   socialConnections SocialConnection[]
   userSettings   UserSettings?
   sentMessages   Message[]        @relation("MessageSender")
+
+  // Social Features Relations
+  sentFriendRequests     FriendRequest[] @relation("FriendRequestSender")
+  receivedFriendRequests FriendRequest[] @relation("FriendRequestReceiver")
+  friendsAsPlayer        Friend[]        @relation("FriendPlayer")
+  friendsAsFriend        Friend[]        @relation("FriendFriend")
 
   @@map("users")
 }
@@ -1323,8 +1325,8 @@ model Friend {
   acceptedAt  DateTime?
 
   // Relations
-  player MvpPlayer @relation("FriendPlayer", fields: [playerId], references: [id], onDelete: Cascade)
-  friend MvpPlayer @relation("FriendFriend", fields: [friendId], references: [id], onDelete: Cascade)
+  player   User @relation("FriendPlayer", fields: [playerId], references: [id], onDelete: Cascade)
+  friend   User @relation("FriendFriend", fields: [friendId], references: [id], onDelete: Cascade)
 
   @@unique([playerId, friendId])
   @@index([playerId])
@@ -1345,8 +1347,8 @@ model FriendRequest {
   respondedAt DateTime?
 
   // Relations
-  sender   MvpPlayer @relation("FriendRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver MvpPlayer @relation("FriendRequestReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  sender   User @relation("FriendRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("FriendRequestReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
 
   @@unique([senderId, receiverId])
   @@index([senderId])

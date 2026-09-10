@@ -1,4 +1,6 @@
 import { API_BASE_URL } from '../config/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import DeviceService from './deviceService';
 import { SessionConfiguration, DEFAULT_SESSION_CONFIG } from '../types/sessionConfig';
 
 export interface ConfigurationValidationResult {
@@ -31,15 +33,28 @@ export class SessionConfigApiService {
   private static baseUrl = `${API_BASE_URL}/sessions/config`;
 
   /**
+   * Get authentication headers with JWT token.
+   * Config write endpoints require an authenticated user or the session owner
+   * device, so the device id is sent alongside the token.
+   */
+  private static async getAuthHeaders(): Promise<HeadersInit> {
+    const token = await AsyncStorage.getItem('accessToken');
+    const deviceId = await DeviceService.getDeviceId();
+    return {
+      'Content-Type': 'application/json',
+      'x-device-id': deviceId,
+      ...(token && { Authorization: `Bearer ${token}` }),
+    };
+  }
+
+  /**
    * Get session configuration
    */
   static async getConfiguration(sessionId: string): Promise<SessionConfiguration> {
     try {
       const response = await fetch(`${this.baseUrl}/sessions/${sessionId}/config`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: await SessionConfigApiService.getAuthHeaders(),
       });
 
       const result: ApiResponse<SessionConfiguration> = await response.json();
@@ -65,9 +80,7 @@ export class SessionConfigApiService {
     try {
       const response = await fetch(`${this.baseUrl}/sessions/${sessionId}/config`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: await SessionConfigApiService.getAuthHeaders(),
         body: JSON.stringify(config),
       });
 
@@ -91,9 +104,7 @@ export class SessionConfigApiService {
     try {
       const response = await fetch(`${this.baseUrl}/sessions/${sessionId}/config`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: await SessionConfigApiService.getAuthHeaders(),
       });
 
       const result: ApiResponse<SessionConfiguration> = await response.json();
@@ -119,9 +130,7 @@ export class SessionConfigApiService {
     try {
       const response = await fetch(`${this.baseUrl}/sessions/${sessionId}/config/validate`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: await SessionConfigApiService.getAuthHeaders(),
         body: JSON.stringify(config),
       });
 
@@ -145,9 +154,7 @@ export class SessionConfigApiService {
     try {
       const response = await fetch(`${this.baseUrl}/presets`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: await SessionConfigApiService.getAuthHeaders(),
       });
 
       const result: ApiResponse<ConfigurationPreset> = await response.json();
@@ -173,9 +180,7 @@ export class SessionConfigApiService {
     try {
       const response = await fetch(`${this.baseUrl}/sessions/${sessionId}/config/preset/${presetName}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: await SessionConfigApiService.getAuthHeaders(),
       });
 
       const result: ApiResponse<SessionConfiguration> = await response.json();
