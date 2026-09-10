@@ -97,6 +97,14 @@ export const refreshToken = createAsyncThunk(
   }
 );
 
+// The API envelope is double-wrapped: the backend returns
+// `{ success, data: { user, tokens } }` and apiService wraps the whole body
+// again as `{ success, data: <body> }`. Accept either shape.
+const extractAuthPayload = (payload: any): { user: User | null; tokens: Tokens | null } => ({
+  user: payload?.data?.user ?? payload?.user ?? null,
+  tokens: payload?.data?.tokens ?? payload?.tokens ?? null,
+});
+
 // Slice
 const authSlice = createSlice({
   name: 'auth',
@@ -139,16 +147,17 @@ const authSlice = createSlice({
         state.error = null;
       })
       .addCase(loginUser.fulfilled, (state, action) => {
+        const { user, tokens } = extractAuthPayload(action.payload);
         state.isLoading = false;
-        state.user = action.payload?.user;
-        state.tokens = action.payload?.tokens;
+        state.user = user;
+        state.tokens = tokens;
         state.isAuthenticated = true;
         state.error = null;
 
         // Store tokens
-        if (action.payload?.tokens) {
-          AsyncStorage.setItem('accessToken', action.payload.tokens.accessToken);
-          AsyncStorage.setItem('refreshToken', action.payload.tokens.refreshToken);
+        if (tokens) {
+          AsyncStorage.setItem('accessToken', tokens.accessToken);
+          AsyncStorage.setItem('refreshToken', tokens.refreshToken);
         }
       })
       .addCase(loginUser.rejected, (state, action) => {
@@ -163,16 +172,17 @@ const authSlice = createSlice({
         state.error = null;
       })
       .addCase(registerUser.fulfilled, (state, action) => {
+        const { user, tokens } = extractAuthPayload(action.payload);
         state.isLoading = false;
-        state.user = action.payload?.user;
-        state.tokens = action.payload?.tokens;
+        state.user = user;
+        state.tokens = tokens;
         state.isAuthenticated = true;
         state.error = null;
 
         // Store tokens
-        if (action.payload?.tokens) {
-          AsyncStorage.setItem('accessToken', action.payload.tokens.accessToken);
-          AsyncStorage.setItem('refreshToken', action.payload.tokens.refreshToken);
+        if (tokens) {
+          AsyncStorage.setItem('accessToken', tokens.accessToken);
+          AsyncStorage.setItem('refreshToken', tokens.refreshToken);
         }
       })
       .addCase(registerUser.rejected, (state, action) => {
