@@ -1,6 +1,6 @@
 jest.mock('../../config/database', () => ({
   prisma: {
-    mvpPlayer: { findUnique: jest.fn(), findMany: jest.fn() },
+    user: { findUnique: jest.fn(), findMany: jest.fn() },
     friend: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), findMany: jest.fn(), count: jest.fn(), update: jest.fn() },
     friendRequest: { findFirst: jest.fn(), create: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
     $transaction: jest.fn().mockResolvedValue([{}, {}]),
@@ -17,7 +17,7 @@ describe('FriendService', () => {
 
   describe('sendFriendRequest', () => {
     it('sends friend request successfully', async () => {
-      (prisma.mvpPlayer.findUnique as jest.Mock)
+      (prisma.user.findUnique as jest.Mock)
         .mockResolvedValueOnce({ id: 'sender', name: 'David' })
         .mockResolvedValueOnce({ id: 'receiver', name: 'Kevin' });
       (prisma.friend.findFirst as jest.Mock).mockResolvedValue(null);
@@ -38,14 +38,14 @@ describe('FriendService', () => {
     });
 
     it('throws when sender not found', async () => {
-      (prisma.mvpPlayer.findUnique as jest.Mock).mockResolvedValueOnce(null);
+      (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce(null);
       await expect(
         FriendService.sendFriendRequest({ senderId: 'bad', receiverId: 'r1' })
       ).rejects.toThrow('Sender or receiver not found');
     });
 
     it('throws when already friends', async () => {
-      (prisma.mvpPlayer.findUnique as jest.Mock)
+      (prisma.user.findUnique as jest.Mock)
         .mockResolvedValueOnce({ id: 's1' }).mockResolvedValueOnce({ id: 'r1' });
       (prisma.friend.findFirst as jest.Mock).mockResolvedValue({ id: 'f1', status: 'ACCEPTED' });
 
@@ -55,7 +55,7 @@ describe('FriendService', () => {
     });
 
     it('throws when blocked', async () => {
-      (prisma.mvpPlayer.findUnique as jest.Mock)
+      (prisma.user.findUnique as jest.Mock)
         .mockResolvedValueOnce({ id: 's1' }).mockResolvedValueOnce({ id: 'r1' });
       (prisma.friend.findFirst as jest.Mock).mockResolvedValue({ id: 'f1', status: 'BLOCKED' });
 
@@ -117,8 +117,8 @@ describe('FriendService', () => {
       (prisma.friend.findMany as jest.Mock).mockResolvedValue([
         { id: 'f1', playerId: 'u1', friendId: 'u2', status: 'ACCEPTED',
           requestedAt: new Date(), acceptedAt: new Date(),
-          player: { id: 'u1', name: 'David', status: 'ACTIVE' },
-          friend: { id: 'u2', name: 'Kevin', status: 'ACTIVE' } },
+          player: { id: 'u1', name: 'David', avatarUrl: null },
+          friend: { id: 'u2', name: 'Kevin', avatarUrl: null } },
       ]);
 
       const result = await FriendService.getFriends('u1');

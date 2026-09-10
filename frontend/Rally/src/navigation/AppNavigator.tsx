@@ -14,20 +14,17 @@ import RegisterScreen from '../screens/auth/RegisterScreen';
 const Stack = createNativeStackNavigator();
 
 const linking = {
-  prefixes: ['badmintongroup://', 'https://badmintongroup.app'],
+  prefixes: ['rallyapp://', 'https://badminton-group.app', 'https://badmintongroup.app'],
   config: {
     screens: {
       Main: {
         screens: {
-          CreateSession: {
+          Home: {
             screens: {
               CreateSession: 'create',
-              JoinSession: {
-                path: '/join/:shareCode',
-                parse: {
-                  shareCode: (shareCode: string) => shareCode,
-                },
-              },
+              JoinSession: 'join/:shareCode',
+              SessionRecap: 'session/:shareCode/recap',
+              SessionDiscovery: 'discover',
             },
           },
         },

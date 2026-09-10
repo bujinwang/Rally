@@ -56,9 +56,9 @@ export class FriendService {
   static async sendFriendRequest(data: SendFriendRequestData): Promise<FriendRequestWithDetails> {
     const { senderId, receiverId, message } = data;
 
-    // Look up players by ID (supports both MvpSession deviceId-based and User auth-based identity)
-    const sender = await prisma.mvpPlayer.findUnique({ where: { id: senderId } });
-    const receiver = await prisma.mvpPlayer.findUnique({ where: { id: receiverId } });
+    // Look up users by ID (friend graph is User-based; auth supplies req.user.id)
+    const sender = await prisma.user.findUnique({ where: { id: senderId } });
+    const receiver = await prisma.user.findUnique({ where: { id: receiverId } });
 
     if (!sender || !receiver) {
       throw new Error('Sender or receiver not found');
@@ -108,23 +108,20 @@ export class FriendService {
           select: {
             id: true,
             name: true,
-            // avatarUrl: true // MvpPlayer doesn't have avatarUrl, need to link to User
+            avatarUrl: true,
           }
         },
         receiver: {
           select: {
             id: true,
             name: true,
+            avatarUrl: true,
           }
         }
       }
     });
 
-    return {
-      ...friendRequest,
-      sender: { ...friendRequest.sender, avatarUrl: null },
-      receiver: { ...friendRequest.receiver, avatarUrl: null }
-    };
+    return friendRequest;
   }
 
   /**
@@ -213,13 +210,15 @@ export class FriendService {
         sender: {
           select: {
             id: true,
-            name: true
+            name: true,
+            avatarUrl: true
           }
         },
         receiver: {
           select: {
             id: true,
-            name: true
+            name: true,
+            avatarUrl: true
           }
         }
       },
@@ -228,11 +227,7 @@ export class FriendService {
       }
     });
 
-    return requests.map(req => ({
-      ...req,
-      sender: { ...req.sender, avatarUrl: null },
-      receiver: { ...req.receiver, avatarUrl: null }
-    }));
+    return requests;
   }
 
   /**
@@ -252,14 +247,14 @@ export class FriendService {
           select: {
             id: true,
             name: true,
-            status: true
+            avatarUrl: true
           }
         },
         friend: {
           select: {
             id: true,
             name: true,
-            status: true
+            avatarUrl: true
           }
         }
       }
@@ -269,7 +264,7 @@ export class FriendService {
     return friendships.map(friendship => {
       const isPlayer = friendship.playerId === userId;
       const friendData = isPlayer ? friendship.friend : friendship.player;
-      
+
       return {
         id: friendship.id,
         playerId: friendship.playerId,
@@ -280,8 +275,9 @@ export class FriendService {
         friend: {
           id: friendData.id,
           name: friendData.name,
-          avatarUrl: null,
-          status: friendData.status
+          avatarUrl: friendData.avatarUrl,
+          // Users have no presence status; surface a stable default for the UI
+          status: 'ACTIVE'
         }
       };
     });
@@ -404,7 +400,8 @@ export class FriendService {
         friend: {
           select: {
             id: true,
-            name: true
+            name: true,
+            avatarUrl: true
           }
         }
       }
@@ -414,7 +411,7 @@ export class FriendService {
       id: b.id,
       userId: b.friendId,
       name: b.friend.name,
-      avatarUrl: null,
+      avatarUrl: b.friend.avatarUrl,
       blockedAt: b.requestedAt
     }));
   }
@@ -494,8 +491,8 @@ export class FriendService {
     // Exclude current user, friends, and blocked users
     const excludeIds = [userId, ...friendIds, ...blockedIds];
 
-    // Find users from same sessions (mutual session attendance)
-    const suggestions = await prisma.mvpPlayer.findMany({
+    // Find candidate users to suggest
+    const suggestions = await prisma.user.findMany({
       where: {
         id: {
           notIn: excludeIds
@@ -504,13 +501,12 @@ export class FriendService {
       select: {
         id: true,
         name: true,
-        gamesPlayed: true,
-        wins: true,
-        winRate: true
+        avatarUrl: true,
+        skillLevel: true
       },
       take: limit,
       orderBy: {
-        gamesPlayed: 'desc' // Suggest active players
+        createdAt: 'desc'
       }
     });
 
@@ -542,10 +538,10 @@ export class FriendService {
         return {
           id: s.id,
           name: s.name,
-          avatarUrl: null,
-          mutualFriends: mutualCount,
-          gamesPlayed: s.gamesPlayed,
-          winRate: s.winRate
+          // email removed for privacy - use avatarUrl for identification
+          avatarUrl: s.avatarUrl,
+          skillLevel: s.skillLevel,
+          mutualFriends: mutualCount
         };
       })
     );

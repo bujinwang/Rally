@@ -110,6 +110,88 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/sessions/discovery/recommended/:deviceId
+ * Get personalized session recommendations for a device
+ */
+router.get('/recommended/:deviceId', async (req: Request, res: Response) => {
+  try {
+    const { deviceId } = req.params;
+    const { latitude, longitude, limit } = req.query;
+
+    const recommendations = await DiscoveryService.getRecommendedSessions(
+      deviceId,
+      latitude ? parseFloat(latitude as string) : undefined,
+      longitude ? parseFloat(longitude as string) : undefined,
+      limit ? parseInt(limit as string) : 10
+    );
+
+    res.json({
+      success: true,
+      data: recommendations,
+      message: 'Recommendations retrieved successfully',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Get recommendations error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to get recommendations'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * GET /api/sessions/discovery/nearby
+ * Get sessions near a coordinate, sorted by proximity
+ * NOTE: registered before '/:sessionId' so it is not captured as a session id
+ */
+router.get('/nearby', async (req: Request, res: Response) => {
+  try {
+    const { latitude, longitude, radius, limit } = req.query;
+
+    if (!latitude || !longitude) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'latitude and longitude are required'
+        }
+      });
+    }
+
+    const sessions = await DiscoveryService.getNearbySessions(
+      parseFloat(latitude as string),
+      parseFloat(longitude as string),
+      radius ? parseFloat(radius as string) : 50,
+      limit ? parseInt(limit as string) : 20
+    );
+
+    res.json({
+      success: true,
+      data: { sessions, totalCount: sessions.length },
+      message: 'Nearby sessions retrieved successfully',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Get nearby sessions error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to get nearby sessions'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
  * GET /api/sessions/discovery/:sessionId
  * Get detailed session information for discovery
  */

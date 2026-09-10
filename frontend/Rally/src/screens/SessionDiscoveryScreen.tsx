@@ -78,9 +78,12 @@ const SessionDiscoveryScreen: React.FC = () => {
   const loadRecommended = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch(`http://localhost:3001/api/v1/sessions/discovery/recommended/${deviceId}?latitude=${location?.latitude || ''}&longitude=${location?.longitude || ''}&limit=10`);
-      const data = await res.json();
-      if (data.success) setRecommended(data.data);
+      const results = await discoveryApi.getRecommendedSessions(
+        deviceId,
+        location || undefined,
+        10
+      );
+      setRecommended(results);
     } catch (e) {
       console.warn('Recommendations failed:', e);
     } finally {
@@ -93,9 +96,12 @@ const SessionDiscoveryScreen: React.FC = () => {
     try {
       setLoading(true);
       if (!location) return;
-      const res = await fetch(`http://localhost:3001/api/v1/sessions/discovery/nearby?latitude=${location.latitude}&longitude=${location.longitude}&radius=10`);
-      const data = await res.json();
-      if (data.success) setNearby(data.data.sessions || []);
+      const results = await discoveryApi.getNearbySessions(
+        { latitude: location.latitude, longitude: location.longitude },
+        10,
+        20
+      );
+      setNearby(results);
     } catch (e) {
       console.warn('Nearby failed:', e);
     } finally {

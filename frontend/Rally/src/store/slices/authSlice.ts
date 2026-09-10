@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiService } from '../../services/apiService';
+import { API_BASE_URL } from '../../config/api';
 
 // Types
 interface User {
@@ -78,7 +79,7 @@ export const refreshToken = createAsyncThunk(
         throw new Error('No refresh token available');
       }
 
-      const response = await fetch('/api/v1/auth/refresh', {
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

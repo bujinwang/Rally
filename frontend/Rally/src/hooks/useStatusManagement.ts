@@ -1,5 +1,7 @@
 import { useEffect, useCallback, useState } from 'react';
 import socketService from '../services/socketService';
+import DeviceService from '../services/deviceService';
+import { API_BASE_URL } from '../config/api';
 import { Player } from '../components/design-system/Card/PlayerCard.types';
 
 interface StatusRequest {
@@ -182,7 +184,7 @@ export const useStatusManagement = ({
     reason?: string
   ) => {
     try {
-      const response = await fetch(`/api/v1/player-status/${playerId}/status`, {
+      const response = await fetch(`${API_BASE_URL}/player-status/${playerId}/status`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -214,7 +216,7 @@ export const useStatusManagement = ({
     reason?: string
   ) => {
     try {
-      const response = await fetch(`/api/v1/player-status/approve/${requestId}`, {
+      const response = await fetch(`${API_BASE_URL}/player-status/approve/${requestId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -242,10 +244,12 @@ export const useStatusManagement = ({
   // Get pending requests for organizer
   const getPendingRequests = useCallback(async (shareCode: string) => {
     try {
-      const response = await fetch(`/api/v1/player-status/pending/${shareCode}`, {
+      const deviceId = await DeviceService.getDeviceId();
+      const response = await fetch(`${API_BASE_URL}/player-status/pending/${shareCode}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'x-device-id': deviceId,
         },
       });
 

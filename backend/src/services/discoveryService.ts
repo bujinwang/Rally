@@ -18,6 +18,7 @@ export interface DiscoveryFilters {
   courtType?: string;
   limit?: number;
   offset?: number;
+  visibility?: string;
 }
 
 export interface DiscoveryResult {
@@ -147,21 +148,25 @@ export class DiscoveryService {
       const {
         latitude,
         longitude,
-        radius = 50, // Default 50km radius
+        // radius and limit have defaults handled below
         startTime,
         endTime,
         skillLevel,
         minPlayers,
         maxPlayers,
         courtType,
-        limit = 20,
+        // limit and offset destructured but clamped below
         offset = 0
       } = filters;
+
+      // Parse and clamp filters
+      const radius = Math.min(Math.max(0, (filters.radius || 50)), 100); // Clamp 0-100km
+      const limit = Math.min(Math.max(1, (filters.limit || 20)), 100); // Clamp 1-100
 
       // Build where clause
       const where: any = {
         status: 'ACTIVE',
-        visibility: 'public' // Only show public sessions by default
+        visibility: filters.visibility || 'public' // Default to public, filter by visibility param
       };
 
       // Location-based filtering
@@ -230,7 +235,7 @@ export class DiscoveryService {
         let distance: number | undefined;
         if (latitude && longitude && session.latitude && session.longitude) {
           distance = this.calculateDistance(latitude, longitude, session.latitude, session.longitude);
-          // Filter by radius
+          // Filter by clamped radius
           if (distance > radius) continue;
         }
 
@@ -442,7 +447,7 @@ export class DiscoveryService {
     }
   }
 
-  /**
+/**
    * Get nearby sessions with caching
    */
   static async getNearbySessions(
@@ -452,6 +457,10 @@ export class DiscoveryService {
     limit: number = 20
   ): Promise<DiscoveryResult[]> {
     try {
+      // Clamp radius to 0-100km and limit to 1-100
+      radius = Math.min(Math.max(0, radius), 100);
+      limit = Math.min(Math.max(1, limit), 100);
+
       // Check cache first
       const cachedNearby = await cacheService.getNearbySessions(latitude, longitude, radius);
       if (cachedNearby) {

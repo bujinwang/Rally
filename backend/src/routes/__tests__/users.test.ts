@@ -31,7 +31,7 @@ app.use((req: any, _res, next) => {
   if (req.headers['x-file'] === '1') req.file = { filename: 'avatar-123.png' };
   next();
 });
-app.use(usersRouter);
+app.use('/users', usersRouter);
 
 const userFindUnique = prisma.user.findUnique as jest.Mock;
 const userUpdate = prisma.user.update as jest.Mock;
