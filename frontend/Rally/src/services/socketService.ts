@@ -8,6 +8,11 @@ export interface SocketEvents {
   'session:player-left': (player: any) => void;
   'session:status-changed': (status: string) => void;
 
+  // MVP session broadcast events
+  'mvp-session-updated': (data: any) => void;
+  'session-notification': (data: any) => void;
+  'user-joined': (data: any) => void;
+
   // Discovery events
   'discovery:sessions': (data: { sessions: any[]; location: any; radius: number; timestamp: string }) => void;
   'discovery:session-created': (data: { session: any; timestamp: string }) => void;
@@ -286,6 +291,21 @@ class SocketService {
     } catch (error) {
       console.warn('Failed to leave session room:', error);
     }
+  }
+
+  // Remove all registered listeners
+  removeAllListeners(): void {
+    this.listeners.clear();
+  }
+
+  // Notify the server that a player's status changed
+  emitPlayerStatusUpdate(shareCode: string, playerId: string, status: string): void {
+    this.emit('session:player-status-update', { shareCode, playerId, status });
+  }
+
+  // Notify the server that a player joined
+  emitPlayerJoined(shareCode: string, player: any): void {
+    this.emit('session:player-joined', { shareCode, player });
   }
 
   // Register event listener

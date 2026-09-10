@@ -1,9 +1,9 @@
-// @ts-nocheck
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   TextInput,
   StyleSheet,
@@ -21,7 +21,7 @@ import { SPORTS, SPORT_LIST, SportKey, getPreferredSport, setPreferredSport } fr
 
 const SessionDiscoveryScreen: React.FC = () => {
   const navigation = useNavigation();
-  const { location, requestLocationPermission } = useLocation();
+  const { location, requestLocation } = useLocation();
 
   const [sessions, setSessions] = useState<DiscoveryResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -237,15 +237,9 @@ const SessionDiscoveryScreen: React.FC = () => {
 
   // Handle location permission request
   const handleRequestLocation = useCallback(async () => {
-    const granted = await requestLocationPermission();
-    if (granted && location) {
-      handleFiltersChange({
-        latitude: location.latitude,
-        longitude: location.longitude,
-        radius: 50,
-      });
-    }
-  }, [requestLocationPermission, location, handleFiltersChange]);
+    // The [filters, location] effect applies coordinates once the hook updates location.
+    await requestLocation();
+  }, [requestLocation]);
 
   // Render session item
   const renderSessionItem = useCallback(({ item }: { item: DiscoveryResult }) => (

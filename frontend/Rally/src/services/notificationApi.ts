@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { NotificationType, NotificationCategory, NotificationRecord, NotificationPreferences, NotificationPreferenceKey } from '../types/notifications';
 import { API_BASE_URL } from '../config/api';
 
@@ -240,7 +239,7 @@ class NotificationApiService {
     enabled: boolean
   ): Promise<ApiResponse> {
     const preferences: UpdateNotificationPreferencesRequest = {};
-    preferences[type] = enabled;
+    (preferences as Record<string, boolean | string | undefined>)[type] = enabled;
     return this.updateNotificationPreferences(preferences);
   }
 

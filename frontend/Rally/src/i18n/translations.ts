@@ -83,6 +83,8 @@ const en = {
     winner: 'Winner',
     matchPoint: 'Match Point',
     set: 'Set',
+    courts: 'Courts',
+    gameHistory: 'Game History',
   },
   profile: {
     title: 'My Profile',
@@ -226,6 +228,8 @@ const zh: Translation = {
     winner: '胜方',
     matchPoint: '赛点',
     set: '局',
+    courts: '场地',
+    gameHistory: '比赛记录',
   },
   profile: {
     title: '我的资料',

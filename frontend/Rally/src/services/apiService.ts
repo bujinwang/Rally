@@ -1,6 +1,6 @@
-// @ts-nocheck
 import { syncManager } from './syncManager';
 import { StorageService } from './storageService';
+import { API_BASE_URL } from '../config/api';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -101,7 +101,7 @@ export class ApiService {
       // If offline and operation should be queued
       if (!isOnline && enableOffline && options.method !== 'GET') {
         await syncManager.queueOperation({
-          type: this.getOperationType(options.method, endpoint),
+          type: this.getOperationType(options.method || 'GET', endpoint),
           payload: {
             endpoint,
             data: options.body ? JSON.parse(options.body as string) : undefined,

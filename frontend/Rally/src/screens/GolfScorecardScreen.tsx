@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput,
@@ -426,7 +425,7 @@ export default function GolfScorecardScreen() {
           </View>
 
           {/* Existing Bets */}
-          {round?.bets?.length > 0 && (
+          {round && round.bets && round.bets.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Active Bets</Text>
               {round.bets.map((bet: any) => (

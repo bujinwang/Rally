@@ -26,6 +26,8 @@ export interface SessionData {
   ownerDeviceId?: string;
   shareCode: string;
   status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+  playerCount?: number;
+  courtCount?: number;
   createdAt: string;
   updatedAt: string;
   players: SessionPlayer[];

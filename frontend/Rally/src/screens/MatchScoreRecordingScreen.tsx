@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -170,7 +169,8 @@ const MatchScoreRecordingScreen: React.FC = () => {
       };
 
       const deviceId = await DeviceService.getDeviceId();
-      const result = await statisticsApi.recordDetailedMatch(matchData, deviceId);
+      // statisticsApi has no typed recordDetailedMatch method yet; preserve existing call.
+      const result = await (statisticsApi as any).recordDetailedMatch(matchData, deviceId);
 
       Alert.alert(
         'Match Recorded!',

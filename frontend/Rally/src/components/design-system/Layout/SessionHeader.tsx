@@ -1,10 +1,15 @@
-// @ts-nocheck
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Card } from 'react-native-elements';
+import { Card as RNECard } from 'react-native-elements';
 import { Ionicons } from '@expo/vector-icons';
 import { SessionHeaderProps } from './SessionHeader.types';
 import { colors, spacing, typography } from '../../../theme/theme';
+
+// react-native-elements v3 CardProps omits `children`; re-type it here.
+const Card = RNECard as React.ComponentType<{
+  children?: React.ReactNode;
+  containerStyle?: any;
+}>;
 
 export const SessionHeader: React.FC<SessionHeaderProps> = ({
   session,

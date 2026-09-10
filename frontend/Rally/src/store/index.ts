@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { configureStore } from '@reduxjs/toolkit';
 import { useDispatch, useSelector, TypedUseSelectorHook } from 'react-redux';
 
@@ -27,7 +26,7 @@ export type AppDispatch = typeof store.dispatch;
 // Use throughout your app instead of plain `useDispatch` and `useSelector`
 export const useAppDispatch = () => useDispatch<AppDispatch>();
 export const useAppSelector = <TSelected>(selector: (state: RootState) => TSelected): TSelected =>
-  useSelector<TSelected>(selector);
+  useSelector<RootState, TSelected>(selector);
 
 // For now, we'll skip persistence to avoid complex setup
 export const persistor = null;

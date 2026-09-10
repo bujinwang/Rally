@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { FullTheme } from 'react-native-elements';
 
 // Rally Design System Theme
@@ -29,7 +28,7 @@ export const badmintonTheme: Partial<FullTheme> = {
     // Status-specific backgrounds (matching visual design)
     activeBackground: '#DCFCE7',   // Light green for active players
     waitingBackground: '#FEF3C7',  // Light orange for waiting players
-  },
+  } as any,
   
   // Button theme overrides
   Button: {
@@ -40,7 +39,7 @@ export const badmintonTheme: Partial<FullTheme> = {
       fontSize: 14,
       fontWeight: '500',
     },
-  },
+  } as any,
   
   // Card theme overrides  
   Card: {
@@ -57,7 +56,7 @@ export const badmintonTheme: Partial<FullTheme> = {
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
-  },
+  } as any,
   
   // Text theme
   Text: {

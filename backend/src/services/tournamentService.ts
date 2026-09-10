@@ -311,4 +311,4 @@ export async function getTournamentStats(id: string) {
   };
 }
 
-export { Tournament, TournamentPlayer, TournamentRound, TournamentMatch, TournamentGame, TournamentGameSet };
+export type { Tournament, TournamentPlayer, TournamentRound, TournamentMatch, TournamentGame, TournamentGameSet };

@@ -1,7 +1,7 @@
-// @ts-nocheck
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '../config/api';
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -160,7 +160,7 @@ class NotificationService {
           sound: true,
           priority: Notifications.AndroidNotificationPriority.HIGH,
         },
-        trigger: delaySeconds > 0 ? { seconds: delaySeconds } : null,
+        trigger: (delaySeconds > 0 ? { seconds: delaySeconds } : null) as any,
       });
 
       console.log('Scheduled notification:', notificationId);
@@ -219,7 +219,6 @@ class NotificationService {
     }
 
     try {
-      import { API_BASE_URL } from '../config/api';
       const response = await fetch(`${API_BASE_URL}/notifications/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -248,7 +247,6 @@ class NotificationService {
    */
   async subscribeToSession(shareCode: string, deviceId: string) {
     try {
-      import { API_BASE_URL } from '../config/api';
       const response = await fetch(`${API_BASE_URL}/notifications/${shareCode}/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -273,7 +271,6 @@ class NotificationService {
    */
   async unsubscribeFromSession(shareCode: string, deviceId: string) {
     try {
-      import { API_BASE_URL } from '../config/api';
       const response = await fetch(`${API_BASE_URL}/notifications/${shareCode}/unsubscribe`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -10,11 +9,17 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { tournamentApi } from '../services/tournamentApi'; // Assume API service
-import { Card, Icon } from 'react-native-elements';
+import { Card as RNECard, Icon } from 'react-native-elements';
 import { LineChart, BarChart } from 'react-native-chart-kit'; // Assume chart library installed
 import { Dimensions } from 'react-native';
 
 const screenWidth = Dimensions.get('window').width;
+
+// react-native-elements v3 CardProps omits `children`; re-type it here.
+const Card = RNECard as React.ComponentType<{
+  children?: React.ReactNode;
+  containerStyle?: any;
+}>;
 
 interface AnalyticsData {
   totalRegistered: number;
@@ -51,7 +56,8 @@ const TournamentAnalyticsScreen: React.FC = () => {
     try {
       setLoading(true);
       const response = await tournamentApi.getTournamentStats(tournamentId);
-      setAnalytics(response.data);
+      // response is TournamentStats; this screen expects a richer AnalyticsData payload.
+      setAnalytics((response as any).data);
       setError(null);
     } catch (err) {
       setError('Failed to load analytics');
@@ -144,6 +150,7 @@ const TournamentAnalyticsScreen: React.FC = () => {
           width={screenWidth - 40}
           height={220}
           yAxisLabel=""
+          yAxisSuffix=""
           chartConfig={chartConfig}
           showValuesOnTopOfBars
           withInnerLines={false}

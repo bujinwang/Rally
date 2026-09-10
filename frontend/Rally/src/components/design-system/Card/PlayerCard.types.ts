@@ -2,7 +2,7 @@ export interface Player {
   id: string;
   name: string;
   gamesPlayed: number;
-  status: 'ACTIVE' | 'RESTING' | 'LEFT' | 'confirmed' | 'pending' | 'active' | 'waiting';
+  status: 'ACTIVE' | 'RESTING' | 'LEFT' | 'PENDING' | 'confirmed' | 'pending' | 'active' | 'waiting';
   role?: 'ORGANIZER' | 'PLAYER';
   isOrganizer?: boolean;
   joinedAt?: Date;

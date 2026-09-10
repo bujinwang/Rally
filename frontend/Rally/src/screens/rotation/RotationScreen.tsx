@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -40,8 +39,8 @@ const PlayerItem = ({
 }) => (
   <View style={[
     styles.playerItem,
-    player.restGamesRemaining && player.restGamesRemaining > 0 && styles.restingPlayer,
-    player.queueRank && player.queueRank <= 4 && styles.nextToPlay // Highlight top 4 in queue
+    !!(player.restGamesRemaining && player.restGamesRemaining > 0) && styles.restingPlayer,
+    !!(player.queueRank && player.queueRank <= 4) && styles.nextToPlay // Highlight top 4 in queue
   ]}>
     <View style={styles.playerInfo}>
       <View style={styles.playerHeader}>
@@ -56,7 +55,7 @@ const PlayerItem = ({
       
       <Text style={[
         styles.restStatus,
-        player.restGamesRemaining && player.restGamesRemaining > 0 && styles.restingStatus
+        !!(player.restGamesRemaining && player.restGamesRemaining > 0) && styles.restingStatus
       ]}>
         {player.restStatus}
       </Text>

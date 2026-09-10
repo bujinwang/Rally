@@ -1,8 +1,13 @@
-// @ts-nocheck
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Card } from 'react-native-elements';
+import { Card as RNECard } from 'react-native-elements';
 import { colors, spacing } from '../../../theme/theme';
+
+// react-native-elements v3 CardProps omits `children`; re-type it here.
+const Card = RNECard as React.ComponentType<{
+  children?: React.ReactNode;
+  containerStyle?: any;
+}>;
 
 interface PlayerCountIndicatorProps {
   confirmed: number;
@@ -193,8 +198,9 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 2,
+    // web-only style prop (react-native-web); RN ignores it
     transition: 'width 0.3s ease',
-  },
+  } as any,
 });
 
 export default PlayerCountIndicator;

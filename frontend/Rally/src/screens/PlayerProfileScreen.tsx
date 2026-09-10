@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -53,11 +52,13 @@ interface PlayerProfile {
   stats: PlayerStats;
   preferences: PlayerPreferences;
   recentActivity: ActivityItem[];
+  achievements?: any[];
 }
 
 type RouteParams = {
   playerId?: string;
   deviceId?: string;
+  playerName?: string;
   isOwnProfile?: boolean;
 };
 

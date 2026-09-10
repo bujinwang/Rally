@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -8,7 +7,8 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  Alert
+  Alert,
+  RefreshControl
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { userApi, UserProfile } from '../services/userApi';
@@ -21,7 +21,7 @@ interface RouteParams {
 
 export default function UserProfileScreen() {
   const route = useRoute();
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const { userId } = route.params as RouteParams;
 
   const { t } = useTranslation();
@@ -85,8 +85,9 @@ export default function UserProfileScreen() {
     <ScrollView 
       style={styles.container}
       contentContainerStyle={styles.content}
-      refreshing={refreshing}
-      onRefresh={handleRefresh}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+      }
     >
       {/* Header with Avatar */}
       <View style={styles.header}>

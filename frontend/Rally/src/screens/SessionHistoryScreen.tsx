@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -321,7 +320,7 @@ export default function SessionHistoryScreen() {
                 {selectedSession.games.map((game, index) => (
                   <View key={game.id} style={styles.gameResultCard}>
                     <View style={styles.gameHeader}>
-                      <Text style={styles.gameTitle}>Game {index + 1} • {game.court}</Text>
+                      <Text style={styles.gameTitle}>Game {index + 1} • {game.courtName}</Text>
                       <Text style={styles.gameDuration}>{game.duration}</Text>
                     </View>
                     
@@ -360,10 +359,10 @@ export default function SessionHistoryScreen() {
                     </View>
 
                     <Text style={styles.gameTime}>
-                      {new Date(game.startTime).toLocaleTimeString([], { 
+                      {new Date(game.startTime as string).toLocaleTimeString([], { 
                         hour: '2-digit', 
                         minute: '2-digit' 
-                      })} - {new Date(game.endTime).toLocaleTimeString([], { 
+                      })} - {new Date(game.endTime as string).toLocaleTimeString([], { 
                         hour: '2-digit', 
                         minute: '2-digit' 
                       })}

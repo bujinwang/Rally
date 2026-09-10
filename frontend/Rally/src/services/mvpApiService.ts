@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Rally MVP API Service
 // Connects to your existing backend MvpSession endpoints
 
@@ -20,6 +19,9 @@ export interface MvpSession {
   shareUrl: string;
   createdAt: string;
   updatedAt?: string;
+  skillLevel?: string;
+  cost?: number;
+  owner?: any;
 }
 
 export interface MvpPlayer {
@@ -121,7 +123,7 @@ class MvpApiService extends ApiService {
   }
 
   // Update player status (ACTIVE, RESTING, LEFT)
-  async updatePlayerStatus(playerId: string, status: 'ACTIVE' | 'RESTING' | 'LEFT'): Promise<ApiResponse<{ player: MvpPlayer }>> {
+  override async updatePlayerStatus(playerId: string, status: 'ACTIVE' | 'RESTING' | 'LEFT'): Promise<ApiResponse<{ player: MvpPlayer }>> {
     const startTime = Date.now();
     
     try {

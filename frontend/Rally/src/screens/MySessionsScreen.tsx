@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -56,7 +55,7 @@ export default function MySessionsScreen() {
   const handlePlayerJoined = (data: any) => {
     setSessions(prev => prev.map(session => 
       session.shareCode === data.shareCode 
-        ? { ...session, players: [...session.players, data.player], playerCount: session.playerCount + 1 }
+        ? { ...session, players: [...session.players, data.player], playerCount: (session.playerCount ?? session.players.length) + 1 }
         : session
     ));
   };
@@ -67,7 +66,7 @@ export default function MySessionsScreen() {
         ? { 
             ...session, 
             players: session.players.filter(p => p.id !== data.playerId),
-            playerCount: Math.max(0, session.playerCount - 1)
+            playerCount: Math.max(0, (session.playerCount ?? session.players.length) - 1)
           }
         : session
     ));
@@ -222,7 +221,7 @@ export default function MySessionsScreen() {
                   📍 {session.location || 'Location TBD'}
                 </Text>
                 <Text style={styles.sessionPlayers}>
-                  👥 {session.playerCount} player{session.playerCount !== 1 ? 's' : ''}
+                  👥 {session.playerCount ?? session.players.length} player{(session.playerCount ?? session.players.length) !== 1 ? 's' : ''}
                 </Text>
               </View>
 
