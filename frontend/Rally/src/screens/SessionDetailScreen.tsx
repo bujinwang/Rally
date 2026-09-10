@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import {
    View,
@@ -128,7 +127,7 @@ interface SessionData {
 
 export default function SessionDetailScreen() {
   const route = useRoute();
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [sessionData, setSessionData] = useState<SessionData | null>(null);
@@ -1510,7 +1509,7 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
                       availablePlayers.map(player => ({
                         text: player.name,
                         onPress: () => setGameForm(prev => ({ ...prev, team1Player1: player.name }))
-                      })).concat([{ text: 'Cancel', style: 'cancel' }])
+                      })).concat([{ text: 'Cancel', style: 'cancel' }] as any)
                     );
                   }}
                 >
@@ -1532,7 +1531,7 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
                       availablePlayers.map(player => ({
                         text: player.name,
                         onPress: () => setGameForm(prev => ({ ...prev, team1Player2: player.name }))
-                      })).concat([{ text: 'Cancel', style: 'cancel' }])
+                      })).concat([{ text: 'Cancel', style: 'cancel' }] as any)
                     );
                   }}
                 >
@@ -1561,7 +1560,7 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
                       availablePlayers.map(player => ({
                         text: player.name,
                         onPress: () => setGameForm(prev => ({ ...prev, team2Player1: player.name }))
-                      })).concat([{ text: 'Cancel', style: 'cancel' }])
+                      })).concat([{ text: 'Cancel', style: 'cancel' }] as any)
                     );
                   }}
                 >
@@ -1586,7 +1585,7 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
                       availablePlayers.map(player => ({
                         text: player.name,
                         onPress: () => setGameForm(prev => ({ ...prev, team2Player2: player.name }))
-                      })).concat([{ text: 'Cancel', style: 'cancel' }])
+                      })).concat([{ text: 'Cancel', style: 'cancel' }] as any)
                     );
                   }}
                 >
@@ -2461,15 +2460,6 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 2,
   },
-  gameActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#E9ECEF',
-  },
   editButton: {
     backgroundColor: '#007AFF',
     paddingHorizontal: 12,
@@ -2660,15 +2650,6 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 4,
     fontWeight: '600',
-  },
-  playerSelector: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: '#fff',
-    minHeight: 44,
-    justifyContent: 'center',
   },
   playerSelectorText: {
     fontSize: 14,

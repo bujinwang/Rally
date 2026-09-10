@@ -2,6 +2,7 @@ import { API_BASE_URL } from '../config/api';
 import { io, Socket } from 'socket.io-client';
 
 export interface DiscoveryFilters {
+  sport?: string;
   latitude?: number;
   longitude?: number;
   radius?: number;

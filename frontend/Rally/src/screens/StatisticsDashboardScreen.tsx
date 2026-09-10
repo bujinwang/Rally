@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -20,7 +19,7 @@ import {
   LeaderboardEntry,
   SessionStatistics,
 } from '../types/statistics';
-import { statisticsApi } from '../services/statisticsApi';
+import statisticsApi from '../services/statisticsApi';
 import { sessionApi } from '../services/sessionApi';
 import { PerformanceTrendsChart } from '../components/PerformanceTrendsChart';
 
@@ -104,7 +103,8 @@ const StatisticsDashboardScreen: React.FC = () => {
 
       // Load player statistics if playerId is provided
       if (playerId) {
-        const stats = await statisticsApi.getPlayerStatistics(playerId, {
+        // statisticsApi has no typed getPlayerStatistics/getSessionStatistics methods yet.
+        const stats = await (statisticsApi as any).getPlayerStatistics(playerId, {
           sessionId,
           timeRange: 'all',
         });
@@ -114,13 +114,12 @@ const StatisticsDashboardScreen: React.FC = () => {
       // Load leaderboard
       const board = await statisticsApi.getLeaderboard({
         sessionId,
-        minMatches: 1,
       });
       setLeaderboard(board);
 
       // Load session statistics if sessionId is provided
       if (sessionId) {
-        const sessionStatsData = await statisticsApi.getSessionStatistics(sessionId);
+        const sessionStatsData = await (statisticsApi as any).getSessionStatistics(sessionId);
         setSessionStats(sessionStatsData);
       }
     } catch (error) {

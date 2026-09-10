@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -39,6 +38,8 @@ interface Player {
   wins: number;
   losses: number;
   skillLevel?: number;
+  deviceId?: string;
+  restGamesRemaining?: number;
 }
 
 interface GameTeam {
@@ -1229,7 +1230,7 @@ export default function LiveGameScreen() {
           
           {court.queue.length === 0 ? (
             <View style={styles.emptyQueueContainer}>
-              {sessionData.players.filter(p => p.status === 'ACTIVE').length >= 4 ? (
+              {(sessionData?.players.filter(p => p.status === 'ACTIVE').length ?? 0) >= 4 ? (
                 <>
                   <ActivityIndicator size="small" color="#28a745" style={{ marginBottom: 8 }} />
                   <Text style={styles.emptyQueue}>🎯 Auto-generating Fair Play queue...</Text>
@@ -1241,7 +1242,7 @@ export default function LiveGameScreen() {
                 <>
                   <Text style={styles.emptyQueue}>🎯 Waiting for more players...</Text>
                   <Text style={styles.emptyQueueSubtext}>
-                    Need {4 - sessionData.players.filter(p => p.status === 'ACTIVE').length} more active players for Fair Play
+                    Need {4 - (sessionData?.players.filter(p => p.status === 'ACTIVE').length ?? 0)} more active players for Fair Play
                   </Text>
                 </>
               )}
@@ -1988,7 +1989,7 @@ export default function LiveGameScreen() {
                     {isInActiveGame && (
                       <Text style={styles.activeGameWarning}>Currently playing</Text>
                     )}
-                    {player.restGamesRemaining > 0 && (
+                    {(player.restGamesRemaining ?? 0) > 0 && (
                       <Text style={styles.restingWarning}>
                         Resting for {player.restGamesRemaining} more game(s)
                       </Text>
@@ -2404,7 +2405,7 @@ export default function LiveGameScreen() {
                                    player.status === 'RESTING' ? '#FF9800' : '#f44336' }
                 ]}>
                   <Text style={styles.playerStatusText}>
-                    {player.status === 'RESTING' && player.restGamesRemaining > 0 
+                    {player.status === 'RESTING' && (player.restGamesRemaining ?? 0) > 0 
                       ? `RESTING (${player.restGamesRemaining})` 
                       : player.status}
                   </Text>

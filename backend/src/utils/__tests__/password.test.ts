@@ -4,8 +4,8 @@ describe('PasswordUtils', () => {
   it('hashes a password and returns a salt+hash', async () => {
     const hash = await PasswordUtils.hashPassword('mypassword123');
     expect(hash).toBeTruthy();
-    expect(hash.length).toBeGreaterThan(20); // salt+hash should be long
-    expect(hash).toContain('.'); // salt.hash format
+    expect(hash.length).toBeGreaterThan(20); // full bcrypt hash should be long
+    expect(hash).toMatch(/^\$2[aby]\$\d{2}\$/); // bcrypt format: $2b$12$...
   });
 
   it('verifies correct password against hash', async () => {

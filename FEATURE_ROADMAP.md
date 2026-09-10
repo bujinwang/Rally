@@ -60,8 +60,7 @@
 
 ## ⚠️ Tracked Debt
 
-37 frontend files have `// @ts-nocheck` — TypeScript type checking is disabled.  
-`SessionShareModal.tsx` JSX nesting and `LiveGameScreen.tsx` broken import were fixed in this session; remaining files need systematic cleanup (est. 4-6 hours).
+0 frontend files have `// @ts-nocheck` — TypeScript type checking is enabled. All 31 directives across `frontend/Rally/src` were removed and the surfaced type errors fixed; `npx tsc --noEmit` passes clean.
 
 ---
 
@@ -71,5 +70,5 @@
 Features:              ████████████████████ 15/15  ✅
 Infrastructure:        ████████████████████ 10/10 ✅
 Backend compile:       ✅ zero errors
-Frontend @ts-nocheck:  ████████░░░░░░░░░░░░ 2/37 fixed
+Frontend @ts-nocheck:  ████████████████████ 31/31 fixed
 ```

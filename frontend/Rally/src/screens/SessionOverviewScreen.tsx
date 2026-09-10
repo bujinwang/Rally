@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   ScrollView,
@@ -123,7 +122,7 @@ export const SessionOverviewScreen: React.FC<SessionOverviewScreenProps> = () =>
     
     // Cleanup socket on unmount
     return () => {
-      socketService.leaveSession();
+      socketService.leaveSession(shareCode || sessionId || '');
       socketService.removeAllListeners();
     };
   }, [sessionId, shareCode]);

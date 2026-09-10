@@ -1,14 +1,20 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import { Card } from '@rneui/themed';
+import { Card as RNECard } from 'react-native-elements';
 import { LineChart, PieChart } from 'react-native-chart-kit';
 import { Dimensions } from 'react-native';
 import { predictionApi } from '../services/predictionApi'; // Assume API service
+// @ts-expect-error - @react-native-community/tab-view is not installed in this project
 import { TabView, SceneMap, TabBar } from '@react-native-community/tab-view';
 import { styles } from '../styles/DashboardStyles';
 
 const screenWidth = Dimensions.get('window').width;
+
+// react-native-elements v3 CardProps omits `children`; re-type it here.
+const Card = RNECard as React.ComponentType<{
+  children?: React.ReactNode;
+  containerStyle?: any;
+}>;
 
 const DemandForecastTab = ({ data }: { data: any }) => (
   <ScrollView>
@@ -122,7 +128,7 @@ export const PredictionDashboardScreen = () => {
     try {
       setLoading(true);
       const response = await predictionApi.getPrediction(type); // Assume API method
-      setData(prev => ({ ...prev, [type]: response.data }));
+      setData((prev: any) => ({ ...prev, [type]: response.data }));
     } catch (err) {
       setError('Failed to load prediction data');
       Alert.alert('Error', 'Failed to load prediction data');
@@ -163,7 +169,7 @@ export const PredictionDashboardScreen = () => {
       renderScene={renderScene}
       onIndexChange={setIndex}
       initialLayout={{ width: screenWidth }}
-      renderTabBar={(props) => (
+      renderTabBar={(props: any) => (
         <TabBar {...props} style={styles.tabBar} labelStyle={styles.tabLabel} />
       )}
     />

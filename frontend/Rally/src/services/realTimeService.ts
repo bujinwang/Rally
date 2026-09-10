@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { store } from '../store';
 import socketService from './socketService';
 import { mvpApiService } from './mvpApiService';
@@ -210,7 +209,7 @@ class RealTimeService {
       
       console.log(`🔄 Real-time update received for session: ${session.shareCode}`, {
         playerCount: session.players?.length || 0,
-        players: session.players?.map(p => p.name) || []
+        players: session.players?.map((p: any) => p.name) || []
       });
       
       // Dispatch session updated to mark timestamp

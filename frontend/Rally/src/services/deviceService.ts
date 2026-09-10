@@ -1,4 +1,3 @@
-// @ts-nocheck
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Application from 'expo-application';
@@ -102,7 +101,7 @@ export class DeviceService {
         const vendorId = await Application.getIosIdForVendorAsync();
         if (vendorId) components.push(`ios-vendor:${vendorId}`);
       } else if (Platform.OS === 'android') {
-        const androidId = Application.androidId;
+        const androidId = Application.getAndroidId();
         if (androidId) components.push(`android-id:${androidId}`);
       }
 
@@ -167,7 +166,7 @@ export class DeviceService {
         platformVersion: Platform.Version,
         appVersion: Application.nativeApplicationVersion,
         buildNumber: Application.nativeBuildVersion,
-        deviceName: await Application.getApplicationName(),
+        deviceName: Application.applicationName,
         installationId: Constants.installationId,
         deviceId: await this.getDeviceId(),
       };

@@ -6,11 +6,11 @@ module.exports = {
     '**/__tests__/**/*.test.ts',
     '**/?(*.)+(spec|test).ts'
   ],
-  // mvpSessions.test.ts causes OOM — run separately with NODE_OPTIONS="--max-old-space-size=8192"
   testPathIgnorePatterns: [
     '/node_modules/',
-    'mvpSessions\\.test\\.ts',
   ],
+  // isolatedModules lives in tsconfig.json (transpile-only, no full module-graph type-check)
+  // — prevents OOM on large routes. Type safety is enforced separately via `npm run typecheck`.
   transform: {
     '^.+\\.ts$': 'ts-jest',
   },

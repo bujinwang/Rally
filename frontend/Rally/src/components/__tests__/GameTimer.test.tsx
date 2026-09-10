@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
 
@@ -10,7 +9,7 @@ jest.mock('@expo/vector-icons', () => ({
 jest.mock('react-native/Libraries/Animated/Animated', () => ({
   __esModule: true,
   default: { View: 'AnimatedView', Text: 'AnimatedText' },
-  Value: function (v) { this._value = v; this.interpolate = () => {}; this.setValue = () => {}; this.setOffset = () => {}; },
+  Value: function (this: any, v: number) { this._value = v; this.interpolate = () => {}; this.setValue = () => {}; this.setOffset = () => {}; },
   timing: () => ({ start: () => {} }),
   loop: () => ({ start: () => {} }),
   sequence: () => ({}),
@@ -21,7 +20,7 @@ jest.mock('react-native/Libraries/Animated/Animated', () => ({
 import GameTimer from '../GameTimer';
 
 /** Walk JSON tree collecting all string values */
-function collectText(json) {
+function collectText(json: any): string {
   if (!json) return '';
   if (typeof json === 'string') return json;
   if (Array.isArray(json)) return json.map(collectText).join(' ');

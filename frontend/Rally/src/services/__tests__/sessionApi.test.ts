@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Tests for sessionApi and mvpApiService pure logic (no RN dependencies needed)
 
 // Mock AsyncStorage and DeviceService before import
@@ -148,12 +147,13 @@ describe('sessionApi - organizer name persistence', () => {
 
 jest.mock('../../services/apiService', () => ({
   ApiService: class {
-    constructor(baseUrl: string) { this.baseUrl = baseUrl; }
+    constructor(baseUrl: string) { (this as any).baseUrl = baseUrl; }
     async request(path: string, options: any) { return { success: true }; }
   },
 }));
 
 import { mvpApiService } from '../mvpApiService';
+import type { MvpSession } from '../mvpApiService';
 
 describe('mvpApiService - format for share', () => {
   it('formats session for WeChat/WhatsApp share', () => {
@@ -169,7 +169,7 @@ describe('mvpApiService - format for share', () => {
       ],
     };
 
-    const message = mvpApiService.formatSessionForShare(session);
+    const message = mvpApiService.formatSessionForShare(session as unknown as MvpSession);
     expect(message).toContain('Monday Badminton');
     expect(message).toContain('Community Center');
     expect(message).toContain('已确认 (2)');
