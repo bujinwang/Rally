@@ -1,14 +1,16 @@
 import { Router, Request, Response } from 'express';
 import { DiscoveryService, DiscoveryFilters } from '../services/discoveryService';
 import { MvpSessionService } from '../services/mvpSessionService';
+import { moderateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
 /**
  * GET /api/sessions/discovery
  * Discover sessions based on filters
+ * Rate limited: 60 requests per 15 minutes per IP
  */
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', moderateLimiter, async (req: Request, res: Response) => {
   try {
     const {
       latitude,
@@ -148,9 +150,10 @@ router.get('/recommended/:deviceId', async (req: Request, res: Response) => {
 /**
  * GET /api/sessions/discovery/nearby
  * Get sessions near a coordinate, sorted by proximity
+ * Rate limited: 60 requests per 15 minutes per IP
  * NOTE: registered before '/:sessionId' so it is not captured as a session id
  */
-router.get('/nearby', async (req: Request, res: Response) => {
+router.get('/nearby', moderateLimiter, async (req: Request, res: Response) => {
   try {
     const { latitude, longitude, radius, limit } = req.query;
 

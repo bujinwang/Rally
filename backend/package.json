@@ -36,7 +36,7 @@
     "dotenv": "^17.2.1",
     "expo-server-sdk": "^3.15.0",
     "express": "^5.1.0",
-    "express-rate-limit": "^8.0.1",
+    "express-rate-limit": "^8.7.0",
     "express-validator": "^7.2.1",
     "helmet": "^8.1.0",
     "joi": "^18.0.1",
