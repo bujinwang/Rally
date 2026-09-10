@@ -12,12 +12,12 @@ module.exports = {
   apps: {
     'ios.debug': {
       type: 'ios.app',
-      binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/BadmintonGroup.app',
+      binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/Rally.app',
       build: 'npx expo run:ios --configuration Debug --no-build-cache'
     },
     'ios.release': {
       type: 'ios.app',
-      binaryPath: 'ios/build/Build/Products/Release-iphonesimulator/BadmintonGroup.app',
+      binaryPath: 'ios/build/Build/Products/Release-iphonesimulator/Rally.app',
       build: 'npx expo run:ios --configuration Release --no-build-cache'
     },
     'android.debug': {
@@ -43,7 +43,8 @@ module.exports = {
     simulator: {
       type: 'ios.simulator',
       device: {
-        type: 'iPhone 14'
+        type: 'iPhone 17 Pro',
+        os: 'iOS 26.5'
       }
     },
     attached: {
