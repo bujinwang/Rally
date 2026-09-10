@@ -63,9 +63,9 @@ export class MessagingService {
     // Create message
     const messageId = crypto.randomUUID();
     await prisma.$queryRaw`
-      INSERT INTO messages (id, thread_id, sender_id, content, message_type, sent_at)
+      INSERT INTO messages (id, "threadId", "senderId", content, "messageType", "sentAt")
       VALUES (${messageId}, ${data.threadId}, ${data.senderId}, ${data.content},
-              ${data.messageType || 'TEXT'}, NOW())
+              CAST(${data.messageType || 'TEXT'} AS "MessageType"), NOW())
     `;
 
     // Update thread's last message timestamp
@@ -77,21 +77,21 @@ export class MessagingService {
 
     // Get the created message with sender details
     const message = await prisma.$queryRaw`
-      SELECT m.*, p.name as sender_name
+      SELECT m.*, u.name as sender_name
       FROM messages m
-      JOIN mvp_players p ON m.sender_id = p.id
+      LEFT JOIN users u ON m."senderId" = u.id
       WHERE m.id = ${messageId}
     ` as any[];
 
     return message[0] ? {
       id: message[0].id,
-      threadId: message[0].thread_id,
-      senderId: message[0].sender_id,
+      threadId: message[0].threadId,
+      senderId: message[0].senderId,
       content: message[0].content,
-      messageType: message[0].message_type,
-      sentAt: new Date(message[0].sent_at),
-      isRead: false,
-      sender: { id: message[0].sender_id, name: message[0].sender_name }
+      messageType: message[0].messageType,
+      sentAt: new Date(message[0].sentAt),
+      isRead: message[0].isRead ?? false,
+      sender: { id: message[0].senderId, name: message[0].sender_name }
     } : null;
   }
 
@@ -110,24 +110,24 @@ export class MessagingService {
     }
 
     const messages = await prisma.$queryRaw`
-      SELECT m.*, p.name as sender_name
+      SELECT m.*, u.name as sender_name
       FROM messages m
-      JOIN mvp_players p ON m.sender_id = p.id
-      WHERE m.thread_id = ${threadId}
-      ORDER BY m.sent_at DESC
+      LEFT JOIN users u ON m."senderId" = u.id
+      WHERE m."threadId" = ${threadId}
+      ORDER BY m."sentAt" DESC
       LIMIT ${limit} OFFSET ${offset}
     ` as any[];
 
     return messages.map(row => ({
       id: row.id,
-      threadId: row.thread_id,
-      senderId: row.sender_id,
+      threadId: row.threadId,
+      senderId: row.senderId,
       content: row.content,
-      messageType: row.message_type,
-      sentAt: new Date(row.sent_at),
-      isRead: row.is_read,
-      readAt: row.read_at ? new Date(row.read_at) : null,
-      sender: { id: row.sender_id, name: row.sender_name }
+      messageType: row.messageType,
+      sentAt: new Date(row.sentAt),
+      isRead: row.isRead,
+      readAt: row.readAt ? new Date(row.readAt) : null,
+      sender: { id: row.senderId, name: row.sender_name }
     })).reverse(); // Reverse to get chronological order
   }
 
@@ -136,14 +136,14 @@ export class MessagingService {
    */
   async getUserThreads(userId: string) {
     const threads = await prisma.$queryRaw`
-      SELECT mt.*, m.content as last_message_content, m.sent_at as last_message_time,
-             p.name as last_sender_name
+      SELECT mt.*, m.content as last_message_content, m."sentAt" as last_message_time,
+             u.name as last_sender_name
       FROM message_threads mt
-      LEFT JOIN messages m ON mt.id = m.thread_id
-        AND m.sent_at = (
-          SELECT MAX(sent_at) FROM messages WHERE thread_id = mt.id
+      LEFT JOIN messages m ON mt.id = m."threadId"
+        AND m."sentAt" = (
+          SELECT MAX("sentAt") FROM messages WHERE "threadId" = mt.id
         )
-      LEFT JOIN mvp_players p ON m.sender_id = p.id
+      LEFT JOIN users u ON m."senderId" = u.id
       WHERE ${userId} = ANY(mt.participants)
       ORDER BY mt."lastMessageAt" DESC
     ` as any[];
@@ -177,8 +177,8 @@ export class MessagingService {
 
     await prisma.$queryRaw`
       UPDATE messages
-      SET is_read = true, read_at = NOW()
-      WHERE thread_id = ${threadId} AND sender_id != ${userId} AND is_read = false
+      SET "isRead" = true, "readAt" = NOW()
+      WHERE "threadId" = ${threadId} AND "senderId" != ${userId} AND "isRead" = false
     `;
 
     return { success: true, message: 'Messages marked as read' };
@@ -190,10 +190,10 @@ export class MessagingService {
   async getUnreadCount(userId: string): Promise<number> {
     const result = await prisma.$queryRaw`
       SELECT COUNT(*) as count FROM messages m
-      JOIN message_threads mt ON m.thread_id = mt.id
+      JOIN message_threads mt ON m."threadId" = mt.id
       WHERE ${userId} = ANY(mt.participants)
-        AND m.sender_id != ${userId}
-        AND m.is_read = false
+        AND m."senderId" != ${userId}
+        AND m."isRead" = false
     ` as any[];
 
     return Array.isArray(result) ? parseInt((result[0] as any).count) || 0 : 0;
@@ -205,11 +205,11 @@ export class MessagingService {
   async getThreadUnreadCount(threadId: string, userId: string): Promise<number> {
     const result = await prisma.$queryRaw`
       SELECT COUNT(*) as count FROM messages m
-      JOIN message_threads mt ON m.thread_id = mt.id
-      WHERE m.thread_id = ${threadId}
+      JOIN message_threads mt ON m."threadId" = mt.id
+      WHERE m."threadId" = ${threadId}
         AND ${userId} = ANY(mt.participants)
-        AND m.sender_id != ${userId}
-        AND m.is_read = false
+        AND m."senderId" != ${userId}
+        AND m."isRead" = false
     ` as any[];
 
     return Array.isArray(result) ? parseInt((result[0] as any).count) || 0 : 0;
@@ -221,7 +221,7 @@ export class MessagingService {
   async deleteMessage(messageId: string, userId: string) {
     // Verify user owns the message
     const messageResult = await prisma.$queryRaw`
-      SELECT * FROM messages WHERE id = ${messageId} AND sender_id = ${userId}
+      SELECT * FROM messages WHERE id = ${messageId} AND "senderId" = ${userId}
     ` as any[];
 
     if (messageResult.length === 0) {
@@ -256,7 +256,7 @@ export class MessagingService {
     if (updatedParticipants.length === 0) {
       // If no participants left, delete the thread
       await prisma.$queryRaw`DELETE FROM message_threads WHERE id = ${threadId}`;
-      await prisma.$queryRaw`DELETE FROM messages WHERE thread_id = ${threadId}`;
+      await prisma.$queryRaw`DELETE FROM messages WHERE "threadId" = ${threadId}`;
     } else {
       // Update participants list
       await prisma.$queryRaw`
@@ -302,7 +302,7 @@ export class MessagingService {
     const threadResult = await prisma.$queryRaw`
       SELECT mt.*, COUNT(m.id) as message_count
       FROM message_threads mt
-      LEFT JOIN messages m ON mt.id = m.thread_id
+      LEFT JOIN messages m ON mt.id = m."threadId"
       WHERE mt.id = ${threadId} AND ${userId} = ANY(mt.participants)
       GROUP BY mt.id
     ` as any[];
@@ -336,24 +336,24 @@ export class MessagingService {
     }
 
     const messages = await prisma.$queryRaw`
-      SELECT m.*, p.name as sender_name
+      SELECT m.*, u.name as sender_name
       FROM messages m
-      JOIN mvp_players p ON m.sender_id = p.id
-      WHERE m.thread_id = ${threadId}
+      LEFT JOIN users u ON m."senderId" = u.id
+      WHERE m."threadId" = ${threadId}
         AND m.content ILIKE ${`%${query}%`}
-      ORDER BY m.sent_at DESC
+      ORDER BY m."sentAt" DESC
       LIMIT ${limit}
     ` as any[];
 
     return messages.map(row => ({
       id: row.id,
-      threadId: row.thread_id,
-      senderId: row.sender_id,
+      threadId: row.threadId,
+      senderId: row.senderId,
       content: row.content,
-      messageType: row.message_type,
-      sentAt: new Date(row.sent_at),
-      isRead: row.is_read,
-      sender: { id: row.sender_id, name: row.sender_name }
+      messageType: row.messageType,
+      sentAt: new Date(row.sentAt),
+      isRead: row.isRead,
+      sender: { id: row.senderId, name: row.sender_name }
     }));
   }
 

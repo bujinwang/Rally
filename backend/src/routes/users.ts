@@ -36,7 +36,7 @@ const updateSettingsSchema = Joi.object({
 });
 
 // Get user profile
-router.get('/users/:userId/profile', authenticateToken, async (req: AuthRequest, res, next) => {
+router.get('/:userId/profile', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const { userId } = req.params;
     const currentUserId = req.user?.id;
@@ -178,7 +178,7 @@ router.get('/users/:userId/profile', authenticateToken, async (req: AuthRequest,
 });
 
 // Update user profile
-router.put('/users/:userId/profile', authenticateToken, validate(updateProfileSchema), async (req: AuthRequest, res, next) => {
+router.put('/:userId/profile', authenticateToken, validate(updateProfileSchema), async (req: AuthRequest, res, next) => {
   try {
     const { userId } = req.params;
     const currentUserId = req.user?.id;
@@ -239,7 +239,7 @@ router.put('/users/:userId/profile', authenticateToken, validate(updateProfileSc
 });
 
 // Upload user avatar
-router.post('/users/:userId/avatar', authenticateToken, upload.single('avatar'), async (req: AuthRequest, res, next) => {
+router.post('/:userId/avatar', authenticateToken, upload.single('avatar'), async (req: AuthRequest, res, next) => {
   try {
     const { userId } = req.params;
     const currentUserId = req.user?.id;
@@ -313,7 +313,7 @@ router.post('/users/:userId/avatar', authenticateToken, upload.single('avatar'),
 });
 
 // Delete user avatar
-router.delete('/users/:userId/avatar', authenticateToken, async (req: AuthRequest, res, next) => {
+router.delete('/:userId/avatar', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const { userId } = req.params;
     const currentUserId = req.user?.id;
@@ -375,7 +375,7 @@ router.delete('/users/:userId/avatar', authenticateToken, async (req: AuthReques
 });
 
 // Get user settings
-router.get('/users/:userId/settings', authenticateToken, async (req: AuthRequest, res, next) => {
+router.get('/:userId/settings', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const { userId } = req.params;
     const currentUserId = req.user?.id;
@@ -450,7 +450,7 @@ router.get('/users/:userId/settings', authenticateToken, async (req: AuthRequest
 });
 
 // Update user settings
-router.put('/users/:userId/settings', authenticateToken, validate(updateSettingsSchema), async (req: AuthRequest, res, next) => {
+router.put('/:userId/settings', authenticateToken, validate(updateSettingsSchema), async (req: AuthRequest, res, next) => {
   try {
     const { userId } = req.params;
     const currentUserId = req.user?.id;
@@ -532,7 +532,7 @@ router.put('/users/:userId/settings', authenticateToken, validate(updateSettings
 });
 
 // Search users
-router.get('/users/search', authenticateToken, async (req, res) => {
+router.get('/search', authenticateToken, async (req, res) => {
   try {
     const { q, limit = 20 } = req.query;
 

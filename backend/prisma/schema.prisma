@@ -293,7 +293,6 @@ model MvpPlayer {
   friendsAsFriend        Friend[]        @relation("FriendFriend")
   sentChallenges         Challenge[]     @relation("ChallengeChallenger")
   receivedChallenges     Challenge[]     @relation("ChallengeChallenged")
-  sentMessages           Message[]       @relation("MessageSender")
 
   // Social Sharing Relations
   shares            Share[]
@@ -704,6 +703,7 @@ model User {
   AnalyticsEvent AnalyticsEvent[]
   socialConnections SocialConnection[]
   userSettings   UserSettings?
+  sentMessages   Message[]        @relation("MessageSender")
 
   @@map("users")
 }
@@ -1420,7 +1420,7 @@ model Message {
 
   // Relations
   thread MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  sender MvpPlayer     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  sender User          @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
 
   @@index([threadId])
   @@index([senderId])
