@@ -1,6 +1,7 @@
 import { Router, Request } from 'express';
 import { FriendService } from '../services/friendService';
 import { authenticateToken } from '../middleware/auth';
+import { moderateLimiter } from '../middleware/rateLimiter';
 import { validate } from '../utils/validation';
 import { notifyDevice } from '../utils/notificationHelper';
 import Joi from 'joi';
@@ -440,8 +441,9 @@ router.get('/check/:otherUserId', async (req: AuthRequest, res) => {
  * @route GET /api/v1/friends/suggestions
  * @desc Get friend suggestions
  * @access Private
+ * Rate limited: 60 requests per 15 minutes per IP
  */
-router.get('/suggestions', async (req: AuthRequest, res) => {
+router.get('/suggestions', moderateLimiter, async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.id;
     const limit = parseInt(req.query.limit as string) || 10;

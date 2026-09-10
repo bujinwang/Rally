@@ -2,6 +2,7 @@ import { Router, Request } from 'express';
 import { prisma } from '../config/database';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { createSessionSchema, updateSessionSchema, validate } from '../utils/validation';
+import { strictLimiter } from '../middleware/rateLimiter';
 
 // Generate short share code
 function generateShareCode(): string {
@@ -119,7 +120,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
 });
 
 // Create new session (requires authentication)
-router.post('/', authenticateToken, validate(createSessionSchema), async (req: AuthRequest, res) => {
+router.post('/', strictLimiter, authenticateToken, validate(createSessionSchema), async (req: AuthRequest, res) => {
   try {
     const sessionData = req.body;
     let shareCode = generateShareCode();
