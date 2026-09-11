@@ -21,8 +21,13 @@ import { selectRealTimeStatus } from '../store/slices/realTimeSlice';
 import { DEVICE_ID_KEY } from '../config/api';
 import { sessionApi } from '../services/sessionApi';
 import { StatusManager } from '../components/StatusManager';
+import OfflineStatusBanner, {
+  CachedDataBadge,
+  useShowCachedBadge,
+} from '../components/OfflineStatusBanner';
 import { useTranslation } from '../i18n/LanguageContext';
 import { API_BASE_URL } from '../config/api';
+import { mvpApiService, MvpSession } from '../services/mvpApiService';
 import { useNotificationManager } from '../hooks/useNotificationManager';
 import { InAppNotification } from '../components/InAppNotification';
 
@@ -125,6 +130,40 @@ interface SessionData {
   courtCount?: number;
 }
 
+/**
+ * Minimal adapter from the cached `MvpSession` shape (local cache written by
+ * `mvpApiService.cacheSession`) to this screen's `SessionData`. Games/matches
+ * are not part of the cache payload, so they default to empty arrays; the fresh
+ * network response replaces this view as soon as it arrives.
+ */
+function mapCachedSessionToSessionData(cached: MvpSession): SessionData {
+  const players: Player[] = (cached.players ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    deviceId: p.deviceId ?? '',
+    status: p.status,
+    gamesPlayed: p.gamesPlayed,
+    wins: p.wins,
+    losses: p.losses,
+  }));
+  return {
+    id: cached.id,
+    name: cached.name,
+    scheduledAt: cached.scheduledAt,
+    location: cached.location,
+    maxPlayers: cached.maxPlayers,
+    status: cached.status,
+    ownerName: cached.ownerName,
+    ownerDeviceId: cached.ownerDeviceId ?? '',
+    playerCount: cached.playerCount ?? players.length,
+    players,
+    games: [],
+    matches: [],
+    createdAt: cached.createdAt,
+    shareCode: cached.shareCode,
+  };
+}
+
 export default function SessionDetailScreen() {
   const route = useRoute();
   const navigation = useNavigation<any>();
@@ -135,6 +174,10 @@ export default function SessionDetailScreen() {
   const [isNewSession, setIsNewSession] = useState(false);
   const [deviceId, setDeviceId] = useState<string>('');
   const [isOwner, setIsOwner] = useState(false);
+  // True when the rendered session came from the local cache and the fresh
+  // network fetch has not (yet) succeeded — drives the "cached" badge.
+  const [isFromCache, setIsFromCache] = useState(false);
+  const showCachedBadge = useShowCachedBadge(isFromCache);
 
   // Notification manager — connects socket listeners for this session
   const { inAppNotification, dismissInAppNotification } = useNotificationManager({
@@ -350,6 +393,20 @@ export default function SessionDetailScreen() {
   const fetchSessionData = async (code: string, deviceId?: string) => {
     try {
       setLoading(true);
+
+      // Mirror the cached read used by SessionOverviewScreen (no new read
+      // service): render whatever we have locally first so offline opens are
+      // instant and marked as stale via the cached badge.
+      try {
+        const cachedSession = await mvpApiService.getCachedSession(code);
+        if (cachedSession) {
+          setSessionData(mapCachedSessionToSessionData(cachedSession));
+          setIsFromCache(true);
+        }
+      } catch (cacheError) {
+        console.log('No cached session available');
+      }
+
       const response = await fetch(`${API_BASE_URL}/mvp-sessions/join/${code}`);
       const result = await response.json();
 
@@ -360,6 +417,15 @@ export default function SessionDetailScreen() {
       if (result.success) {
         const session = result.data.session;
         setSessionData(session);
+        // Fresh authoritative data — no longer stale/cached.
+        setIsFromCache(false);
+
+        // Keep the local cache warm for the next offline open.
+        try {
+          await mvpApiService.cacheSession(session);
+        } catch (cacheStoreError) {
+          console.log('Failed to refresh session cache');
+        }
         
         // Auto-claim ownership if needed
         if (deviceId) {
@@ -386,7 +452,12 @@ export default function SessionDetailScreen() {
       }
     } catch (error: any) {
       console.error('Fetch session error:', error);
-      Alert.alert(t.common.error, 'Failed to load session details');
+      // Fall back to the cache we rendered above if the network call failed.
+      if (sessionData) {
+        setIsFromCache(true);
+      } else {
+        Alert.alert(t.common.error, 'Failed to load session details');
+      }
     } finally {
       setLoading(false);
     }
@@ -950,29 +1021,39 @@ Join: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/join/${code}`;
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Loading session...</Text>
+      <View style={styles.container}>
+        <OfflineStatusBanner />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Loading session...</Text>
+        </View>
       </View>
     );
   }
 
   if (!sessionData) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Session not found</Text>
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.buttonText}>Go Back</Text>
-        </TouchableOpacity>
+      <View style={styles.container}>
+        <OfflineStatusBanner />
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Session not found</Text>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.buttonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
 
   return (
     <ScrollView style={styles.container}>
+      {/* Offline status strip (Story 6.5) */}
+      <OfflineStatusBanner />
+      {/* Stale / cached-data badge */}
+      <CachedDataBadge visible={showCachedBadge} />
       <InAppNotification
         notification={inAppNotification}
         onDismiss={dismissInAppNotification}

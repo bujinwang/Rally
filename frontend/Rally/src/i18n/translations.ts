@@ -150,6 +150,19 @@ const en = {
     playerJoined: 'New player joined',
     pairingGenerated: 'New pairings generated',
   },
+  offline: {
+    queued: 'Changes saved offline',
+    syncing: 'Syncing…',
+    conflict: 'Some changes conflicted',
+    failed: 'Some changes failed',
+    retry: 'Retry',
+    discard: 'Discard',
+    exportData: 'Export data',
+    restoreData: 'Restore data',
+    nearLimit: 'Offline changes are piling up',
+    quarantined: 'Saved data needs attention',
+    cached: 'Showing saved data',
+  },
 };
 
 const zh: Translation = {
@@ -294,6 +307,19 @@ const zh: Translation = {
     sessionStarting: '活动即将开始',
     playerJoined: '新玩家加入',
     pairingGenerated: '新配对已生成',
+  },
+  offline: {
+    queued: '离线更改已保存',
+    syncing: '同步中…',
+    conflict: '部分更改存在冲突',
+    failed: '部分更改失败',
+    retry: '重试',
+    discard: '丢弃',
+    exportData: '导出数据',
+    restoreData: '恢复数据',
+    nearLimit: '离线更改堆积较多',
+    quarantined: '本地数据需要处理',
+    cached: '显示已保存数据',
   },
 };
 

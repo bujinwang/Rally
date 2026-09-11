@@ -2,14 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import socketService from '../services/socketService';
+import { useAppSelector } from '../store';
+import { selectSyncBanner } from '../store/slices/syncSlice';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface ConnectionStatusProps {
   showControls?: boolean;
 }
 
+/** Ionicons name type, derived from the component's own prop type. */
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
 export default function ConnectionStatus({ showControls = false }: ConnectionStatusProps) {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<'connected' | 'connecting' | 'disconnected' | 'disabled'>('disabled');
   const [isVisible, setIsVisible] = useState(false);
+
+  // Offline write-queue state (Story 6.5). Layered on top of the socket status:
+  // when the queue is empty this is inert and the chip keeps its socket-only
+  // behaviour and visual language unchanged.
+  const sync = useAppSelector(selectSyncBanner);
 
   useEffect(() => {
     const updateStatus = () => {
@@ -48,32 +60,37 @@ export default function ConnectionStatus({ showControls = false }: ConnectionSta
     }
   };
 
-  const getStatusConfig = () => {
+  const getStatusConfig = (): {
+    icon: IoniconName;
+    text: string;
+    color: string;
+    backgroundColor: string;
+  } => {
     switch (status) {
       case 'connected':
         return {
-          icon: 'wifi' as const,
+          icon: 'wifi',
           text: 'Live Updates',
           color: '#4CAF50',
           backgroundColor: '#E8F5E8'
         };
       case 'connecting':
         return {
-          icon: 'sync' as const,
+          icon: 'sync',
           text: 'Connecting...',
           color: '#FF9800',
           backgroundColor: '#FFF3E0'
         };
       case 'disconnected':
         return {
-          icon: 'wifi-outline' as const,
+          icon: 'wifi-outline',
           text: 'Offline Mode',
           color: '#9E9E9E',
           backgroundColor: '#F5F5F5'
         };
       case 'disabled':
         return {
-          icon: 'cloud-offline-outline' as const,
+          icon: 'cloud-offline-outline',
           text: 'Real-time Disabled',
           color: '#9E9E9E',
           backgroundColor: '#F5F5F5'
@@ -81,16 +98,29 @@ export default function ConnectionStatus({ showControls = false }: ConnectionSta
     }
   };
 
-  if (!isVisible && !showControls) return null;
+  // Show the chip when the socket is visible OR there are pending offline
+  // changes worth surfacing, even if real-time was never enabled.
+  const hasPendingChanges = sync.queuedCount > 0;
+  if (!isVisible && !showControls && !hasPendingChanges) return null;
 
   const config = getStatusConfig();
+
+  // Overlay the offline queue onto the "Offline Mode" chip: while offline (or
+  // with real-time disabled) and queued operations exist, show how many changes
+  // are pending. When the queue is empty this overlay is a no-op and the chip
+  // keeps its exact socket-only wording/appearance.
+  const showPendingOverlay =
+    hasPendingChanges && (status === 'disconnected' || status === 'disabled');
+  const displayText = showPendingOverlay
+    ? `${config.text} · ${t.offline.queued} (${sync.queuedCount})`
+    : config.text;
 
   return (
     <View style={styles.container}>
       <View style={[styles.status, { backgroundColor: config.backgroundColor }]}>
         <Ionicons name={config.icon} size={14} color={config.color} />
         <Text style={[styles.statusText, { color: config.color }]}>
-          {config.text}
+          {displayText}
         </Text>
       </View>
       

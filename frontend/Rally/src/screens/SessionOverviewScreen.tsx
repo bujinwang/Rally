@@ -18,6 +18,10 @@ import SessionHeader from '../components/design-system/Layout/SessionHeader';
 import PlayerCountIndicator from '../components/design-system/Layout/PlayerCountIndicator';
 import ActionButtons from '../components/design-system/Button/ActionButtons';
 import { PlayerCard } from '../components/design-system/Card';
+import OfflineStatusBanner, {
+  CachedDataBadge,
+  useShowCachedBadge,
+} from '../components/OfflineStatusBanner';
 
 // Types
 import { SessionData } from '../components/design-system/Layout/SessionHeader.types';
@@ -104,6 +108,10 @@ export const SessionOverviewScreen: React.FC<SessionOverviewScreenProps> = () =>
     share: false,
     refresh: false,
   });
+  // True when the rendered session came from the local cache and the fresh
+  // network fetch has not (yet) succeeded — drives the "cached" badge.
+  const [isFromCache, setIsFromCache] = useState(false);
+  const showCachedBadge = useShowCachedBadge(isFromCache);
   
   // Current user state (based on device ID)
   const currentPlayer = players.find(p => p.isOrganizer || (deviceId && p.id.includes(deviceId)));
@@ -166,6 +174,8 @@ export const SessionOverviewScreen: React.FC<SessionOverviewScreenProps> = () =>
     
     setSession(transformedSession);
     setPlayers(transformedPlayers);
+    // A socket update is authoritative fresh data.
+    setIsFromCache(false);
     
     // Cache the updated session
     mvpApiService.cacheSession(data.session);
@@ -201,6 +211,7 @@ export const SessionOverviewScreen: React.FC<SessionOverviewScreenProps> = () =>
         );
         setSession(transformedSession);
         setPlayers(transformedPlayers);
+        setIsFromCache(true);
       }
       
       // Always fetch fresh data
@@ -220,6 +231,8 @@ export const SessionOverviewScreen: React.FC<SessionOverviewScreenProps> = () =>
         
         setSession(transformedSession);
         setPlayers(transformedPlayers);
+        // Fresh data arrived — no longer a stale/cached read.
+        setIsFromCache(false);
       } else {
         throw new Error(response.error?.message || 'Failed to load session');
       }
@@ -227,6 +240,10 @@ export const SessionOverviewScreen: React.FC<SessionOverviewScreenProps> = () =>
       console.error('Failed to load session data:', error);
       setError(error.message || 'Failed to load session data');
       
+      // Falling back to cache: mark the view stale so the badge shows.
+      if (session) {
+        setIsFromCache(true);
+      }
       // If no cached data was loaded, show alert
       if (!session) {
         Alert.alert('Error', 'Failed to load session data. Please check your connection and try again.');
@@ -449,6 +466,7 @@ export const SessionOverviewScreen: React.FC<SessionOverviewScreenProps> = () =>
   if (!session && !error) {
     return (
       <SafeAreaView style={styles.container}>
+        <OfflineStatusBanner />
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading session...</Text>
         </View>
@@ -460,6 +478,7 @@ export const SessionOverviewScreen: React.FC<SessionOverviewScreenProps> = () =>
   if (error && !session) {
     return (
       <SafeAreaView style={styles.container}>
+        <OfflineStatusBanner />
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Failed to load session</Text>
           <Text style={styles.errorSubtext}>{error}</Text>
@@ -476,6 +495,8 @@ export const SessionOverviewScreen: React.FC<SessionOverviewScreenProps> = () =>
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Offline status strip (Story 6.5) */}
+      <OfflineStatusBanner />
       <ScrollView 
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
@@ -487,7 +508,9 @@ export const SessionOverviewScreen: React.FC<SessionOverviewScreenProps> = () =>
           />
         }
       >
-        
+        {/* Stale / cached-data badge */}
+        <CachedDataBadge visible={showCachedBadge} />
+
         {/* Session Header */}
         <SessionHeader 
           session={session}
