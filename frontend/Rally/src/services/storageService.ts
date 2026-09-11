@@ -1,4 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  offlineQueue,
+  OfflineOperation,
+  OfflineOperationInput,
+} from './offlineQueue';
 
 export class StorageService {
   private static readonly KEYS = {
@@ -75,55 +80,81 @@ export class StorageService {
     }
   }
 
-  // Sync Queue Management
+  // -------------------------------------------------------------------------
+  // Sync Queue Management (Story 6.5)
+  //
+  // These methods DELEGATE to `offlineQueue`, the canonical storage primitive.
+  // `addToSyncQueue` no longer re-stamps `id`/`timestamp`/`retryCount` — that
+  // overwrite caused a duplicate-id collision where one `removeFromSyncQueue`
+  // removed two operations (the D-3 data-loss bug). The queue now owns those
+  // fields and allocates a unique id + monotonic `sequence`.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Add an operation to the sync queue.
+   *
+   * Accepts either a fully-formed (but not yet stamped) operation with an
+   * `entity`/`op`/`payload` triple, or the legacy `{ type, payload }` shape.
+   * `id`, `sequence`, `timestamp` and `retryCount` are assigned by the queue.
+   */
   static async addToSyncQueue(operation: any): Promise<void> {
-    try {
-      const queue = await this.getSyncQueue();
-      queue.push({
-        ...operation,
-        id: Date.now().toString(),
-        timestamp: new Date().toISOString(),
-        retryCount: 0,
-      });
-      await AsyncStorage.setItem(this.KEYS.SYNC_QUEUE, JSON.stringify(queue));
-    } catch (error) {
-      console.error('Error adding to sync queue:', error);
-      throw error;
+    const identity = {
+      deviceId: (operation?.identity?.deviceId as string) || '',
+      ...(operation?.identity?.userId ? { userId: operation.identity.userId as string } : {}),
+    };
+
+    const input: OfflineOperationInput = {
+      entity: operation?.entity ?? 'unknown',
+      op: operation?.op ?? operation?.type ?? 'unknown',
+      payload: {
+        method: operation?.payload?.method ?? 'POST',
+        endpoint: operation?.payload?.endpoint ?? '',
+        ...(operation?.payload?.body !== undefined
+          ? { body: operation.payload.body }
+          : operation?.payload?.data !== undefined
+            ? { body: operation.payload.data }
+            : {}),
+      },
+      ...(typeof operation?.version === 'number' ? { version: operation.version } : {}),
+    };
+
+    const stored = await offlineQueue.enqueue(input, identity);
+    if (!stored) {
+      // Persistence failed (e.g. storage quota). Surface it rather than
+      // silently dropping the mutation.
+      throw new Error('Failed to enqueue offline operation');
+    }
+
+    // Preserve any pre-set execution state (e.g. a legacy `state`) without
+    // re-stamping the queue-owned fields.
+    if (operation?.state && operation.state !== stored.state) {
+      await offlineQueue.updateOperation(stored.id, { state: operation.state });
     }
   }
 
-  static async getSyncQueue(): Promise<any[]> {
-    try {
-      const queue = await AsyncStorage.getItem(this.KEYS.SYNC_QUEUE);
-      return queue ? JSON.parse(queue) : [];
-    } catch (error) {
-      console.error('Error getting sync queue:', error);
-      return [];
-    }
+  /** Active queue, sorted by `sequence` (the deterministic replay order). */
+  static async getSyncQueue(): Promise<OfflineOperation[]> {
+    return offlineQueue.getOperations();
   }
 
+  /** Remove a single operation by id. Filters by id, never by index. */
   static async removeFromSyncQueue(operationId: string): Promise<void> {
-    try {
-      const queue = await this.getSyncQueue();
-      const filteredQueue = queue.filter(op => op.id !== operationId);
-      await AsyncStorage.setItem(this.KEYS.SYNC_QUEUE, JSON.stringify(filteredQueue));
-    } catch (error) {
-      console.error('Error removing from sync queue:', error);
-      throw error;
-    }
+    await offlineQueue.removeOperation(operationId);
   }
 
+  /** Patch a single operation's mutable fields (retryCount, state, errors…). */
   static async updateSyncQueueOperation(operationId: string, updates: any): Promise<void> {
-    try {
-      const queue = await this.getSyncQueue();
-      const updatedQueue = queue.map(op =>
-        op.id === operationId ? { ...op, ...updates } : op
-      );
-      await AsyncStorage.setItem(this.KEYS.SYNC_QUEUE, JSON.stringify(updatedQueue));
-    } catch (error) {
-      console.error('Error updating sync queue operation:', error);
-      throw error;
-    }
+    await offlineQueue.updateOperation(operationId, updates);
+  }
+
+  /** Archived (evicted-but-retained) operations — never deleted (AC 14). */
+  static async getSyncArchive(): Promise<any[]> {
+    return offlineQueue.readArchive();
+  }
+
+  /** Count of archived operations, surfaced to the UI. */
+  static async getSyncArchiveCount(): Promise<number> {
+    return offlineQueue.getArchivedCount();
   }
 
   // Last Sync Timestamp
@@ -212,6 +243,45 @@ export class StorageService {
     } catch (error) {
       console.error('Error getting cached sessions:', error);
       return {};
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Export/restore support (Story 6.5 / T03)
+  //
+  // Read/merge helpers for the offline snapshot. Both are additive: the
+  // snapshot reader is read-only, and the merge keeps existing keys (local cache
+  // is authoritative over an imported file). No delete path is introduced.
+  // -------------------------------------------------------------------------
+
+  /** The full cached-session snapshot as a plain object (export source). */
+  static async getCachedSessionsSnapshot(): Promise<Record<string, any>> {
+    return this.getCachedSessions();
+  }
+
+  /**
+   * Additively merge an imported cached-session snapshot. Existing keys win —
+   * an import never overwrites a locally cached session. Returns the number of
+   * newly merged keys.
+   */
+  static async mergeCachedSessions(incoming: Record<string, unknown>): Promise<number> {
+    if (!incoming || typeof incoming !== 'object') return 0;
+    try {
+      const current = await this.getCachedSessions();
+      let merged = 0;
+      for (const [shareCode, session] of Object.entries(incoming)) {
+        if (!(shareCode in current)) {
+          current[shareCode] = session;
+          merged += 1;
+        }
+      }
+      if (merged > 0) {
+        await AsyncStorage.setItem(this.KEYS.CACHED_SESSIONS, JSON.stringify(current));
+      }
+      return merged;
+    } catch (error) {
+      console.error('Error merging cached sessions:', error);
+      return 0;
     }
   }
 
