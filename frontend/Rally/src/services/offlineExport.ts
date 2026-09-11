@@ -138,7 +138,16 @@ export function stripSensitive<T>(value: T): T {
 // Pure helpers
 // ---------------------------------------------------------------------------
 
-/** Deterministic serialisation — fixed key order, pretty-printed for humans. */
+/**
+ * Deterministic serialisation — fixed key order, pretty-printed for humans.
+ *
+ * Every section is passed through `stripSensitive`, so the credential denylist
+ * applies to the **whole** document — including `queue` and `archive`. An
+ * operation's `payload.body` is replayed verbatim, so it must be scrubbed too:
+ * a token that somehow reached a queued body (or a tampered archive record)
+ * must not survive into an export file (AC 16 — "sensitive data in the queue").
+ * `stripSensitive` is pure, so `serialize` stays side-effect-free.
+ */
 export function serialize(state: ExportState): string {
   const doc: ExportState = {
     schemaVersion: state.schemaVersion,
@@ -147,9 +156,9 @@ export function serialize(state: ExportState): string {
       deviceId: state.identity.deviceId,
       userId: state.identity.userId,
     },
-    queue: state.queue,
-    archive: state.archive,
-    cached: state.cached,
+    queue: stripSensitive(state.queue),
+    archive: stripSensitive(state.archive),
+    cached: stripSensitive(state.cached),
   };
   return JSON.stringify(doc, null, 2);
 }
@@ -212,8 +221,10 @@ export function parse(raw: string, currentIdentity?: ExportIdentity): ParseResul
     schemaVersion: version,
     exportedAt: typeof parsed.exportedAt === 'string' ? parsed.exportedAt : '',
     identity,
-    queue: toOperationArray(parsed.queue) as OfflineOperation[],
-    archive: toOperationArray(parsed.archive) as ArchivedOperation[],
+    // Scrub every section — a tampered file may carry a credential anywhere,
+    // including inside a queued op's `payload.body` (defense in depth).
+    queue: stripSensitive(toOperationArray(parsed.queue)) as OfflineOperation[],
+    archive: stripSensitive(toOperationArray(parsed.archive)) as ArchivedOperation[],
     cached: stripSensitive(isRecord(parsed.cached) ? parsed.cached : {}),
   };
 
