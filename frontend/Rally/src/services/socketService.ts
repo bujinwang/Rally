@@ -1,5 +1,7 @@
 import { io, Socket } from 'socket.io-client';
-import { API_BASE_URL } from '../config/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL, ACCESS_TOKEN_KEY } from '../config/api';
+import DeviceService from './deviceService';
 
 export interface SocketEvents {
   // Session events
@@ -80,6 +82,16 @@ export interface SocketEvents {
   'connect': () => void;
   'disconnect': () => void;
   'error': (error: any) => void;
+
+  // Story 6.4 — real-time sync hardening
+  'session:player-status-changed': (data: any) => void;
+  'session:score-updated': (data: any) => void;
+  'tournament:bracket': (data: any) => void;
+  'tournament:match-complete': (data: any) => void;
+  'tournament:leaderboard': (data: any) => void;
+  'sync:resumed': (data: any) => void;
+  'polling:fallback': (data: any) => void;
+  'polling:tick': (data: any) => void;
 }
 
 class SocketService {
@@ -90,9 +102,30 @@ class SocketService {
   private listeners: Map<string, Function[]> = new Map();
   private isEnabled = true; // Enable by default
 
+  // Story 6.4 — reconnect recovery + polling fallback state.
+  // lastEventId per room, so on reconnect the server can replay only what we
+  // missed or tell us to refetch (AC 8, AC 11).
+  private lastEventIds: Map<string, number> = new Map();
+  // Rooms we have joined, re-subscribed automatically after a reconnect.
+  private joinedRooms: Set<string> = new Set();
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private pollingFallbackActive = false;
+  // Called when a refetch is required (missed too many events).
+  private refetchHandler: ((room: string) => void) | null = null;
+
   constructor() {
     // Don't auto-connect by default to prevent connection errors
     console.log('🔌 Socket service initialized (connection disabled by default)');
+  }
+
+  /** Register a callback invoked when the server says "refetch room X". */
+  onRefetchRequired(handler: (room: string) => void): void {
+    this.refetchHandler = handler;
+  }
+
+  /** True when we have degraded to polling (AC 16). */
+  isPollingFallbackActive(): boolean {
+    return this.pollingFallbackActive;
   }
 
   // Enable Socket.IO connections
@@ -109,7 +142,7 @@ class SocketService {
   }
 
   // Connect to Socket.IO server (only if enabled)
-  connect(): void {
+  async connect(): Promise<void> {
     if (!this.isEnabled) {
       console.log('🔌 Socket.IO disabled, skipping connection');
       return;
@@ -120,9 +153,16 @@ class SocketService {
     }
 
     console.log('🔌 Connecting to Socket.IO server...');
-    
+
     const serverUrl = API_BASE_URL.replace('/api/v1', ''); // Remove API path for socket connection
-    
+
+    // Read auth token for handshake (Story 6.4)
+    const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
+    // Resolve the persistent device id so guest sockets can be authorized to
+    // join their own session rooms (Story 6.4 regression fix). Guests have no
+    // JWT, so the self-asserted deviceId is the only identity they can present.
+    const deviceId = await DeviceService.getDeviceId().catch(() => undefined);
+
     this.socket = io(serverUrl, {
       transports: ['polling', 'websocket'], // Start with polling, upgrade to websocket
       timeout: 3000,
@@ -131,7 +171,11 @@ class SocketService {
       reconnectionDelay: this.reconnectDelay,
       forceNew: true,
       upgrade: true,
-      rememberUpgrade: false
+      rememberUpgrade: false,
+      auth: {
+        token: token ? `Bearer ${token}` : undefined,
+        deviceId,
+      },
     });
 
     this.setupEventHandlers();
@@ -154,6 +198,10 @@ class SocketService {
     this.socket.on('connect', () => {
       console.log('✅ Connected to Socket.IO server');
       this.reconnectAttempts = 0;
+      // A successful socket connection supersedes any polling fallback.
+      this.stopPollingFallback();
+      // Re-subscribe to rooms and request missed-event replay (AC 8, AC 11).
+      this.resumeRooms();
       this.emitToListeners('connect');
     });
 
@@ -165,32 +213,81 @@ class SocketService {
     this.socket.on('connect_error', (error) => {
       console.warn('⚠️ Socket connection error (will retry):', error.message);
       this.reconnectAttempts++;
-      
+
       // Don't spam the listeners with every connection error
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
         console.error('💥 Max socket reconnection attempts reached');
+        // Graceful degradation: fall back to polling instead of going dark
+        // (Story 6.4, AC 16).
+        this.startPollingFallback();
         this.emitToListeners('error', error);
       }
     });
 
+    // Server response to a resume request (AC 11).
+    this.socket.on('sync:resumed', (data: {
+      results?: Array<{ room: string; mode: 'replay' | 'refetch'; replayed?: number }>;
+    }) => {
+      (data?.results || []).forEach((r) => {
+        if (r.mode === 'refetch') {
+          console.warn(`🔄 Refetch required for room ${r.room}`);
+          this.refetchHandler?.(r.room);
+        } else {
+          console.log(`🔄 Replayed ${r.replayed ?? 0} event(s) for ${r.room}`);
+        }
+      });
+      this.emitToListeners('sync:resumed', data);
+    });
+
     // Session event handlers
     this.socket.on('session:updated', (data) => {
+      this.trackEventId(data);
       console.log('📡 Session updated:', data);
       this.emitToListeners('session:updated', data);
     });
 
     // MVP session event handlers
     this.socket.on('mvp-session-updated', (data) => {
+      this.trackEventId(data);
       console.log('🔥 DEBUG: Received mvp-session-updated on socket:', data);
       this.emitToListeners('mvp-session-updated', data);
     });
 
+    // Story 6.4 — authoritative gameplay events.
+    this.socket.on('session:player-status-changed', (data) => {
+      this.trackEventId(data);
+      this.emitToListeners('session:player-status-changed', data);
+    });
+
+    this.socket.on('session:score-updated', (data) => {
+      this.trackEventId(data);
+      this.emitToListeners('session:score-updated', data);
+    });
+
+    // Story 6.4 — tournament real-time (replaces the server-side placeholder).
+    this.socket.on('tournament:bracket', (data) => {
+      this.trackEventId(data);
+      this.emitToListeners('tournament:bracket', data);
+    });
+
+    this.socket.on('tournament:match-complete', (data) => {
+      this.trackEventId(data);
+      this.emitToListeners('tournament:match-complete', data);
+    });
+
+    this.socket.on('tournament:leaderboard', (data) => {
+      this.trackEventId(data);
+      this.emitToListeners('tournament:leaderboard', data);
+    });
+
     this.socket.on('session:player-joined', (data) => {
+      this.trackEventId(data);
       console.log('👤 Player joined:', data);
       this.emitToListeners('session:player-joined', data);
     });
 
     this.socket.on('session:player-left', (data) => {
+      this.trackEventId(data);
       console.log('👋 Player left:', data);
       this.emitToListeners('session:player-left', data);
     });
@@ -263,16 +360,97 @@ class SocketService {
     }
   }
 
+  // -------------------------------------------------------------------------
+  // Story 6.4 — reconnect recovery + polling fallback
+  // -------------------------------------------------------------------------
+
+  /**
+   * Record the monotonic eventId carried by an authoritative event so the
+   * next reconnect can ask the server to replay only what we missed (AC 11).
+   */
+  private trackEventId(data: any): void {
+    const room =
+      data?.shareCode ? `session:${data.shareCode}` :
+      data?.tournamentId ? `tournament:${data.tournamentId}` :
+      null;
+    if (room && typeof data?.eventId === 'number') {
+      const prev = this.lastEventIds.get(room) || 0;
+      if (data.eventId > prev) this.lastEventIds.set(room, data.eventId);
+    }
+  }
+
+  /**
+   * Re-subscribe to every room we had joined and ask the server to replay
+   * missed events (AC 8 — no duplicate or lost events on reconnect).
+   */
+  private resumeRooms(): void {
+    if (!this.socket?.connected) return;
+
+    if (this.joinedRooms.size === 0) return;
+
+    // Re-join each room using the authenticated object form (so a reconnecting
+    // guest still presents its deviceId), then request the missed-event replay.
+    void Promise.all(
+      Array.from(this.joinedRooms).map((shareCode) =>
+        this.joinSession(shareCode).catch(() => undefined)
+      )
+    ).then(() => {
+      this.socket?.emit('sync:resume', {
+        rooms: Array.from(this.joinedRooms).map((shareCode) => ({
+          room: `session:${shareCode}`,
+          lastEventId: this.lastEventIds.get(`session:${shareCode}`) || 0,
+        })),
+      });
+    });
+  }
+
+  /**
+   * Degrade to polling when sockets are unavailable (AC 16).
+   * Emits a synthetic `polling:fallback` signal so screens can switch to
+   * their REST refresh loop instead of going dark.
+   */
+  private startPollingFallback(): void {
+    if (this.pollingFallbackActive) return;
+    this.pollingFallbackActive = true;
+    console.warn('📡 Socket unavailable — falling back to polling');
+
+    this.emitToListeners('polling:fallback', { active: true });
+
+    if (this.pollTimer) clearInterval(this.pollTimer);
+    this.pollTimer = setInterval(() => {
+      this.emitToListeners('polling:tick', { timestamp: Date.now() });
+    }, 15000);
+    // Node/browser differs on Interval types; clearInterval handles both.
+    (this.pollTimer as any)?.unref?.();
+  }
+
+  /** Stop the polling fallback once sockets recover. */
+  private stopPollingFallback(): void {
+    if (!this.pollingFallbackActive && !this.pollTimer) return;
+    this.pollingFallbackActive = false;
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+    this.emitToListeners('polling:fallback', { active: false });
+  }
+
   // Join a session room for real-time updates (graceful fallback)
-  joinSession(shareCode: string, deviceId?: string): void {
+  async joinSession(shareCode: string, deviceId?: string): Promise<void> {
     if (!this.socket?.connected) {
       console.warn('Socket not connected, skipping real-time session join');
       return;
     }
 
     try {
+      // Prefer the caller-supplied deviceId, else fall back to the persistent
+      // one. The server requires a verified userId or a deviceId (Story 6.4),
+      // so we must always emit the object form with our guest identity.
+      const resolvedDeviceId =
+        deviceId || (await DeviceService.getDeviceId().catch(() => undefined));
       console.log(`📍 Joining session room: ${shareCode}`);
-      this.socket.emit('join-session', shareCode);
+      this.socket.emit('join-session', { shareCode, deviceId: resolvedDeviceId });
+      this.joinedRooms.add(shareCode);
     } catch (error) {
       console.warn('Failed to join session room:', error);
     }
@@ -288,8 +466,38 @@ class SocketService {
     try {
       console.log(`📤 Leaving session room: ${shareCode}`);
       this.socket.emit('leave-session', shareCode);
+      this.joinedRooms.delete(shareCode);
+      this.lastEventIds.delete(`session:${shareCode}`);
     } catch (error) {
       console.warn('Failed to leave session room:', error);
+    }
+  }
+
+  // Join a tournament room for real-time bracket/leaderboard updates (Story 6.4)
+  joinTournament(tournamentId: string): void {
+    if (!this.socket?.connected) {
+      console.warn('Socket not connected, skipping real-time tournament join');
+      return;
+    }
+    try {
+      console.log(`🏆 Joining tournament room: ${tournamentId}`);
+      this.socket.emit('join-tournament', { tournamentId });
+    } catch (error) {
+      console.warn('Failed to join tournament room:', error);
+    }
+  }
+
+  // Leave a tournament room (graceful fallback)
+  leaveTournament(tournamentId: string): void {
+    if (!this.socket?.connected) {
+      console.warn('Socket not connected, skipping real-time tournament leave');
+      return;
+    }
+    try {
+      console.log(`🏆 Leaving tournament room: ${tournamentId}`);
+      this.socket.emit('leave-tournament', { tournamentId });
+    } catch (error) {
+      console.warn('Failed to leave tournament room:', error);
     }
   }
 
