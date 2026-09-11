@@ -1,6 +1,8 @@
 import { prisma } from '../config/database';
 import { notifySessionSubscribers, notifyDevice } from '../utils/notificationHelper';
 import { MatchSchedulingService } from './matchSchedulingService';
+import { trainingPipeline } from './ml/trainingPipeline';
+import { predictionRetrainTotal } from './metricsRegistry';
 
 /**
  * Lightweight in-process scheduler for recurring maintenance tasks.
@@ -11,6 +13,7 @@ import { MatchSchedulingService } from './matchSchedulingService';
  *   every 30s  — auto-expire player rest periods
  *   every 30s  — send pending match reminders
  *   every 5min — auto-complete past sessions with no activity
+ *   every 24h  — retrain the predictive models (Story 6.6)
  */
 class Scheduler {
   private intervals: NodeJS.Timeout[] = [];
@@ -39,15 +42,20 @@ class Scheduler {
     // Auto-complete past sessions: every 5 minutes
     register(setInterval(() => this.autoCompleteSessions(), 5 * 60_000));
 
+    // Predictive model retraining: every 24 hours (Story 6.6, design §1 D7)
+    register(setInterval(() => this.retrainModels(), 24 * 60 * 60_000));
+
     // Run once on startup (after a short delay to let DB connect)
     const startupTimer = setTimeout(() => {
       this.sendSessionReminders();
       this.expireRestPeriods();
       this.sendMatchReminders();
+      // Deferred predictive retrain — skips types with insufficient data.
+      this.retrainModels();
     }, 10_000);
     if (typeof startupTimer.unref === 'function') startupTimer.unref();
 
-    console.log('⏰ Scheduler started — 4 jobs active');
+    console.log('⏰ Scheduler started — 5 jobs active');
   }
 
   /** Stop all jobs (for graceful shutdown) */
@@ -242,6 +250,37 @@ class Scheduler {
       }
     } catch (error) {
       console.error('Scheduler: match reminders error:', error);
+    }
+  }
+
+  // ── Predictive Model Retraining (Story 6.6) ──────────────────────
+
+  /**
+   * Retrain every measurable prediction family, activating each one that
+   * clears its own activation gate.
+   *
+   * Deliberately **never throws**: each type is isolated by
+   * `TrainingPipeline.runAll`, and a type below its minimum-sample threshold
+   * returns `{ status: 'skipped', reason: 'insufficient-samples' }` and writes
+   * nothing — the scheduler must never fabricate a model from thin data. The
+   * outcome of every run is recorded in the `rally_prediction_retrain_total`
+   * counter so operators can observe both real training and honest skips.
+   */
+  private async retrainModels(): Promise<void> {
+    try {
+      const outcomes = await trainingPipeline.runAll();
+      for (const [type, outcome] of Object.entries(outcomes)) {
+        const status = outcome.status === 'trained' ? 'trained' : outcome.reason;
+        predictionRetrainTotal.inc({ type, status });
+        if (outcome.status === 'trained') {
+          console.log(`🧠 Retrained prediction model: ${type} ${outcome.version}`);
+        } else {
+          console.log(`⏭️  Skipped prediction retrain for ${type}: ${outcome.reason}`);
+        }
+      }
+    } catch (error) {
+      // Never let a retrain failure crash the scheduler (or the process).
+      console.error('Scheduler: prediction retrain error:', error);
     }
   }
 }
