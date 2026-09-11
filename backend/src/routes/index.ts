@@ -40,6 +40,8 @@ import equipmentRoutes from './equipment';
 import sharingRoutes from './sharing';
 import communityRoutes from './community';
 import oauthRoutes from './oauth';
+// Story 6.6 — predictive analytics surface (GET :type, ADMIN train/rollback/models)
+import predictionRoutes from './predictions';
 
 const router = Router();
 
@@ -124,6 +126,8 @@ console.log('  - /community');
 router.use('/community', communityRoutes);
 console.log('  - /oauth');
 router.use('/oauth', oauthRoutes);
+console.log('  - /predictions');
+router.use('/predictions', predictionRoutes);
 console.log('✅ All routes registered successfully');
 
 export const setupRoutes = (): Router => {

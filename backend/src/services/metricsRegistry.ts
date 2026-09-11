@@ -84,6 +84,45 @@ export const cacheHitRate = new Gauge({
 });
 
 /**
+ * Prediction serving duration in seconds (Story 6.6, design §1 D7).
+ * Labels: type, modelKind. `type` is one of the four fixed families and
+ * `modelKind` is the bounded honesty enum (`measured` | `fallback` |
+ * `heuristic`), so cardinality stays bounded — no ids ever appear here.
+ */
+export const predictionServeSeconds = new Histogram({
+  name: 'rally_prediction_serve_seconds',
+  help: 'Prediction serving duration in seconds',
+  labelNames: ['type', 'modelKind'],
+  buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  registers: [register],
+});
+
+/**
+ * Total prediction (re)training runs by outcome (Story 6.6, design §1 D7).
+ * Labels: type, status — `status` is the run result (`trained`) or a bounded
+ * skip/rollback reason (`insufficient-samples` | `below-threshold` |
+ * `no-dataset` | `rollback`). No free-text ever appears as a label.
+ */
+export const predictionRetrainTotal = new Counter({
+  name: 'rally_prediction_retrain_total',
+  help: 'Total prediction model (re)training runs by outcome',
+  labelNames: ['type', 'status'],
+  registers: [register],
+});
+
+/**
+ * Held-out accuracy of the active **measured** model per type (0-1), Story 6.6.
+ * Label: type. This gauge is only ever set for a `measured` model — a
+ * fallback/heuristic result must never surface a number (design §1 D6).
+ */
+export const predictionAccuracy = new Gauge({
+  name: 'rally_prediction_accuracy',
+  help: 'Held-out accuracy of the active measured prediction model (0-1)',
+  labelNames: ['type'],
+  registers: [register],
+});
+
+/**
  * Derive a canonical route pattern from an Express request.
  *
  * Express stores the matched route on `req.route`. If available, we use

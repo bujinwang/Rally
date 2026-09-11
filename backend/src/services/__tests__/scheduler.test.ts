@@ -54,18 +54,19 @@ describe('Scheduler', () => {
 
   // ── Lifecycle ───────────────────────────────────────────────
   describe('start / stop', () => {
-    it('registers 4 interval jobs and stops them', () => {
+    it('registers 5 interval jobs and stops them', () => {
       const intervalSpy = jest.spyOn(global as any, 'setInterval').mockReturnValue(1 as any);
       const timeoutSpy = jest.spyOn(global as any, 'setTimeout').mockReturnValue(2 as any);
       const clearSpy = jest.spyOn(global as any, 'clearInterval').mockImplementation(() => {});
 
       srv.start();
-      expect(intervalSpy).toHaveBeenCalledTimes(4);
+      // 5 jobs since Story 6.6: the 4. job set plus the 24 h model retrain.
+      expect(intervalSpy).toHaveBeenCalledTimes(5);
       expect(timeoutSpy).toHaveBeenCalledTimes(1);
-      expect(srv.intervals).toHaveLength(4);
+      expect(srv.intervals).toHaveLength(5);
 
       srv.stop();
-      expect(clearSpy).toHaveBeenCalledTimes(4);
+      expect(clearSpy).toHaveBeenCalledTimes(5);
       expect(srv.intervals).toHaveLength(0);
     });
   });
