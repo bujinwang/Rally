@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { DiscoveryService, DiscoveryFilters } from '../services/discoveryService';
 import { MvpSessionService } from '../services/mvpSessionService';
 import { moderateLimiter } from '../middleware/rateLimiter';
+import { cachingMiddleware, cacheInvalidationMiddleware } from '../middleware/caching';
+import { TTL } from '../services/cache/cacheKeys';
 
 const router = Router();
 
@@ -10,7 +12,7 @@ const router = Router();
  * Discover sessions based on filters
  * Rate limited: 60 requests per 15 minutes per IP
  */
-router.get('/', moderateLimiter, async (req: Request, res: Response) => {
+router.get('/', moderateLimiter, cachingMiddleware({ domain: 'discovery', ttl: TTL.discovery }), async (req: Request, res: Response) => {
   try {
     const {
       latitude,
@@ -153,7 +155,7 @@ router.get('/recommended/:deviceId', async (req: Request, res: Response) => {
  * Rate limited: 60 requests per 15 minutes per IP
  * NOTE: registered before '/:sessionId' so it is not captured as a session id
  */
-router.get('/nearby', moderateLimiter, async (req: Request, res: Response) => {
+router.get('/nearby', moderateLimiter, cachingMiddleware({ domain: 'nearby', ttl: TTL.nearby }), async (req: Request, res: Response) => {
   try {
     const { latitude, longitude, radius, limit } = req.query;
 
@@ -198,7 +200,7 @@ router.get('/nearby', moderateLimiter, async (req: Request, res: Response) => {
  * GET /api/sessions/discovery/:sessionId
  * Get detailed session information for discovery
  */
-router.get('/:sessionId', async (req: Request, res: Response) => {
+router.get('/:sessionId', cachingMiddleware({ domain: 'session', ttl: TTL.session }), async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
     const { latitude, longitude } = req.query;
@@ -246,7 +248,7 @@ router.get('/:sessionId', async (req: Request, res: Response) => {
  * POST /api/sessions/discovery/:sessionId/join
  * Join a session discovered through the discovery system
  */
-router.post('/:sessionId/join', async (req: Request, res: Response) => {
+router.post('/:sessionId/join', cacheInvalidationMiddleware(['session', 'discovery']), async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
     const { playerName, deviceId } = req.body;
@@ -329,7 +331,7 @@ router.post('/:sessionId/join', async (req: Request, res: Response) => {
  * GET /api/sessions/discovery/stats
  * Get discovery statistics (for analytics)
  */
-router.get('/stats/summary', async (req: Request, res: Response) => {
+router.get('/stats/summary', cachingMiddleware({ domain: 'stats', ttl: TTL.stats }), async (req: Request, res: Response) => {
   try {
     // This would typically aggregate discovery usage statistics
     // For now, return basic stats

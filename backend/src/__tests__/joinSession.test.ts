@@ -2,6 +2,11 @@ import request from 'supertest';
 import app from '../server';
 import { prisma } from '../config/database';
 
+// Unique per run so a leftover row from an aborted run can never collide on the
+// unique `shareCode` index (and the inactive-session fixture is deleted at the
+// end of its test, so it must not clash with residue either).
+const inactiveShareCode = `INACTIVE-${Date.now()}`;
+
 describe('Join Session API', () => {
   let testSession: any;
   let testShareCode: string;
@@ -15,7 +20,7 @@ describe('Join Session API', () => {
         location: 'Test Court',
         maxPlayers: 4,
         ownerName: 'Test Owner',
-        shareCode: 'TEST123',
+        shareCode: `TEST123-${Date.now()}`,
         status: 'ACTIVE'
       }
     });
@@ -62,13 +67,13 @@ describe('Join Session API', () => {
           location: 'Test Court',
           maxPlayers: 4,
           ownerName: 'Test Owner',
-          shareCode: 'INACTIVE',
+          shareCode: inactiveShareCode,
           status: 'CANCELLED'
         }
       });
 
       const response = await request(app)
-        .get('/api/v1/mvp-sessions/join/INACTIVE')
+        .get(`/api/v1/mvp-sessions/join/${inactiveShareCode}`)
         .expect(403);
 
       expect(response.body.success).toBe(false);

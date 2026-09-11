@@ -17,7 +17,7 @@ describe('Statistics API', () => {
         scheduledAt: new Date(),
         ownerName: 'Test Organizer',
         ownerDeviceId: 'organizer-device-123',
-        shareCode: 'STATS123'
+        shareCode: `STATS123-${Date.now()}`
       }
     });
     testSessionId = session.id;

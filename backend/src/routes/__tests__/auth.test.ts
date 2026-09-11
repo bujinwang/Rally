@@ -14,6 +14,7 @@ jest.mock('../../utils/jwt', () => ({
     storeRefreshToken: jest.fn(),
     revokeRefreshToken: jest.fn(),
     isRefreshTokenValid: jest.fn(),
+    rotateRefreshToken: jest.fn(),
   },
 }));
 
@@ -43,6 +44,7 @@ const verifyRefreshToken = JWTUtils.verifyRefreshToken as jest.Mock;
 const storeRefreshToken = JWTUtils.storeRefreshToken as jest.Mock;
 const revokeRefreshToken = JWTUtils.revokeRefreshToken as jest.Mock;
 const isRefreshTokenValid = JWTUtils.isRefreshTokenValid as jest.Mock;
+const rotateRefreshToken = JWTUtils.rotateRefreshToken as jest.Mock;
 
 const hashPassword = PasswordUtils.hashPassword as jest.Mock;
 const verifyPassword = PasswordUtils.verifyPassword as jest.Mock;
@@ -71,6 +73,12 @@ describe('Auth Routes', () => {
     storeRefreshToken.mockResolvedValue(undefined);
     revokeRefreshToken.mockResolvedValue(undefined);
     isRefreshTokenValid.mockResolvedValue(true);
+    rotateRefreshToken.mockResolvedValue({
+      ok: true,
+      jti: 'jti-new',
+      familyId: 'fam-1',
+      toleratedRetry: false,
+    });
     hashPassword.mockResolvedValue('hashed-password');
     validatePasswordStrength.mockReturnValue({ isValid: true, errors: [] });
   });
@@ -217,8 +225,13 @@ describe('Auth Routes', () => {
   describe('POST /auth/refresh', () => {
     it('issues new tokens and rotates the refresh token', async () => {
       verifyRefreshToken.mockReturnValue({ userId: 'u1', email: 'david@example.com', role: 'PLAYER' });
-      isRefreshTokenValid.mockResolvedValue(true);
       findUnique.mockResolvedValue(dbUser);
+      rotateRefreshToken.mockResolvedValue({
+        ok: true,
+        jti: 'jti-new',
+        familyId: 'fam-1',
+        toleratedRetry: false,
+      });
 
       const res = await request(app)
         .post('/auth/refresh')
@@ -227,8 +240,13 @@ describe('Auth Routes', () => {
 
       expect(res.body.success).toBe(true);
       expect(res.body.data.tokens.accessToken).toBe('access-token');
-      expect(revokeRefreshToken).toHaveBeenCalledWith('u1');
-      expect(storeRefreshToken).toHaveBeenCalledWith('u1', 'refresh-token');
+      // The PRESENTED token is passed to the atomic rotation.
+      expect(rotateRefreshToken).toHaveBeenCalledWith(
+        'u1',
+        'old-refresh',
+        'refresh-token',
+        expect.anything()
+      );
     });
 
     it('returns 401 when refresh token is invalid/expired', async () => {
@@ -244,12 +262,14 @@ describe('Auth Routes', () => {
 
     it('returns 401 when refresh token was revoked', async () => {
       verifyRefreshToken.mockReturnValue({ userId: 'u1', email: 'david@example.com', role: 'PLAYER' });
-      isRefreshTokenValid.mockResolvedValue(false);
+      findUnique.mockResolvedValue(dbUser);
+      rotateRefreshToken.mockResolvedValue({ ok: false, reason: 'REUSED' });
 
       const res = await request(app)
         .post('/auth/refresh')
         .send({ refreshToken: 'revoked' })
         .expect(401);
+      expect(res.body.error.code).toBe('UNAUTHORIZED');
       expect(res.body.error.message).toBe('Refresh token has been revoked');
     });
 

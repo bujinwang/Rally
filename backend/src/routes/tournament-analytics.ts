@@ -154,7 +154,10 @@ router.post(
   }
 );
 
-// Real-time updates via WebSocket or polling (placeholder for now)
-// This would be handled by a separate WebSocket service or SSE endpoint
+// Real-time updates are handled by Socket.io (Story 6.4).
+// The tournament analytics emitter lives in `socket/events/tournamentAnalytics.ts`
+// and emits events to `tournament:${tournamentId}` rooms when matches complete
+// or standings change. Clients join tournament rooms via the `join-tournament`
+// socket event in `config/socket.ts`.
 
 export default router;

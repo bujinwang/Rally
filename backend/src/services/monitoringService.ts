@@ -1,4 +1,14 @@
 import { Request, Response } from 'express';
+import { cacheService } from './cacheService';
+import {
+  businessActiveUsers,
+  businessTotalSessions,
+  systemMemoryUsage,
+  systemCpuUsage,
+  dbConnectionsActive,
+  cacheHitRate,
+  errorsTotal,
+} from './metricsRegistry';
 
 interface AuthRequest extends Request {
   user?: {
@@ -70,10 +80,14 @@ class MonitoringService {
   }
 
   private startPeriodicCleanup(): void {
-    // Clean up old metrics every hour
-    setInterval(() => {
+    // Clean up old metrics every hour. `unref()` so it never keeps the
+    // Node process (or a Jest worker) alive on its own.
+    const timer = setInterval(() => {
       this.cleanupOldMetrics();
     }, 60 * 60 * 1000);
+    if (timer && typeof (timer as any).unref === 'function') {
+      (timer as any).unref();
+    }
   }
 
   private cleanupOldMetrics(): void {
@@ -144,6 +158,15 @@ class MonitoringService {
       this.errors.shift();
     }
 
+    // Update Prometheus error counter (best-effort, never throw)
+    try {
+      const endpoint = req?.originalUrl || 'unknown';
+      const type = statusCode && statusCode >= 500 ? 'server' : 'client';
+      errorsTotal.inc({ type, endpoint });
+    } catch {
+      /* best-effort */
+    }
+
     console.error(`💥 Error recorded: ${error.message} at ${errorMetrics.endpoint}`);
   }
 
@@ -175,13 +198,30 @@ class MonitoringService {
       status = 'degraded';
     }
 
+    const memoryUsage = this.getMemoryUsage();
+    const cpuUsage = this.getCpuUsage();
+    const databaseConnections = await this.getDatabaseConnections();
+    const hitRate = await this.getCacheHitRate();
+
+    // Update Prometheus gauges (best-effort, never throw)
+    try {
+      systemMemoryUsage.set(memoryUsage);
+      systemCpuUsage.set(cpuUsage);
+      dbConnectionsActive.set(databaseConnections);
+      cacheHitRate.set(hitRate);
+      businessActiveUsers.set(this.businessMetrics.activeUsers);
+      businessTotalSessions.set(this.businessMetrics.totalSessions);
+    } catch {
+      /* best-effort */
+    }
+
     return {
       status,
       uptime,
-      memoryUsage: this.getMemoryUsage(),
-      cpuUsage: this.getCpuUsage(),
-      databaseConnections: await this.getDatabaseConnections(),
-      cacheHitRate: await this.getCacheHitRate(),
+      memoryUsage,
+      cpuUsage,
+      databaseConnections,
+      cacheHitRate: hitRate,
       responseTimeAvg: avgResponseTime,
       errorRate
     };
@@ -335,8 +375,13 @@ class MonitoringService {
   }
 
   private async getCacheHitRate(): Promise<number> {
-    // Placeholder - would need to integrate with cache service to get hit/miss stats
-    return 0;
+    // Story 6.2: wired to the real cache hit/miss counters. Never throws —
+    // a cache error must not break the monitoring health snapshot.
+    try {
+      return cacheService.getCacheStats().hitRate;
+    } catch {
+      return 0;
+    }
   }
 }
 

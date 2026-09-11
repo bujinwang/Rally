@@ -15,9 +15,16 @@ import { setupSocket } from './config/socket';
 import { setupRoutes } from './routes';
 import { errorHandler } from './middleware/errorHandler';
 import { scheduler } from './services/scheduler';
+import { cacheService } from './services/cacheService';
 import webSessionRoutes from './routes/webSession';
 import shareCardRoutes from './routes/shareCard';
 import adminRoutes from './routes/admin';
+import { correlationIdMiddleware } from './middleware/correlationId';
+import { requestMetricsMiddleware } from './middleware/requestMetrics';
+import { getAggregatedHealth } from './services/healthAggregator';
+import metricsRouter from './routes/metrics';
+import { attachAdapter, detachAdapter } from './socket/adapter';
+import { setIo } from './socket/ioRegistry';
 
 // Load environment variables
 dotenv.config();
@@ -72,6 +79,9 @@ app.use(compression({
   }
 }));
 
+// Correlation ID — must be early so every downstream middleware sees it
+app.use(correlationIdMiddleware);
+
 // Logging middleware
 app.use(morgan('combined'));
 
@@ -79,13 +89,20 @@ app.use(morgan('combined'));
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'), // Limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  message: 'Too many requests from this IP, please try again later.',
+  // The in-memory counter is shared by every suite in a Jest worker, which
+  // makes unrelated suites interfere. Bypass under test only; production
+  // behaviour and limits are unchanged.
+  skip: () => process.env.NODE_ENV === 'test'
 });
 app.use('/api/', limiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Request metrics instrumentation — after parsing, before routes
+app.use(requestMetricsMiddleware);
 
 // Serve static files (uploaded avatars)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -119,6 +136,10 @@ const webBuildPath =
   process.env.WEB_BUILD_PATH ||
   path.join(__dirname, '../../frontend/Rally/dist/web');
 
+// Metrics exposition endpoint (Story 6.3, AC 1 / AC 11)
+// Mounted before the SPA catch-all so /metrics is not intercepted by index.html
+app.use('/metrics', metricsRouter);
+
 // Only serve web build if the directory exists (may not in API-only deploys)
 const fs = require('fs');
 if (fs.existsSync(webBuildPath)) {
@@ -131,7 +152,7 @@ if (fs.existsSync(webBuildPath)) {
   }));
   // SPA fallback — serve index.html for all non-API, non-join routes
   app.use((req, res, next) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/join') || req.path.startsWith('/uploads') || req.path === '/health') {
+    if (req.path.startsWith('/api') || req.path.startsWith('/join') || req.path.startsWith('/uploads') || req.path === '/health' || req.path === '/metrics') {
       return next();
     }
     res.sendFile(path.join(webBuildPath, 'index.html'), (err: any) => {
@@ -144,13 +165,47 @@ if (fs.existsSync(webBuildPath)) {
 }
 
 // Health check for route verification
-app.get('/api/v1/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'API routes are working',
-    timestamp: new Date().toISOString(),
-    version: '1.0.0'
-  });
+app.get('/api/v1/health', async (req, res) => {
+  try {
+    const health = await getAggregatedHealth();
+    const statusCode = health.status === 'unhealthy' ? 503 : health.status === 'degraded' ? 200 : 200;
+    res.status(statusCode).json({
+      success: health.status !== 'unhealthy',
+      data: health,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(503).json({
+      success: false,
+      error: {
+        code: 'HEALTH_CHECK_ERROR',
+        message: error instanceof Error ? error.message : 'Health check failed'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Cache health (Story 6.2, AC 7) — consumed by monitoring (Story 6.3).
+// Never throws: a down cache reports degraded/unhealthy but does not error.
+app.get('/api/v1/health/cache', async (req, res) => {
+  try {
+    const cacheHealth = await cacheService.healthCheck();
+    res.status(cacheHealth.status === 'unhealthy' ? 503 : 200).json({
+      success: cacheHealth.status !== 'unhealthy',
+      data: cacheHealth,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(503).json({
+      success: false,
+      error: {
+        code: 'CACHE_HEALTH_ERROR',
+        message: 'Cache health check failed'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Error handling middleware (should be last)
@@ -172,6 +227,23 @@ const io = new SocketServer(server, {
 });
 
 
+// Register the Socket.io instance on the Express app so routes can emit
+// authoritative real-time updates via `req.app.get('io')` (Story 6.4, AC 4).
+// Without this the route-layer emissions in `routes/mvpSessions.ts` are
+// silent no-ops and clients never see rotation/score/status changes live.
+app.set('io', io);
+
+// Register the shared io instance for the domain event emitters
+// (Story 6.4, AC 4 / AC 10 — single authoritative emission path).
+setIo(io);
+
+// Attach Redis adapter for multi-instance scaling (Story 6.4, AC 1)
+// This is async but we don't await it — the adapter attaches in the background
+// and Socket.io queues messages until it's ready.
+attachAdapter(io).catch(() => {
+  /* fallback to in-memory adapter is handled inside attachAdapter */
+});
+
 setupSocket(io);
 
 // Database connection
@@ -182,13 +254,44 @@ scheduler.start();
 
 const PORT = process.env.PORT || 3001;
 
-// Only listen when executed directly (not when imported by tests)
-if (process.env.NODE_ENV !== 'test') {
+// Only listen when executed directly (not when imported by tests). `require.main`
+// is the canonical "run directly" check — the previous NODE_ENV-only guard failed
+// whenever NODE_ENV was exported as something other than 'test' (e.g. 'development'),
+// binding port 3001 during a test import and keeping Jest's event loop alive forever.
+if (process.env.NODE_ENV !== 'test' && require.main === module) {
   server.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
     console.log(`📊 Health check available at http://localhost:${PORT}/health`);
     console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
   });
+
+  // Graceful shutdown — close the Redis connection cleanly (Story 6.2)
+  // and the socket adapter's pub/sub clients (Story 6.4, AC 1).
+  const shutdown = async (signal: string): Promise<void> => {
+    console.log(`\n${signal} received — shutting down gracefully...`);
+    try {
+      await cacheService.disconnect();
+      console.log('✅ Cache connection closed');
+    } catch (error) {
+      console.error('Cache shutdown error:', error);
+    }
+    try {
+      io.close();
+      await detachAdapter();
+      console.log('✅ Socket adapter closed');
+    } catch (error) {
+      console.error('Socket shutdown error:', error);
+    }
+    server.close(() => {
+      console.log('✅ HTTP server closed');
+      process.exit(0);
+    });
+    // Force-exit if the server does not close in time.
+    setTimeout(() => process.exit(1), 10000).unref();
+  };
+
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => void shutdown('SIGINT'));
 }
 
 export default app;

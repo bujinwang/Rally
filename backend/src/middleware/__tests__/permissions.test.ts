@@ -45,7 +45,7 @@ describe('Permission Middleware', () => {
   describe('requireOrganizer', () => {
     it('should call next() for organizer', async () => {
       const middleware = requireOrganizer('edit_session');
-      const req = mockRequest({ shareCode: 'ABC123' }, { ownerDeviceId: 'device-1' });
+      const req = mockRequest({ shareCode: 'ABC123' }, { deviceId: 'device-1' });
       const res = mockResponse();
 
       // Mock session and player lookup

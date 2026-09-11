@@ -1,6 +1,103 @@
 import { Server as SocketServer } from 'socket.io';
 import { prisma } from './database';
 import { cacheService } from '../services/cacheService';
+import { socketAuthMiddleware, AuthenticatedSocket } from '../socket/auth';
+import {
+  setIo,
+  resolveMissedEvents,
+  sessionRoom,
+  tournamentRoom,
+} from '../socket/ioRegistry';
+import { emitSessionSnapshot } from '../socket/events/sessionEvents';
+import { loadBracket } from '../socket/events/tournamentAnalytics';
+
+/**
+ * Story 6.4 (AC 14, design decision D3) — authorize a socket for a session room.
+ *
+ * A socket may only join a session room when the connecting identity is a
+ * participant (verified against `MvpPlayer`) or the session owner (verified
+ * against `MvpSession.ownerUserId` / `ownerDeviceId`).
+ *
+ * Identity is taken from the verified handshake (`socket.data`), never from a
+ * client-supplied payload — trusting the payload would let any socket impersonate
+ * a device and defeat the isolation the story requires.
+ *
+ * The lookup is a single `findUnique` on the session with a narrowed, filtered
+ * relation include, so there is no N+1 and only one round-trip.
+ */
+async function isAuthorizedForSession(
+  shareCode: string,
+  userId?: string,
+  deviceId?: string
+): Promise<boolean> {
+  // Neither identity is known — nothing to authorize against.
+  if (!userId && !deviceId) return false;
+
+  const session = await prisma.mvpSession.findUnique({
+    where: { shareCode },
+    select: {
+      ownerUserId: true,
+      ownerDeviceId: true,
+      players: {
+        where: {
+          OR: [
+            ...(userId ? [{ userId }] : []),
+            ...(deviceId ? [{ deviceId }] : []),
+          ],
+        },
+        select: { id: true },
+        take: 1,
+      },
+    },
+  });
+
+  if (!session) return false;
+
+  // Owner (authenticated user, or guest device) is implicitly authorized.
+  if (userId && session.ownerUserId === userId) return true;
+  if (deviceId && session.ownerDeviceId === deviceId) return true;
+
+  // Otherwise the identity must be a registered participant of the session.
+  return session.players.length > 0;
+}
+
+/**
+ * Story 6.4 (AC 14) — authorize a socket for a tournament room.
+ *
+ * Public tournaments expose their bracket to anyone (matches the discovery
+ * semantics for public sessions). Non-public tournaments (PRIVATE /
+ * INVITATION_ONLY) are only observable by registered participants, matched by
+ * `deviceId`.
+ *
+ * Limitation: `TournamentPlayer` has no `userId` column, so an authenticated
+ * socket that never registered a `deviceId` cannot be matched to a participant
+ * row. Such sockets are denied access to non-public tournaments (fail closed)
+ * and must join with a `deviceId` handshake identity, or the tournament must be
+ * public.
+ */
+async function isAuthorizedForTournament(
+  tournamentId: string,
+  deviceId?: string
+): Promise<boolean> {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    select: { visibility: true },
+  });
+
+  if (!tournament) return false;
+
+  const visibility = (tournament.visibility || 'PUBLIC').toUpperCase();
+  if (visibility === 'PUBLIC') return true;
+
+  if (!deviceId) return false;
+
+  const participant = await prisma.tournamentPlayer.findFirst({
+    where: { tournamentId, deviceId },
+    select: { id: true },
+  });
+
+  return participant !== null;
+}
 
 // Helper function to get nearby sessions
 const getNearbySessions = async (latitude: number, longitude: number, radius: number) => {
@@ -69,17 +166,77 @@ const getNearbySessions = async (latitude: number, longitude: number, radius: nu
 };
 
 export const setupSocket = (io: SocketServer): void => {
+  // Register the shared io instance for the domain event emitters
+  // (Story 6.4, AC 4 / AC 10 — single authoritative emission path).
+  setIo(io);
+
+  // Apply handshake authentication middleware (Story 6.4, AC 2)
+  io.use(socketAuthMiddleware as any);
+
   // Track online users
   const onlineUsers = new Map<string, string>(); // userId -> socketId
   const userSockets = new Map<string, Set<string>>(); // userId -> Set of socketIds (multiple devices)
 
-  io.on('connection', (socket) => {
+  io.on('connection', (socket: AuthenticatedSocket) => {
     console.log('🔌 User connected:', socket.id);
 
+    // Reconnect: resume or refetch (Story 6.4, AC 8 / AC 11).
+    // The client hands back the last eventId it processed for each room it
+    // cares about. If the gap is small we replay the missed events; if the
+    // client is too far behind we tell it to refetch full state. No event is
+    // ever lost or applied twice (AC 8, AC 10).
+    socket.on(
+      'sync:resume',
+      (data: { rooms?: Array<{ room: string; lastEventId: number }> } = {}) => {
+        const rooms = data.rooms || [];
+        const results = rooms.map(({ room, lastEventId }) => {
+          // Story 6.4 (AC 14) — never replay a room the socket has not actually
+          // joined. `socket.rooms` is the authoritative membership set, so a
+          // client cannot fish for another room's buffered events by naming it.
+          if (!socket.rooms.has(room)) {
+            return { room, mode: 'unauthorized' as const };
+          }
+
+          const outcome = resolveMissedEvents(room, lastEventId);
+          if (outcome.mode === 'refetch') {
+            return { room, mode: 'refetch' as const };
+          }
+          outcome.events.forEach((e) => socket.emit(e.event, e.payload));
+          return {
+            room,
+            mode: 'replay' as const,
+            replayed: outcome.events.length,
+          };
+        });
+
+        socket.emit('sync:resumed', {
+          results,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    );
+
     // User authentication and presence
-    socket.on('auth:identify', (data: { userId: string }) => {
-      const { userId } = data;
-      
+    // NOTE: auth now happens at handshake (socketAuthMiddleware). This event
+    // is kept for backward compatibility with older clients, but a socket may
+    // ONLY identify as its own authenticated user (AC 14 — no cross-user
+    // room joins). Pre-6.4 clients that relied on `userId` have their
+    // handshake identity win; guests cannot enter a user room at all.
+    socket.on('auth:identify', (data: { userId?: string } = {}) => {
+      const authenticatedId = socket.data.user?.id;
+
+      if (!authenticatedId) {
+        // Guest — no user room. Silently ignore the requested userId so a
+        // guest can never subscribe to another user's private stream.
+        socket.emit('auth:error', {
+          message: 'Guest connections cannot identify as a user',
+        });
+        return;
+      }
+
+      // Ignore any payload userId that disagrees with the verified token.
+      const userId = authenticatedId;
+
       // Track this socket for the user
       if (!userSockets.has(userId)) {
         userSockets.set(userId, new Set());
@@ -87,9 +244,11 @@ export const setupSocket = (io: SocketServer): void => {
       userSockets.get(userId)!.add(socket.id);
       onlineUsers.set(socket.id, userId);
 
-      // Join user's personal room
+      // Join user's personal room (colon namespacing, Story 6.4)
+      socket.join(`user:${userId}`);
+      // Also join legacy room for backward compatibility
       socket.join(`user-${userId}`);
-      
+
       console.log(`👤 User ${userId} authenticated on socket ${socket.id}`);
 
       // Broadcast online status to friends
@@ -99,18 +258,106 @@ export const setupSocket = (io: SocketServer): void => {
       });
     });
 
-    // Join session room
-    socket.on('join-session', async (data: string | { shareCode: string; deviceId: string }) => {
+    // Join session room (Story 6.4, AC 4 / AC 14)
+    // Emits the authoritative session snapshot on join so a reconnecting or
+    // freshly-joined client immediately converges without a manual refresh.
+    socket.on('join-session', async (data: string | { shareCode: string; deviceId?: string }) => {
       const sessionId = typeof data === 'string' ? data : data.shareCode;
+      // Guest compatibility: the handshake deviceId is authoritative, but a
+      // guest may also supply it in the payload (both are self-asserted guest
+      // identities — see D3). An authenticated user id is NEVER taken from the
+      // payload; it always comes from the verified handshake.
+      const payloadDeviceId = typeof data === 'string' ? undefined : data.deviceId;
+      const userId = socket.data.user?.id;
+      const deviceId = socket.data.deviceId || payloadDeviceId;
+
+      // Authorize BEFORE joining either room (AC 14 — isolation by construction).
+      let authorized = false;
+      try {
+        authorized = await isAuthorizedForSession(sessionId, userId, deviceId);
+      } catch (error) {
+        console.error('Error authorizing session join:', error);
+        authorized = false;
+      }
+
+      if (!authorized) {
+        socket.emit('auth:error', {
+          message: 'Not authorized to join this session',
+          sessionId,
+        });
+        return;
+      }
+
+      const roomName = sessionRoom(sessionId);
+      socket.join(roomName);
+      // Also join legacy room for backward compatibility
       socket.join(`session-${sessionId}`);
       console.log(`👤 User ${socket.id} joined session ${sessionId}`);
 
+      // Catch-up snapshot: the client now has authoritative state.
+      emitSessionSnapshot(sessionId).catch(() => {
+        /* session may no longer exist — nothing to send */
+      });
+
       // Notify others in the session
-      socket.to(`session-${sessionId}`).emit('user-joined', {
+      socket.to(roomName).emit('user-joined', {
         socketId: socket.id,
         sessionId: sessionId,
         timestamp: new Date().toISOString()
       });
+    });
+
+    // Join tournament room (Story 6.4)
+    socket.on('join-tournament', async (data: { tournamentId: string; deviceId?: string }) => {
+      const { tournamentId } = data;
+      // Guest compatibility: handshake deviceId is authoritative; a guest may
+      // also supply it in the payload. Authenticated identity always wins.
+      const deviceId = socket.data.deviceId || data?.deviceId;
+      const roomName = tournamentRoom(tournamentId);
+
+      // Authorize BEFORE subscribing to the bracket stream (AC 14).
+      let authorized = false;
+      try {
+        authorized = await isAuthorizedForTournament(tournamentId, deviceId);
+      } catch (error) {
+        console.error('Error authorizing tournament join:', error);
+        authorized = false;
+      }
+
+      if (!authorized) {
+        socket.emit('auth:error', {
+          message: 'Not authorized to join this tournament',
+          tournamentId,
+        });
+        return;
+      }
+
+      socket.join(roomName);
+      console.log(`🏆 User ${socket.id} joined tournament ${tournamentId}`);
+
+      // Send current bracket to the joining user. Uses the single source of
+      // truth (`loadBracket`) so the on-join payload matches what
+      // `emitBracketUpdate` broadcasts. Event name and round/match field names
+      // are unchanged for backward compatibility (existing clients listen for
+      // `tournament:bracket`).
+      try {
+        const rounds = await loadBracket(tournamentId);
+
+        socket.emit('tournament:bracket', {
+          tournamentId,
+          rounds,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (error) {
+        console.error('Error sending tournament bracket:', error);
+      }
+    });
+
+    // Leave tournament room
+    socket.on('leave-tournament', (data: { tournamentId: string }) => {
+      const { tournamentId } = data;
+      socket.leave(`tournament:${tournamentId}`);
+      console.log(`🏆 User ${socket.id} left tournament ${tournamentId}`);
     });
 
     // Join discovery location room for real-time updates
@@ -153,6 +400,7 @@ export const setupSocket = (io: SocketServer): void => {
     // Leave session room
     socket.on('leave-session', (data: string | { shareCode: string }) => {
       const sessionId = typeof data === 'string' ? data : data.shareCode;
+      socket.leave(`session:${sessionId}`);
       socket.leave(`session-${sessionId}`);
       console.log(`👤 User ${socket.id} left session ${sessionId}`);
     });
@@ -188,8 +436,8 @@ export const setupSocket = (io: SocketServer): void => {
         });
 
         if (session) {
-          // Broadcast to session room using shareCode
-          io.to(`session-${shareCode}`).emit('mvp-session-updated', {
+          // Broadcast to session room using shareCode (Story 6.4: colon namespacing)
+          io.to(`session:${shareCode}`).to(`session-${shareCode}`).emit('mvp-session-updated', {
             session,
             timestamp: new Date().toISOString()
           });
@@ -245,8 +493,8 @@ export const setupSocket = (io: SocketServer): void => {
         });
 
         if (updatedSession) {
-          // Broadcast to session room
-          io.to(`session-${shareCode}`).emit('mvp-session-updated', {
+          // Broadcast to session room (Story 6.4: colon namespacing + legacy)
+          io.to(`session:${shareCode}`).to(`session-${shareCode}`).emit('mvp-session-updated', {
             session: updatedSession,
             timestamp: new Date().toISOString()
           });
@@ -378,29 +626,29 @@ export const setupSocket = (io: SocketServer): void => {
     socket.on('disconnect', () => {
       console.log('🔌 User disconnected:', socket.id);
 
-      // Get userId from this socket
-      const userId = onlineUsers.get(socket.id);
-      
+      // Get userId from handshake auth (Story 6.4) or fallback to onlineUsers map
+      const userId = socket.data.user?.id || onlineUsers.get(socket.id);
+
       if (userId) {
         // Remove this socket from user's socket set
         const sockets = userSockets.get(userId);
         if (sockets) {
           sockets.delete(socket.id);
-          
+
           // If user has no more active sockets, they're offline
           if (sockets.size === 0) {
             userSockets.delete(userId);
-            
+
             // Broadcast offline status
             socket.broadcast.emit('presence:user-offline', {
               userId,
               timestamp: new Date().toISOString()
             });
-            
+
             console.log(`👤 User ${userId} went offline`);
           }
         }
-        
+
         onlineUsers.delete(socket.id);
       }
     });

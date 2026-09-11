@@ -1,13 +1,20 @@
+/**
+ * HTTP caching middleware (Story 6.2, AC 2 / 3 / 5 / 8 / 12 / 16).
+ *
+ * - `cachingMiddleware` caches successful (2xx) GET responses. Keys are built
+ *   via `cacheKeys` (namespaced, hashed, generation-stamped) so a domain
+ *   invalidation makes stale entries unreachable. Sensitive response headers
+ *   are stripped before caching; an `X-Cache: HIT|MISS` header is added for
+ *   observability. The response body/envelope is never altered (AC 5).
+ * - `cacheInvalidationMiddleware` bumps the generation counters of the given
+ *   domains after a 2xx write — fire-and-forget, so a write never depends on
+ *   cache success (AC 8).
+ */
+
 import { Request, Response, NextFunction } from 'express';
 import { cacheService } from '../services/cacheService';
-
-interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    email: string | null;
-    role: string;
-  };
-}
+import * as cacheKeys from '../services/cache/cacheKeys';
+import { CacheOptions } from '../services/cache/types';
 
 interface CachedResponse {
   body: any;
@@ -16,158 +23,173 @@ interface CachedResponse {
   timestamp: number;
 }
 
-interface CacheOptions {
-  ttl?: number; // Time to live in seconds
-  keyGenerator?: (req: AuthRequest) => string;
-  skipCache?: (req: AuthRequest) => boolean;
+/** Headers that must never be replayed from cache. */
+const SENSITIVE_HEADERS = new Set(['set-cookie', 'authorization', 'x-cache']);
+
+function sanitizeHeaders(headers: Record<string, string>): Record<string, string> {
+  const clean: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers || {})) {
+    if (!SENSITIVE_HEADERS.has(key.toLowerCase())) {
+      clean[key] = value;
+    }
+  }
+  return clean;
 }
 
+/** Build the cache key for a request using the domain generation + hashed query. */
+async function buildCacheKey(req: Request, options: CacheOptions): Promise<string> {
+  if (options.keyGenerator) {
+    return options.keyGenerator(req);
+  }
+  const domain = options.domain ?? 'http';
+  const generation = await cacheService.getGeneration(domain);
+  const queryDigest = cacheKeys.digest(cacheKeys.stableStringify(req.query ?? {}));
+  const path = `${req.baseUrl || ''}${req.path || ''}`;
+  return cacheKeys.httpKey(domain, generation, req.method, path, queryDigest);
+}
+
+/**
+ * Cache successful GET responses.
+ */
 export const cachingMiddleware = (options: CacheOptions = {}) => {
-  return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      // Skip caching for non-GET requests
       if (req.method !== 'GET') {
         return next();
       }
-
-      // Check if caching should be skipped for this request
+      // Default off under test so the shared module-level cache does not pollute
+      // the integration suites; the dedicated middleware test opts in explicitly.
+      const enabled = options.enabled ?? process.env.NODE_ENV !== 'test';
+      if (!enabled) {
+        return next();
+      }
       if (options.skipCache && options.skipCache(req)) {
         return next();
       }
 
-      // Generate cache key
-      const cacheKey = options.keyGenerator
-        ? options.keyGenerator(req)
-        : generateDefaultCacheKey(req);
-
-      // Try to get cached response
+      const cacheKey = await buildCacheKey(req, options);
       const cachedResponse = await cacheService.get<CachedResponse>(cacheKey);
+
       if (cachedResponse) {
-        // Return cached response
-        res.set(cachedResponse.headers);
+        res.set(sanitizeHeaders(cachedResponse.headers));
+        res.setHeader('X-Cache', 'HIT');
         res.status(cachedResponse.statusCode).json(cachedResponse.body);
         return;
       }
 
-      // Store original response methods
+      // Miss — capture the response and store it on completion.
+      res.setHeader('X-Cache', 'MISS');
+
       const originalJson = res.json;
+      const originalSend = res.send;
       const originalStatus = res.status;
       const originalSet = res.set;
-      const originalSend = res.send;
+      const originalEnd = res.end;
 
       let responseData: any = null;
-      let statusCode = 200;
+      let captured = false;
+      let statusCode = res.statusCode ?? 200;
       const headers: Record<string, string> = {};
 
-      // Override response methods to capture the response
-      res.json = function(data: any) {
-        responseData = data;
+      const capture = (data: any) => {
+        if (!captured && data !== undefined) {
+          responseData = data;
+          captured = true;
+        }
+      };
+
+      res.json = function jsonOverride(data: any) {
+        capture(data);
         return originalJson.call(this, data);
       };
 
-      res.status = function(code: number) {
-        statusCode = code;
-        return originalStatus.call(this, code);
-      };
-
-      res.set = function(field: any, value?: string) {
-        if (typeof field === 'string' && value) {
-          headers[field] = value;
-        } else if (typeof field === 'object') {
-          Object.assign(headers, field);
-        }
-        return originalSet.call(this, field, value);
-      };
-
-      res.send = function(data: any) {
-        if (typeof data === 'object') {
-          responseData = data;
+      res.send = function sendOverride(data: any) {
+        if (typeof data === 'object' && data !== null) {
+          capture(data);
         }
         return originalSend.call(this, data);
       };
 
-      // Override end method to cache the response
-      const originalEnd = res.end;
-      res.end = function(chunk?: any, encoding?: any) {
-        // Cache successful responses only
-        if (statusCode >= 200 && statusCode < 300 && responseData) {
-          const cacheData = {
-            body: responseData,
-            statusCode,
-            headers,
-            timestamp: Date.now()
-          };
+      res.status = function statusOverride(code: number) {
+        statusCode = code;
+        return originalStatus.call(this, code);
+      };
 
-          // Cache asynchronously (don't wait for it)
-          cacheService.set(cacheKey, cacheData, options.ttl || 300)
-            .catch(error => console.error('Cache write error:', error));
+      res.set = function setOverride(field: any, value?: string) {
+        if (typeof field === 'string' && typeof value === 'string') {
+          headers[field] = value;
+        } else if (field && typeof field === 'object') {
+          Object.assign(headers, field);
         }
+        return originalSet.call(this, field as any, value as any);
+      };
 
+      res.end = function endOverride(chunk?: any, encoding?: any) {
+        try {
+          const effectiveStatus = statusCode || res.statusCode;
+          if (effectiveStatus >= 200 && effectiveStatus < 300 && responseData !== null) {
+            const cacheData: CachedResponse = {
+              body: responseData,
+              statusCode: effectiveStatus,
+              headers: sanitizeHeaders(headers),
+              timestamp: Date.now(),
+            };
+            // Fire-and-forget — never block the response on the cache write.
+            void cacheService.set(cacheKey, cacheData, options.ttl ?? cacheKeys.TTL.http);
+          }
+        } catch (error) {
+          console.error('Cache write error:', error);
+        }
         return originalEnd.call(this, chunk, encoding);
       };
 
       next();
     } catch (error) {
+      // Never let the cache break a request (AC 14).
       console.error('Caching middleware error:', error);
-      // Continue without caching on error
       next();
     }
   };
 };
 
-// Default cache key generator
-function generateDefaultCacheKey(req: AuthRequest): string {
-  const { method, originalUrl, user } = req;
-  const userId = user?.id || 'anonymous';
-  const queryString = Object.keys(req.query).length > 0
-    ? `?${new URLSearchParams(req.query as any).toString()}`
-    : '';
-
-  return `http:${method}:${originalUrl}${queryString}:user:${userId}`;
-}
-
-// Cache invalidation middleware
-export const cacheInvalidationMiddleware = (patterns: string[]) => {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    // Store original response methods
+/**
+ * Invalidate the given domains (generation bump) after a successful mutation.
+ */
+export const cacheInvalidationMiddleware = (domains: CacheDomainInput[]) => {
+  return (req: Request, res: Response, next: NextFunction): void => {
     const originalJson = res.json;
-    const originalStatus = res.status;
     const originalSend = res.send;
+    let invalidated = false;
 
-    res.json = function(data: any) {
-      // Invalidate cache patterns on successful mutations
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        patterns.forEach(pattern => {
-          cacheService.clear(pattern).catch(error =>
-            console.error('Cache invalidation error:', error)
-          );
-        });
+    const invalidateIfSuccess = () => {
+      if (invalidated) return;
+      const statusCode = res.statusCode;
+      if (statusCode >= 200 && statusCode < 300) {
+        invalidated = true;
+        for (const domain of domains) {
+          // Fire-and-forget: the write already committed to the DB (AC 8).
+          void cacheService.invalidateDomain(domain).catch((error) => {
+            console.error('Cache invalidation error:', error);
+          });
+        }
       }
+    };
+
+    res.json = function jsonOverride(data: any) {
+      invalidateIfSuccess();
       return originalJson.call(this, data);
     };
 
-    res.status = function(code: number) {
-      // Store status for later use
-      (res as any)._statusCode = code;
-      return originalStatus.call(this, code);
-    };
-
-    res.send = function(data: any) {
-      // Invalidate cache patterns on successful mutations
-      const statusCode = (res as any)._statusCode || 200;
-      if (statusCode >= 200 && statusCode < 300) {
-        patterns.forEach(pattern => {
-          cacheService.clear(pattern).catch(error =>
-            console.error('Cache invalidation error:', error)
-          );
-        });
-      }
+    res.send = function sendOverride(data: any) {
+      invalidateIfSuccess();
       return originalSend.call(this, data);
     };
 
     next();
   };
 };
+
+type CacheDomainInput = string;
 
 // Cache warming middleware for frequently accessed endpoints
 export const cacheWarmingMiddleware = (endpoints: Array<{
@@ -193,16 +215,16 @@ export const cacheHealthCheck = async (): Promise<{
       status: cacheHealth.status,
       details: {
         ...cacheHealth.details,
-        middleware: 'operational'
-      }
+        middleware: 'operational',
+      },
     };
   } catch (error) {
     return {
       status: 'unhealthy',
       details: {
         middleware: 'error',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      }
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
     };
   }
 };

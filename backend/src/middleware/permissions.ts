@@ -56,14 +56,41 @@ export const hasPermission = (role: PlayerRole, action: PermissionAction): boole
   return PERMISSION_MATRIX[role][permissionKey] as boolean;
 };
 
+/**
+ * Story 6.1 (design D2) — single place that defines identity precedence.
+ * A verified JWT wins over a `deviceId`; the device path is only a fallback
+ * used when no valid user identity exists.
+ */
+export interface ResolvedIdentity {
+  userId?: string;
+  deviceId?: string;
+  role?: PlayerRole;
+  source: 'jwt' | 'device' | 'anonymous';
+}
+
+export function resolveIdentity(req: Request): ResolvedIdentity {
+  const user = (req as Request & { user?: { id?: string } }).user;
+  const deviceId =
+    (req.body?.deviceId as string | undefined) ||
+    (req.headers?.['x-device-id'] as string | undefined) ||
+    undefined;
+
+  if (user?.id) {
+    return { userId: user.id, deviceId, source: 'jwt' };
+  }
+  if (deviceId) {
+    return { deviceId, source: 'device' };
+  }
+  return { source: 'anonymous' };
+}
+
 // Middleware to authorize the session organizer identified by device, keyed on
 // a :sessionId route param. Falls back to an authenticated OWNER/ORGANIZER user.
 export const requireSessionOwner = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { sessionId } = req.params;
-    const deviceId =
-      req.body?.deviceId ||
-      (req.headers?.['x-device-id'] as string);
+    const identity = resolveIdentity(req);
+    const deviceId = identity.deviceId;
 
     // ownerDeviceId is no longer accepted from query params for security
     // It should only be sent in the request body
@@ -83,6 +110,11 @@ export const requireSessionOwner = async (req: Request, res: Response, next: Nex
         error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' },
         timestamp: new Date().toISOString()
       });
+    }
+
+    // JWT (user) identity wins: the session's owning account is authoritative.
+    if (identity.userId && session.ownerUserId === identity.userId) {
+      return next();
     }
 
     const requesterDevice = deviceId;
@@ -110,45 +142,94 @@ export const requireSessionOwner = async (req: Request, res: Response, next: Nex
   }
 };
 
-// Middleware to check if user has required role for a session
+// Middleware to check if user has required role for a session.
+// Signatures are unchanged so the ~20 existing call sites need no edits; the
+// guard is user-aware internally (JWT wins over deviceId).
 export const requireRole = (requiredRole: PlayerRole, action: PermissionAction) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { shareCode } = req.params;
-      // Device identity can arrive in the body (POST/PUT) only; query params
-      // are no longer accepted for device identity security.
-      const deviceId =
-        req.body?.deviceId ||
-        (req.headers?.['x-device-id'] as string);
+      const identity = resolveIdentity(req);
+      const deviceId = identity.deviceId;
 
-      // ownerDeviceId is no longer accepted from query params for security
-      // const ownerDeviceId = ... (removed)
+      const deny = (code: string, message: string, status: number) =>
+        res.status(status).json({
+          success: false,
+          error: { code, message },
+          timestamp: new Date().toISOString()
+        });
 
+      if (identity.source === 'jwt') {
+        if (!shareCode) {
+          return deny('MISSING_SHARE_CODE', 'Share code is required', 400);
+        }
+
+        const session = await prisma.mvpSession.findUnique({
+          where: { shareCode },
+          include: { players: true }
+        });
+
+        if (!session) {
+          return deny('SESSION_NOT_FOUND', 'Session not found', 404);
+        }
+
+        const isUserOwner = !!identity.userId && session.ownerUserId === identity.userId;
+        const player =
+          session.players.find(p => p.userId && p.userId === identity.userId) ||
+          (deviceId ? session.players.find(p => p.deviceId === deviceId) : undefined);
+
+        if (!player && !isUserOwner) {
+          return deny('PLAYER_NOT_FOUND', 'Player not found in session', 404);
+        }
+
+        // The owning account acts as ORGANIZER even without a player row.
+        const actingRole: PlayerRole = player ? (player.role as PlayerRole) : 'ORGANIZER';
+
+        if (actingRole !== requiredRole) {
+          return res.status(403).json({
+            success: false,
+            error: createPermissionError(requiredRole, actingRole, action),
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        if (!hasPermission(actingRole, action)) {
+          return res.status(403).json({
+            success: false,
+            error: createPermissionError(requiredRole, actingRole, action),
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        (req as any).player = player;
+        (req as any).session = session;
+
+        if (requiredRole === 'ORGANIZER') {
+          AuditLogger.logAction({
+            action: `PERMISSION_CHECK_${action.toUpperCase()}`,
+            actorId: player?.id || identity.userId!,
+            actorName: player?.name || 'authenticated-user',
+            sessionId: session.id,
+            metadata: { action, granted: true },
+            ipAddress: req.ip || req.connection.remoteAddress,
+            userAgent: req.get('user-agent')
+          });
+        }
+
+        return next();
+      }
+
+      // ── Device / anonymous path — behaviour preserved verbatim ──
       // Without any device identity the player lookup would match every player
       // in the session (Prisma drops undefined filters), so reject instead.
       if (!deviceId) {
-        return res.status(403).json({
-          success: false,
-          error: {
-            code: 'MISSING_DEVICE_ID',
-            message: 'Device identifier is required'
-          },
-          timestamp: new Date().toISOString()
-        });
+        return deny('MISSING_DEVICE_ID', 'Device identifier is required', 403);
       }
 
       if (!shareCode) {
-        return res.status(400).json({
-          success: false,
-          error: {
-            code: 'MISSING_SHARE_CODE',
-            message: 'Share code is required'
-          },
-          timestamp: new Date().toISOString()
-        });
+        return deny('MISSING_SHARE_CODE', 'Share code is required', 400);
       }
 
-      // Find the session
       const session = await prisma.mvpSession.findUnique({
         where: { shareCode },
         include: {
@@ -161,30 +242,14 @@ export const requireRole = (requiredRole: PlayerRole, action: PermissionAction) 
       });
 
       if (!session) {
-        return res.status(404).json({
-          success: false,
-          error: {
-            code: 'SESSION_NOT_FOUND',
-            message: 'Session not found'
-          },
-          timestamp: new Date().toISOString()
-        });
+        return deny('SESSION_NOT_FOUND', 'Session not found', 404);
       }
 
-      // Find the player making the request
       const player = session.players[0];
       if (!player) {
-        return res.status(404).json({
-          success: false,
-          error: {
-            code: 'PLAYER_NOT_FOUND',
-            message: 'Player not found in session'
-          },
-          timestamp: new Date().toISOString()
-        });
+        return deny('PLAYER_NOT_FOUND', 'Player not found in session', 404);
       }
 
-      // Check if player has required role
       if (player.role !== requiredRole) {
         return res.status(403).json({
           success: false,
@@ -193,7 +258,6 @@ export const requireRole = (requiredRole: PlayerRole, action: PermissionAction) 
         });
       }
 
-      // Check specific permission
       if (!hasPermission(player.role, action)) {
         return res.status(403).json({
           success: false,
@@ -202,11 +266,9 @@ export const requireRole = (requiredRole: PlayerRole, action: PermissionAction) 
         });
       }
 
-      // Add player and session info to request for use in route handlers
       (req as any).player = player;
       (req as any).session = session;
 
-      // Log permission check for audit trail (organizer actions only)
       if (requiredRole === 'ORGANIZER') {
         AuditLogger.logAction({
           action: `PERMISSION_CHECK_${action.toUpperCase()}`,
@@ -244,7 +306,7 @@ export const requireOrganizerOrSelf = (action: PermissionAction) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { shareCode, playerId } = req.params;
-      const { deviceId } = req.body;
+      const identity = resolveIdentity(req);
 
       if (!shareCode) {
         return res.status(400).json({
@@ -276,11 +338,17 @@ export const requireOrganizerOrSelf = (action: PermissionAction) => {
         });
       }
 
-      // Find the requesting player
-      const requestingPlayer = session.players.find(p => p.deviceId === deviceId);
-      const targetPlayer = session.players.find(p => p.id === playerId);
+      // Find the requesting player — JWT (userId) first, then device fallback.
+      const ownerByUser = !!identity.userId && session.ownerUserId === identity.userId;
+      const requestingPlayer =
+        identity.source === 'jwt'
+          ? session.players.find(p => p.userId && p.userId === identity.userId) ||
+            (identity.deviceId
+              ? session.players.find(p => p.deviceId === identity.deviceId)
+              : undefined)
+          : session.players.find(p => p.deviceId === identity.deviceId);
 
-      if (!requestingPlayer) {
+      if (!requestingPlayer && !ownerByUser) {
         return res.status(404).json({
           success: false,
           error: {
@@ -290,6 +358,8 @@ export const requireOrganizerOrSelf = (action: PermissionAction) => {
           timestamp: new Date().toISOString()
         });
       }
+
+      const targetPlayer = session.players.find(p => p.id === playerId);
 
       if (!targetPlayer) {
         return res.status(404).json({
@@ -302,9 +372,10 @@ export const requireOrganizerOrSelf = (action: PermissionAction) => {
         });
       }
 
-      // Allow if requesting player is organizer OR if they're updating their own status
-      const isOrganizer = requestingPlayer.role === 'ORGANIZER';
-      const isSelfUpdate = requestingPlayer.id === targetPlayer.id;
+      // Allow if requesting player is organizer (or the owning account) OR if
+      // they're updating their own status.
+      const isOrganizer = requestingPlayer?.role === 'ORGANIZER' || ownerByUser;
+      const isSelfUpdate = !!requestingPlayer && requestingPlayer.id === targetPlayer.id;
 
       if (!isOrganizer && !isSelfUpdate) {
         return res.status(403).json({

@@ -1,4 +1,8 @@
 import { PrismaClient } from '@prisma/client';
+import {
+  emitMatchComplete,
+  emitLeaderboardUpdate,
+} from '../socket/events/tournamentAnalytics';
 
 const prisma = new PrismaClient();
 
@@ -424,9 +428,36 @@ class TournamentBracketService {
       // Advance winner to next round
       await this.advanceWinnerToNextRound(tournamentId, matchId, winnerId);
 
+      // Story 6.4 (AC 3) — the real-time tournament emitters were previously
+      // dead code. Now that the result is fully persisted (match updated,
+      // winner advanced/next round assigned, tournament completed if final),
+      // broadcast the authoritative state to the tournament room. Wrapped in
+      // try/catch so a real-time failure can never break the business path
+      // (mirrors the emission pattern in routes/mvpSessions.ts).
+      await this.emitTournamentUpdates(tournamentId, matchId);
     } catch (error) {
       console.error('Error updating match result:', error);
       throw new Error('Failed to update match result');
+    }
+  }
+
+  /**
+   * Emit the post-write tournament events (Story 6.4, AC 3).
+   *
+   * Best-effort: any emitter failure is logged but never propagated, so the
+   * HTTP/business path is unaffected by a real-time outage.
+   */
+  private async emitTournamentUpdates(
+    tournamentId: string,
+    matchId: string
+  ): Promise<void> {
+    try {
+      // `emitMatchComplete` also emits a fresh bracket; standings change on a
+      // completed match, so the leaderboard is refreshed too.
+      await emitMatchComplete(tournamentId, matchId);
+      await emitLeaderboardUpdate(tournamentId);
+    } catch (error) {
+      console.warn('Failed to emit tournament real-time update:', error);
     }
   }
 
