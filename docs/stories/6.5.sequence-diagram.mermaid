@@ -1,0 +1,39 @@
+sequenceDiagram
+    autonumber
+    participant UI as Screen / Redux
+    participant SM as syncManager
+    participant Q as offlineQueue (AsyncStorage)
+    participant AF as authFetch
+    participant API as Backend /mvp-sessions
+
+    Note over UI,API: Player offline — score + status edits
+    UI->>SM: queueOperation({entity:'game', op:'update', payload:{method:'PUT',endpoint,body}, version:5})
+    SM->>Q: enqueue(op)  // allocates unique id + monotonic sequence
+    Q-->>SM: {id, sequence}
+
+    Note over UI,API: Connectivity restored (NetInfo / socket connect / AppState)
+    SM->>SM: startSync()  // syncInProgress guard
+    SM->>Q: sorted operations (by sequence)
+    loop each op in sequence order
+        SM->>AF: fetch(endpoint, method, body, X-Entity-Version:5, X-Idempotency-Key:id)
+        AF->>API: PUT …/games/g1/score
+        alt 2xx (applied, version→6)
+            API-->>AF: 200 {data:{version:6}}
+            AF-->>SM: 200
+            SM->>Q: remove(op.id)   // ONLY 2xx removes
+        else 409 VERSION_CONFLICT
+            API-->>AF: 409 {data:{current:{…}, serverVersion:7}}
+            AF-->>SM: 409
+            SM->>UI: dispatch(conflictDetected(record))   // server wins (LWW)
+            SM->>Q: remove(op.id)   // replaced by conflict record, not lost
+            UI->>UI: show OfflineStatusBanner('conflict') — unresolved conflicts visible
+        else 5xx / timeout / network
+            API-->>AF: 500 / abort
+            SM->>Q: retryCount++, state:'queued'  // KEPT, backoff
+        else 4xx permanent (400/403/404)
+            API-->>AF: 403
+            SM->>Q: state:'failed', lastError   // KEPT + surfaced, never dropped
+        end
+    end
+    SM->>UI: dispatch(syncCompleted({synced, failed, conflicts}))
+    SM->>UI: emit 'session:refetch'  // screens re-read authoritative state

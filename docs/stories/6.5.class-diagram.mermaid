@@ -1,0 +1,158 @@
+classDiagram
+    class OfflineOperation {
+        +string id
+        +number sequence
+        +string entity
+        +string op
+        +ReplayPayload payload
+        +number version
+        +string timestamp
+        +Identity identity
+        +number retryCount
+        +OpState state
+        +LastError lastError
+        +string firstAttemptAt
+        +string lastAttemptAt
+    }
+
+    class ReplayPayload {
+        +string method
+        +string endpoint
+        +unknown body
+    }
+
+    class Identity {
+        +string deviceId
+        +string userId
+    }
+
+    class QueueEnvelope {
+        +number schemaVersion
+        +number sequence
+        +OfflineOperation[] operations
+        +string updatedAt
+    }
+
+    class OfflineQueue {
+        +enqueue(op) OfflineOperation
+        +list() OfflineOperation[]
+        +remove(id) void
+        +update(id, patch) void
+        +nextSequence() number
+        +clearActive() void
+        +archiveOldest() void
+        +migrateQueue(raw) QueueEnvelope
+        +quarantine(raw, reason) void
+    }
+
+    class SyncManager {
+        -boolean isOnline
+        -boolean syncInProgress
+        +queueOperation(input) void
+        +getSyncStatus() SyncStatus
+        +forceSync() void
+        +clearSyncQueue() void
+        +getConflicts() ConflictRecord[]
+        +dismissConflict(id) void
+        -initializeNetworkListener() void
+        -startSync() void
+        -classify(operation) Classification
+        -processSyncOperation(op) Classification
+        -backoffDelay(attempt) number
+    }
+
+    class OfflineExport {
+        +serialize(state) string
+        +parse(raw) ParseResult
+        +exportOfflineState() string
+        +restoreOfflineState(raw, confirm) ParseResult
+    }
+
+    class StorageService {
+        +addToSyncQueue(op) void
+        +getSyncQueue() any[]
+        +removeFromSyncQueue(id) void
+        +updateSyncQueueOperation(id, updates) void
+        +cacheSession(session) void
+        +getCachedSession(shareCode) any
+    }
+
+    class ApiService {
+        +request(endpoint, options, enableOffline) ApiResponse
+        -getOperationType(method, endpoint) string
+    }
+
+    class SyncSlice {
+        +boolean isOnline
+        +SyncStatus status
+        +number queuedCount
+        +boolean syncing
+        +ConflictRecord[] conflicts
+        +number failedCount
+        +number archivedCount
+        +boolean queueNearLimit
+        +boolean schemaQuarantined
+        +string lastSyncTime
+        +conflictDetected(record) void
+        +syncProgress(payload) void
+        +syncCompleted(payload) void
+        +setOnline(boolean) void
+        +dismissConflict(id) void
+        +setQuarantine(boolean) void
+    }
+
+    class ConflictRecord {
+        +string opId
+        +string entity
+        +string endpoint
+        +unknown intendedPayload
+        +unknown authoritative
+        +number serverVersion
+        +string detectedAt
+    }
+
+    class VersioningMiddleware {
+        +checkEntityVersion(req, res, next) void
+        +incrementVersion(entity) number
+    }
+
+    class MvpSession {
+        +string id
+        +string shareCode
+        +int version
+        +DateTime updatedAt
+    }
+
+    class MvpPlayer {
+        +string id
+        +string sessionId
+        +int version
+        +DateTime updatedAt
+    }
+
+    class RealTimeSlice {
+        +boolean socketConnected
+        +string connectionStatus
+        +Record~string,string~ lastUpdated
+        +Record~string,Update[]~ pendingUpdates
+        +sessionUpdated(payload) void
+        +updateError(payload) void
+    }
+
+    SyncManager --> OfflineQueue : uses (enqueue/list/remove)
+    SyncManager --> StorageService : delegates cache/legacy
+    SyncManager --> SyncSlice : dispatches results
+    SyncManager --> RealTimeSlice : sessionUpdated(source:'offline-replay')
+    SyncManager --> ConflictRecord : produces
+    OfflineQueue --> QueueEnvelope : persists
+    QueueEnvelope --> OfflineOperation : contains
+    OfflineOperation --> ReplayPayload : replayed verbatim
+    OfflineOperation --> Identity : scoped by
+    OfflineExport --> OfflineQueue : reads active+archive
+    OfflineExport --> Identity : validates
+    ApiService --> SyncManager : queueOperation
+    ApiService --> OfflineQueue : via SyncManager
+    VersioningMiddleware --> MvpSession : version check
+    VersioningMiddleware --> MvpPlayer : version check
+    SyncSlice --> ConflictRecord : holds
+    SyncSlice --> RealTimeSlice : same freshness channel (AC 7)
