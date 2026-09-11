@@ -277,6 +277,84 @@ describe('offlineExport — privacy / credential stripping', () => {
     expect(raw).not.toContain('LEAK-TOKEN');
     expect(raw).not.toContain('refreshToken');
   });
+
+  it('serialize scrubs credentials inside a queued op payload.body (QA claim 4)', () => {
+    const state = sampleState();
+    // Project a credential into a queued body + an archived body.
+    state.queue[0] = {
+      ...state.queue[0],
+      payload: {
+        ...state.queue[0].payload,
+        body: { status: 'ACTIVE', accessToken: 'LEAK-IN-QUEUE', refreshToken: 'LEAK-REFRESH' },
+      },
+    };
+    state.archive[0] = {
+      ...state.archive[0],
+      payload: {
+        ...state.archive[0].payload,
+        body: { accessToken: 'LEAK-IN-ARCHIVE' },
+      },
+    };
+
+    const raw = serialize(state);
+    expect(raw).not.toContain('LEAK-IN-QUEUE');
+    expect(raw).not.toContain('LEAK-REFRESH');
+    expect(raw).not.toContain('LEAK-IN-ARCHIVE');
+    // The non-sensitive part of the body survives.
+    expect(raw).toContain('ACTIVE');
+  });
+
+  it('exportOfflineState scrubs a credential that reached a queued body', async () => {
+    await offlineQueue.enqueue(
+      {
+        entity: 'player',
+        op: 'update',
+        payload: {
+          method: 'PUT',
+          endpoint: '/mvp-sessions/S/players/p1/status',
+          body: { status: 'ACTIVE', accessToken: 'LEAK-IN-QUEUE', refreshToken: 'LEAK-REFRESH' },
+        },
+      },
+      { deviceId: 'dev-A' },
+    );
+
+    const raw = await exportOfflineState();
+    expect(raw).not.toContain('LEAK-IN-QUEUE');
+    expect(raw).not.toContain('LEAK-REFRESH');
+    // The op itself is still exported (only the credential key is dropped).
+    const parsed = parse(raw);
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.state.queue).toHaveLength(1);
+      expect((parsed.state.queue[0].payload.body as any).status).toBe('ACTIVE');
+    }
+  });
+
+  it('parse scrubs a credential inside a tampered queue op body', () => {
+    const tampered = JSON.stringify({
+      schemaVersion: SCHEMA_VERSION,
+      exportedAt: '2026-09-11T12:00:00.000Z',
+      identity: { deviceId: 'dev-A', userId: null },
+      queue: [
+        {
+          ...op('op1'),
+          payload: {
+            method: 'PUT',
+            endpoint: '/mvp-sessions/S/players/op1/status',
+            body: { status: 'ACTIVE', accessToken: 'LEAK-IN-QUEUE' },
+          },
+        },
+      ],
+      archive: [],
+      cached: {},
+    });
+
+    const result = parse(tampered);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(JSON.stringify(result.state)).not.toContain('LEAK-IN-QUEUE');
+    expect(result.state.queue).toHaveLength(1);
+  });
 });
 
 // ---------------------------------------------------------------------------
