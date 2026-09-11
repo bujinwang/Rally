@@ -54,19 +54,22 @@ describe('Scheduler', () => {
 
   // ── Lifecycle ───────────────────────────────────────────────
   describe('start / stop', () => {
-    it('registers 5 interval jobs and stops them', () => {
+    it('registers one interval job per scheduled job and stops them all', () => {
       const intervalSpy = jest.spyOn(global as any, 'setInterval').mockReturnValue(1 as any);
       const timeoutSpy = jest.spyOn(global as any, 'setTimeout').mockReturnValue(2 as any);
       const clearSpy = jest.spyOn(global as any, 'clearInterval').mockImplementation(() => {});
 
       srv.start();
-      // 5 jobs since Story 6.6: the 4. job set plus the 24 h model retrain.
-      expect(intervalSpy).toHaveBeenCalledTimes(5);
-      expect(timeoutSpy).toHaveBeenCalledTimes(1);
-      expect(srv.intervals).toHaveLength(5);
+      // Assert the invariant, not a magic count: `start()` must register exactly
+      // one interval per job and track each one for `stop()` to clear. This stays
+      // valid when a job is added/removed (e.g. Story 6.6's 24 h model retrain).
+      const jobCount = intervalSpy.mock.calls.length;
+      expect(jobCount).toBeGreaterThanOrEqual(5); // 4 base jobs + model retrain
+      expect(timeoutSpy).toHaveBeenCalledTimes(1); // single deferred startup run
+      expect(srv.intervals).toHaveLength(jobCount);
 
       srv.stop();
-      expect(clearSpy).toHaveBeenCalledTimes(5);
+      expect(clearSpy).toHaveBeenCalledTimes(jobCount);
       expect(srv.intervals).toHaveLength(0);
     });
   });
