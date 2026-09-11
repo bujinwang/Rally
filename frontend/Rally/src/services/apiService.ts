@@ -1,6 +1,9 @@
-import { syncManager } from './syncManager';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { syncManager, dispatchSyncAction } from './syncManager';
 import { StorageService } from './storageService';
-import { API_BASE_URL } from '../config/api';
+import { API_BASE_URL, ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from '../config/api';
+import { authFetch, clearAuthTokens } from './authFetch';
+import { conflictDetected } from '../store/slices/syncSlice';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -44,13 +47,7 @@ export class ApiService {
     if (!isOnline && enableOffline) {
       // Queue operation for offline sync
       if (options.method && options.method !== 'GET') {
-        await syncManager.queueOperation({
-          type: this.getOperationType(options.method, endpoint),
-          payload: {
-            endpoint,
-            data: options.body ? JSON.parse(options.body as string) : undefined,
-          },
-        });
+        await syncManager.queueOperation(this.buildQueueInput(options.method, endpoint, options.body));
       }
 
       // Return optimistic response
@@ -66,7 +63,9 @@ export class ApiService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
-      const response = await fetch(url, {
+      // `authFetch` attaches the stored access token when present and performs
+      // exactly one refresh-and-retry on a 401 UNAUTHORIZED (AC 10).
+      const response = await authFetch(url, {
         ...options,
         headers: {
           'Content-Type': 'application/json',
@@ -79,6 +78,14 @@ export class ApiService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+
+        // AC 7 — a direct online `409 VERSION_CONFLICT` lands in the SAME
+        // `sync.conflicts[]` as a replayed conflict, so online and offline
+        // conflicts render through one state model.
+        if (response.status === 409 && errorData?.error?.code === 'VERSION_CONFLICT') {
+          this.surfaceConflict(options.method, endpoint, options.body, errorData);
+        }
+
         return {
           success: false,
           error: {
@@ -100,13 +107,7 @@ export class ApiService {
     } catch (error: any) {
       // If offline and operation should be queued
       if (!isOnline && enableOffline && options.method !== 'GET') {
-        await syncManager.queueOperation({
-          type: this.getOperationType(options.method || 'GET', endpoint),
-          payload: {
-            endpoint,
-            data: options.body ? JSON.parse(options.body as string) : undefined,
-          },
-        });
+        await syncManager.queueOperation(this.buildQueueInput(options.method || 'GET', endpoint, options.body));
 
         return {
           success: true,
@@ -125,6 +126,91 @@ export class ApiService {
         },
         timestamp: new Date().toISOString(),
       };
+    }
+  }
+
+  /**
+   * Build the canonical `{ entity, op, payload: { method, endpoint, body } }`
+   * queue input — the shape `syncManager`/`offlineQueue` actually replay
+   * verbatim (fixes D-2/D-5; the old `{type, payload:{endpoint,data}}` was
+   * dropped because `syncManager` read different fields).
+   *
+   * `entity`/`op` are UI labels only; they never select a replay code path.
+   */
+  private buildQueueInput(method: string, endpoint: string, rawBody?: BodyInit | null) {
+    const verb = (method.toUpperCase() as 'POST' | 'PUT' | 'PATCH' | 'DELETE');
+    const body = this.parseBody(rawBody);
+    const isSessionScoped = endpoint.includes('/mvp-sessions');
+    const entity = isSessionScoped
+      ? endpoint.includes('/players/')
+        ? 'player'
+        : endpoint.includes('/games/') || endpoint.includes('/matches/')
+          ? 'game'
+          : endpoint.includes('/rotation')
+            ? 'rotation'
+            : 'session'
+      : 'unknown';
+
+    const op =
+      verb === 'POST'
+        ? 'create'
+        : verb === 'DELETE'
+          ? 'delete'
+          : verb === 'PATCH'
+            ? 'patch'
+            : 'update';
+
+    return {
+      entity,
+      op,
+      payload: { method: verb, endpoint, ...(body !== undefined ? { body } : {}) },
+    };
+  }
+
+  /** Parse a request body into a JSON value; never throws. */
+  private parseBody(rawBody?: BodyInit | null): unknown {
+    if (rawBody === undefined || rawBody === null) return undefined;
+    if (typeof rawBody === 'string') {
+      try {
+        return JSON.parse(rawBody);
+      } catch {
+        return rawBody;
+      }
+    }
+    return rawBody;
+  }
+
+  /**
+   * Surface a direct-online `409 VERSION_CONFLICT` into the shared
+   * `sync.conflicts[]` (AC 7). The record shape mirrors the replay path so both
+   * channels are indistinguishable to the UI.
+   */
+  private surfaceConflict(
+    method: string | undefined,
+    endpoint: string,
+    rawBody: BodyInit | null | undefined,
+    errorData: any,
+  ): void {
+    try {
+      const data = errorData?.data ?? {};
+      const opId =
+        data.opId ||
+        `${method || 'REQ'}:${endpoint}:${Date.now().toString(36)}:${Math.random()
+          .toString(36)
+          .slice(2, 8)}`;
+      dispatchSyncAction(
+        conflictDetected({
+          opId,
+          entity: endpoint.includes('/players/') ? 'player' : 'session',
+          endpoint,
+          intendedPayload: this.parseBody(rawBody) ?? null,
+          authoritative: data.current ?? null,
+          serverVersion: typeof data.serverVersion === 'number' ? data.serverVersion : null,
+          detectedAt: new Date().toISOString(),
+        }),
+      );
+    } catch {
+      /* dispatch is best-effort; never break the request path */
     }
   }
 
@@ -242,13 +328,19 @@ export class ApiService {
   }
 
   // Utility methods
-  setAuthToken(token: string) {
-    // Store token for future requests
-    // This would typically be handled by an interceptor
+  async setAuthToken(token: string, refreshToken?: string): Promise<void> {
+    try {
+      await AsyncStorage.setItem(ACCESS_TOKEN_KEY, token);
+      if (refreshToken) {
+        await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+      }
+    } catch (error) {
+      console.error('Failed to store auth token:', error);
+    }
   }
 
-  clearAuthToken() {
-    // Clear stored token
+  async clearAuthToken(): Promise<void> {
+    await clearAuthTokens();
   }
 
   // Cache management

@@ -81,7 +81,7 @@ const realTimeSlice = createSlice({
     sessionUpdated: (state, action: PayloadAction<{ 
       sessionId: string; 
       timestamp: string;
-      source: 'socket' | 'polling' | 'manual';
+      source: 'socket' | 'polling' | 'manual' | 'offline-replay';
     }>) => {
       const { sessionId, timestamp } = action.payload;
       state.lastUpdated[sessionId] = timestamp;
@@ -97,6 +97,19 @@ const realTimeSlice = createSlice({
     }>) => {
       const { sessionId, error } = action.payload;
       state.updateErrors[sessionId] = error;
+    },
+
+    /**
+     * Story 6.5 (AC 7) — a successful offline-replay batch refreshed a session's
+     * authoritative state. Clear the stale optimistic `pendingUpdates` for that
+     * session so the reused freshness channel stays correct, and record the
+     * refresh timestamp exactly as a socket/polling update would.
+     */
+    clearReplayedUpdates: (state, action: PayloadAction<{ sessionId: string; timestamp: string }>) => {
+      const { sessionId, timestamp } = action.payload;
+      state.lastUpdated[sessionId] = timestamp;
+      state.updateErrors[sessionId] = '';
+      delete state.pendingUpdates[sessionId];
     },
     
     // Optimistic updates
@@ -144,6 +157,7 @@ export const {
   stopAutoRefresh,
   sessionUpdated,
   updateError,
+  clearReplayedUpdates,
   addOptimisticUpdate,
   enablePolling,
   disablePolling,
