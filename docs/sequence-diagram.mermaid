@@ -1,0 +1,60 @@
+%% Story 6.1 — Authenticated request path (with refresh-on-401)
+sequenceDiagram
+    autonumber
+    participant App as RN App (apiService)
+    participant API as Express /api/v1
+    participant OA as optionalAuth
+    participant G as requireOrganizer (user-aware)
+    participant H as mvpSessions handler
+    participant DB as Prisma/Postgres
+
+    App->>App: read accessToken from AsyncStorage
+    App->>API: PUT /mvp-sessions/:shareCode (Bearer <access>, x-device-id)
+    API->>OA: optionalAuth
+    OA->>OA: verifyAccessToken(token)
+    alt token valid
+        OA->>DB: user.findUnique(id)
+        DB-->>OA: user
+        OA->>OA: req.user = { id, email, role }
+        OA->>G: next()
+    else token expired/invalid
+        OA-->>App: 401 { error: { code: UNAUTHORIZED } }
+        App->>API: POST /auth/refresh { refreshToken }
+        API->>DB: refreshTokenService.isValid + rotate
+        DB-->>API: ok (new pair)
+        API-->>App: 200 { data: { tokens } }
+        App->>App: persist new tokens
+        App->>API: retry PUT /mvp-sessions/:shareCode (Bearer <new access>)
+        API->>OA: optionalAuth (valid now)
+        OA->>G: next()
+    end
+    G->>DB: find session by shareCode (+ players)
+    DB-->>G: session (ownerUserId? / ownerDeviceId?)
+    G->>G: resolveIdentity: JWT wins -> ownerUserId===req.user.id ? allow
+    alt authorized
+        G->>H: next()
+        H->>DB: mutate session/player
+        DB-->>H: updated
+        H-->>App: 200 { success, data }
+    else not authorized
+        G-->>App: 403 { error: { code: FORBIDDEN } }
+    end
+
+%% Story 6.1 — Guest join path (token-free, no regression)
+sequenceDiagram
+    autonumber
+    participant Guest as Guest App (no token stored)
+    participant API as Express /api/v1
+    participant H as POST /mvp-sessions/join/:shareCode
+    participant DB as Prisma/Postgres
+    participant IO as Socket.io room
+
+    Guest->>API: POST /mvp-sessions/join/:shareCode { name, deviceId }
+    Note over API: NO auth middleware on this route (open by design)
+    API->>H: route handler (unchanged)
+    H->>DB: mvpSession.findUnique(shareCode)
+    DB-->>H: session (ACTIVE?)
+    H->>DB: mvpPlayer.create({ sessionId, name, deviceId })
+    DB-->>H: player
+    H->>IO: emit 'mvp-session-updated' + 'player_joined'
+    H-->>Guest: 201 { success, data: { player } }

@@ -1,0 +1,111 @@
+{
+  "dashboard": {
+    "title": "Rally — Overview",
+    "tags": ["rally", "overview"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "title": "Request Rate (RPS)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(rally_http_requests_total[1m]))",
+            "legendFormat": "RPS"
+          }
+        ],
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 }
+      },
+      {
+        "title": "Error Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(rally_errors_total[1m])) / sum(rate(rally_http_requests_total[1m])) * 100",
+            "legendFormat": "Error %"
+          }
+        ],
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 }
+      },
+      {
+        "title": "Cache Hit Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rally_cache_hit_rate",
+            "legendFormat": "Hit Rate"
+          }
+        ],
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 }
+      },
+      {
+        "title": "Active Users",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rally_business_active_users",
+            "legendFormat": "Users"
+          }
+        ],
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 }
+      },
+      {
+        "title": "Latency (p50 / p95 / p99)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum(rate(rally_http_request_duration_seconds_bucket[1m])) by (le))",
+            "legendFormat": "p50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(rally_http_request_duration_seconds_bucket[1m])) by (le))",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum(rate(rally_http_request_duration_seconds_bucket[1m])) by (le))",
+            "legendFormat": "p99"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 }
+      },
+      {
+        "title": "Request Rate by Status",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(rally_http_requests_total[1m])) by (status)",
+            "legendFormat": "{{status}}"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 }
+      },
+      {
+        "title": "Memory & CPU",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rally_system_memory_usage_mb",
+            "legendFormat": "Memory (MB)"
+          },
+          {
+            "expr": "rally_system_cpu_usage_percent",
+            "legendFormat": "CPU %"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 }
+      },
+      {
+        "title": "DB Connections",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rally_db_connections_active",
+            "legendFormat": "Connections"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 }
+      }
+    ],
+    "time": { "from": "now-1h", "to": "now" },
+    "refresh": "10s"
+  }
+}

@@ -1,0 +1,50 @@
+%% Story 6.2 — Cached GET (hit / miss)
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant MW as cachingMiddleware
+    participant CS as CacheService
+    participant ST as CacheStore (Redis|Memory)
+    participant H as Route handler
+    participant DB as Prisma/Postgres
+
+    C->>MW: GET /api/v1/sessions/discovery?...
+    MW->>MW: key = cacheKeys.domainKey('discovery', sha1(filters))
+    MW->>CS: get(key)
+    CS->>ST: get(key)
+    alt HIT
+        ST-->>CS: cached body
+        CS-->>MW: body
+        MW-->>C: 200 (X-Cache: HIT)
+    else MISS or store error
+        ST-->>CS: null
+        CS-->>MW: null
+        MW->>H: next()
+        H->>DB: findMany(...)
+        DB-->>H: rows
+        H-->>MW: res.json(body) [2xx captured]
+        MW->>CS: set(key, body, ttl) [fire-and-forget]
+        CS->>ST: set(...)
+        MW-->>C: 200 (X-Cache: MISS)
+    end
+
+%% Story 6.2 — Write that invalidates
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant IM as cacheInvalidationMiddleware(domains)
+    participant H as Route handler
+    participant DB as Prisma/Postgres
+    participant CS as CacheService
+    participant ST as CacheStore
+
+    C->>IM: PUT /api/v1/mvp-sessions/:shareCode
+    IM->>H: next() (wraps res.json/res.send)
+    H->>DB: update session (source of truth)
+    DB-->>H: ok
+    H-->>IM: res.json(body) [2xx]
+    IM->>CS: clear/invalidate(domains) [fire-and-forget]
+    CS->>ST: INCR rally:cache:gen:session
+    CS->>ST: INCR rally:cache:gen:discovery
+    IM-->>C: 200 (fresh data; old keys orphaned, age out via TTL)
+    Note over DB,ST: Write never depends on cache success (AC 8)

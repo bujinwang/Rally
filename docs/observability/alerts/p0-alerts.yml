@@ -1,0 +1,68 @@
+# Rally P0 Alert Rules (Story 6.3, AC 4 / AC 12)
+#
+# Thresholds are baseline-tuned from Story 6.2 load test:
+#   Memory driver (worst-case): p95=4.1ms, p99=14.6ms, hitRate=100%
+# Safety margin: latency threshold = baseline x 10x for p95.
+#
+# Apply with: promtool check rules p0-alerts.yml
+
+groups:
+  - name: rally-p0
+    interval: 15s
+    rules:
+      - alert: RallyHighErrorRate
+        expr: |
+          sum(rate(rally_errors_total[2m]))
+          /
+          sum(rate(rally_http_requests_total[2m])) > 0.01
+        for: 2m
+        labels:
+          severity: p0
+        annotations:
+          summary: "Rally error rate is above 1%"
+          description: "Error rate is {{ $value | humanizePercentage }} over the last 2 minutes."
+          runbook_url: "docs/runbooks/error-spike.md"
+
+      - alert: RallyHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(rally_http_request_duration_seconds_bucket[2m])) by (le)
+          ) > 0.2
+        for: 2m
+        labels:
+          severity: p0
+        annotations:
+          summary: "Rally p95 latency is above 200ms"
+          description: "p95 latency is {{ $value | humanizeDuration }} over the last 2 minutes."
+          runbook_url: "docs/runbooks/latency-breach.md"
+
+      - alert: RallyLowCacheHitRate
+        expr: rally_cache_hit_rate < 0.8
+        for: 5m
+        labels:
+          severity: p0
+        annotations:
+          summary: "Rally cache hit rate is below 80%"
+          description: "Cache hit rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+          runbook_url: "docs/runbooks/redis-down.md"
+
+      - alert: RallyDatabaseDown
+        expr: rally_db_connections_active == 0
+        for: 1m
+        labels:
+          severity: p0
+        annotations:
+          summary: "Rally database appears unreachable"
+          description: "Active DB connections dropped to zero."
+          runbook_url: "docs/runbooks/db-down.md"
+
+      - alert: RallyAuthFailureSurge
+        expr: |
+          sum(rate(rally_errors_total{type="auth"}[2m])) > 0.16
+        for: 2m
+        labels:
+          severity: p0
+        annotations:
+          summary: "Rally auth failure surge detected"
+          description: "Auth errors are {{ $value | humanize }} per second."
+          runbook_url: "docs/runbooks/auth-failure-surge.md"

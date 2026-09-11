@@ -1,0 +1,106 @@
+%% Story 6.1 — Data structures & interfaces
+classDiagram
+    class User {
+        +String id
+        +String name
+        +String email
+        +String phone
+        +String passwordHash
+        +String deviceId
+        +UserRole role
+        +RefreshToken[] refreshTokens
+        +MvpSession[] ownedMvpSessions
+        +MvpPlayer[] mvpPlayers
+    }
+
+    class RefreshToken {
+        +String id
+        +String userId
+        +String tokenHash
+        +String jti
+        +String familyId
+        +DateTime expiresAt
+        +DateTime revokedAt
+        +String replacedByJti
+        +String createdByIp
+        +String userAgent
+        +DateTime createdAt
+    }
+
+    class MvpSession {
+        +String id
+        +String shareCode
+        +String name
+        +String ownerName
+        +String ownerDeviceId
+        +String ownerUserId
+        +MvpSessionStatus status
+        +MvpPlayer[] players
+    }
+
+    class MvpPlayer {
+        +String id
+        +String sessionId
+        +String name
+        +String deviceId
+        +String userId
+        +MvpPlayerRole role
+        +MvpPlayerStatus status
+    }
+
+    class JWTUtils {
+        +generateTokens(payload, opts) TokenPair
+        +verifyAccessToken(token) JWTPayload
+        +verifyRefreshToken(token) JWTPayload
+        +storeRefreshToken(userId, refreshToken, meta)
+        +revokeRefreshToken(userId, refreshToken)
+        +isRefreshTokenValid(userId, refreshToken) bool
+    }
+
+    class RefreshTokenService {
+        +store(userId, rawToken, meta) JtiFamily
+        +isValid(userId, rawToken) bool
+        +isReused(userId, rawToken) bool
+        +revoke(userId, rawToken)
+        +revokeFamily(familyId)
+    }
+
+    class DeviceClaimService {
+        +claim(userId, deviceId) ClaimResult
+    }
+
+    class AuthMiddleware {
+        +authenticateToken(req, res, next)
+        +requiredAuth(req, res, next)
+        +optionalAuth(req, res, next)
+        +requireRole(allowedRoles) Handler
+    }
+
+    class PermissionGuards {
+        +resolveIdentity(req) ResolvedIdentity
+        +requireRole(requiredRole, action) Handler
+        +requireOrganizer(action) Handler
+        +requireOrganizerOrSelf(action) Handler
+        +requireSessionOwner(req, res, next)
+    }
+
+    class EnvConfig {
+        +JWT_SECRET
+        +JWT_REFRESH_SECRET
+        +JWT_EXPIRES_IN
+        +JWT_REFRESH_EXPIRES_IN
+        +validate()
+    }
+
+    User "1" --> "*" RefreshToken : owns
+    User "1" --> "*" MvpSession : owns (ownerUserId)
+    User "1" --> "*" MvpPlayer : linked (userId)
+    MvpSession "1" --> "*" MvpPlayer : contains
+    JWTUtils ..> RefreshTokenService : delegates
+    RefreshTokenService ..> RefreshToken : persists
+    DeviceClaimService ..> MvpSession : updates ownerUserId
+    DeviceClaimService ..> MvpPlayer : updates userId
+    AuthMiddleware ..> JWTUtils : verifies tokens
+    PermissionGuards ..> MvpSession : resolves ownership
+    PermissionGuards ..> MvpPlayer : resolves role
+    JWTUtils ..> EnvConfig : reads secrets

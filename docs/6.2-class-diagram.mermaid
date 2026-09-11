@@ -1,0 +1,68 @@
+%% Story 6.2 — Cache module data structures & interfaces
+classDiagram
+    class CacheService {
+        -store: CacheStore
+        -stats: CacheStats
+        +get~T~(key) T
+        +set~T~(key, value, ttl) void
+        +delete(key) void
+        +exists(key) bool
+        +clear(prefix) void
+        +getDiscoveryResults(filters, loc) any
+        +setDiscoveryResults(filters, loc, results) void
+        +invalidateDiscoveryCache() void
+        +getSession(id) any
+        +setSession(id, data) void
+        +invalidateSession(id) void
+        +getStats() CacheStats
+        +healthCheck() StoreHealth
+        +disconnect() void
+    }
+    class CacheStore {
+        <<interface>>
+        +get~T~(key) T
+        +set~T~(key, value, ttl) void
+        +delete(key) void
+        +exists(key) bool
+        +clear(prefix) void
+        +incr(key) number
+        +health() StoreHealth
+        +close() void
+    }
+    class MemoryStore {
+        -map: Map
+        -maxMemory: number
+        +evictLRU() void
+    }
+    class RedisStore {
+        -client: RedisClient
+        -breaker: CircuitBreaker
+        +incr(key) number
+    }
+    class RedisConfig {
+        +url: string
+        +enabled: bool
+        +createClient() RedisClient
+    }
+    class CacheKeys {
+        +domainKey(domain, digest) string
+        +generationKey(domain) string
+        +digest(input) string
+        +TTL: Record
+    }
+    class CachingMiddleware {
+        +cachingMiddleware(opts) Handler
+        +cacheInvalidationMiddleware(domains) Handler
+        +cacheHealthCheck() StoreHealth
+    }
+    class MonitoringService {
+        +getCacheHitRate() number
+    }
+
+    CacheService --> CacheStore : delegates
+    CacheStore <|.. MemoryStore
+    CacheStore <|.. RedisStore
+    RedisStore --> RedisConfig : uses
+    CacheService --> CacheKeys : builds keys
+    CachingMiddleware --> CacheService : get/set/clear
+    MonitoringService --> CacheService : getStats
