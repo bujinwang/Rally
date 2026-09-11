@@ -19,6 +19,8 @@ import rotationReducer from './slices/rotationSlice';
 import playerReducer from './slices/playerSlice';
 import uiReducer from './slices/uiSlice';
 import realTimeReducer from './slices/realTimeSlice';
+import syncReducer from './slices/syncSlice';
+import { setSyncDispatch } from '../services/syncManager';
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -27,10 +29,16 @@ const rootReducer = combineReducers({
   players: playerReducer,
   ui: uiReducer,
   realTime: realTimeReducer,
+  sync: syncReducer,
 });
 
 // Only the auth slice is persisted so the session survives app restarts.
 // Other slices hold transient/socket state that must not be rehydrated.
+//
+// `sync` (Story 6.5) is deliberately NOT whitelisted: it is ephemeral
+// offline/sync UI status that is re-derived from the queue at startup.
+// Persisting it would risk rehydrating half-applied optimistic state on a cold
+// start, so `whitelist` stays exactly `['auth']`.
 const persistConfig = {
   key: 'root',
   version: 1,
@@ -51,6 +59,13 @@ export const store = configureStore({
 });
 
 export const persistor = persistStore(store);
+
+// Give `SyncManager` a way to push conflict records and the `'offline-replay'`
+// freshness signal into the store. Registered here (not imported inside
+// `syncManager.ts`) so the service never imports the store, avoiding a cycle.
+// The dispatch target is bound to `store.dispatch` by reference, so it always
+// works even after the module graph is fully initialised.
+setSyncDispatch((action) => store.dispatch(action as never));
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

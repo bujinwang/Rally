@@ -52,6 +52,9 @@ model MvpSession {
   // Owner info stored directly (no user account required)
   ownerName     String
   ownerDeviceId String? // For session management
+  // Story 6.1: optional link to an authenticated user (additive, nullable)
+  ownerUserId   String?
+  ownerUser     User?   @relation("MvpSessionOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
 
   // Legacy organizer claim support
   organizerSecretHash      String?
@@ -63,6 +66,10 @@ model MvpSession {
 
   // Status
   status MvpSessionStatus @default(ACTIVE)
+
+  // Optimistic-concurrency token (Story 6.5). Additive, defaults to 0, so
+  // legacy clients that send no `X-Entity-Version` header are unaffected.
+  version Int @default(0)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -98,6 +105,9 @@ model MvpSession {
   @@index([visibility])
   @@index([skillLevel])
   @@index([courtType])
+  @@index([ownerUserId]) // Story 6.1: lookup sessions owned by an authenticated user
+  @@index([ownerDeviceId]) // Story 6.2: owner-device lookup for my-sessions
+  @@index([ownerDeviceId, status]) // Story 6.2: my-sessions active filter
   @@index([scheduledAt, latitude, longitude]) // Composite index for location-time queries
   @@index([status, visibility, scheduledAt]) // Composite index for active public sessions
   @@map("mvp_sessions")
@@ -235,12 +245,17 @@ model MvpPlayer {
   // Player info
   name     String
   deviceId String? // For player identification
+  // Story 6.1: optional link to an authenticated user (additive, nullable)
+  userId   String?
+  user     User?   @relation("MvpPlayerUser", fields: [userId], references: [id], onDelete: SetNull)
   role     MvpPlayerRole @default(PLAYER) // Role in the session
 
   // Player stats
   joinedAt             DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
   status               MvpPlayerStatus @default(ACTIVE)
+  // Optimistic-concurrency token (Story 6.5). Additive, defaults to 0.
+  version              Int             @default(0)
   gamesPlayed          Int             @default(0)
   sessionsParticipated Int             @default(0)
   wins                 Int             @default(0)
@@ -347,7 +362,9 @@ model MvpPlayer {
   // Performance indexes
   @@index([sessionId])
   @@index([status])
+  @@index([userId]) // Story 6.1: lookup players linked to an authenticated user
   @@index([sessionId, status]) // Composite index for active players in session
+  @@index([deviceId]) // Story 6.2: device-only lookups (guest joins, claim, permissions)
   @@map("mvp_players")
 }
 
@@ -701,6 +718,11 @@ model User {
   userSettings   UserSettings?
   sentMessages   Message[]        @relation("MessageSender")
 
+  // Story 6.1 relations
+  refreshTokens    RefreshToken[]
+  ownedMvpSessions MvpSession[]   @relation("MvpSessionOwner")
+  mvpPlayers       MvpPlayer[]    @relation("MvpPlayerUser")
+
   // Social Features Relations
   sentFriendRequests     FriendRequest[] @relation("FriendRequestSender")
   receivedFriendRequests FriendRequest[] @relation("FriendRequestReceiver")
@@ -708,6 +730,30 @@ model User {
   friendsAsFriend        Friend[]        @relation("FriendFriend")
 
   @@map("users")
+}
+
+// Story 6.1 — server-side refresh-token store (rotation / revocation / reuse-detection)
+model RefreshToken {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash     String @unique // SHA-256 of the raw refresh token (raw token is never stored)
+  jti           String @unique // matches the JWT `jti` claim
+  familyId      String // rotation lineage (stable across rotations)
+
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  replacedByJti String?
+
+  createdByIp String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
 }
 
 model UserSettings {

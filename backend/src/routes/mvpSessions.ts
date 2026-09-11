@@ -5,11 +5,24 @@ import { generateOptimalRotation, getRotationExplanation } from '../utils/rotati
 import { updatePlayerGameStatistics, updatePlayerMatchStatistics, getPlayerStatistics, getSessionStatistics, getSessionLeaderboard } from '../utils/statisticsService';
 import { io } from '../server';
 import { requireOrganizer, requireOrganizerOrSelf } from '../middleware/permissions';
+import { optionalAuth } from '../middleware/auth';
 import { PasswordUtils } from '../utils/password';
 import { createRateLimiters } from '../middleware/rateLimit';
 import { notifySessionSubscribers } from '../utils/notificationHelper';
 import { emitPlayerJoined } from '../socket/notificationHandlers';
 import { messagingService } from '../services/messagingService';
+import { cachingMiddleware, cacheInvalidationMiddleware } from '../middleware/caching';
+import { TTL } from '../services/cache/cacheKeys';
+// Story 6.5 — optimistic-concurrency guard. Only enforces when the client sends
+// an `X-Entity-Version` header; legacy traffic is byte-for-byte unchanged.
+import { versioning } from '../middleware/versioning';
+// Story 6.4 — authoritative real-time emitters. Aliased to avoid a name
+// clash with the legacy `emitPlayerJoined` from socket/notificationHandlers.
+import {
+  emitScoreUpdated as emitScoreUpdatedAuthoritative,
+  emitPlayerStatusChanged as emitPlayerStatusChangedAuthoritative,
+  invalidateSessionCache,
+} from '../socket/events/sessionEvents';
 
 const rateLimiters = createRateLimiters();
 
@@ -28,7 +41,7 @@ const generateOrganizerCode = (): string => {
 };
 
 // Get all active sessions (for discovery)
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', cachingMiddleware({ domain: 'discovery', ttl: TTL.discovery }), async (req: Request, res: Response) => {
   try {
     const { status = 'ACTIVE', limit = 50, offset = 0 } = req.query;
 
@@ -231,7 +244,7 @@ router.get('/:shareCode/recap', async (req, res) => {
 });
 
 // Get session by share code
-router.get('/:shareCode', async (req, res) => {
+router.get('/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.session }), async (req, res) => {
   try {
     const { shareCode } = req.params;
 
@@ -408,7 +421,7 @@ function generateShareCode(): string {
 }
 
 // Create new MVP session (no auth required)
-router.post('/', createSessionValidation, async (req: Request, res: Response) => {
+router.post('/', createSessionValidation, optionalAuth, cacheInvalidationMiddleware(['session', 'discovery', 'stats']), async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -424,6 +437,8 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
     }
 
     const sessionData = req.body;
+    // When the creator is authenticated, attribute the new activity to them.
+    const userId = (req as any).user?.id as string | undefined;
 
     const organizerCode = generateOrganizerCode();
     const organizerCodeHash = await PasswordUtils.hashPassword(organizerCode);
@@ -446,6 +461,7 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
         shareCode,
         status: 'ACTIVE',
         ownerDeviceId: sessionData.ownerDeviceId || null,
+        ...(userId ? { ownerUserId: userId } : {}),
         clubAffiliation: sessionData.clubAffiliation || null,
         dropInFee: sessionData.dropInFee || null,
         invitationRequired: sessionData.invitationRequired || false,
@@ -464,6 +480,7 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
         sessionId: session.id,
         name: sessionData.organizerName,
         deviceId: sessionData.ownerDeviceId || null,
+        ...(userId ? { userId } : {}),
         status: 'ACTIVE',
         role: 'ORGANIZER'
       }
@@ -588,7 +605,7 @@ router.post('/', createSessionValidation, async (req: Request, res: Response) =>
 });
 
 // Get session by share code (public access)
-router.get('/join/:shareCode', async (req, res) => {
+router.get('/join/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.session }), async (req, res) => {
   try {
     const { shareCode } = req.params;
 
@@ -706,7 +723,7 @@ router.get('/join/:shareCode', async (req, res) => {
 });
 
 // Join session
-router.post('/join/:shareCode', joinSessionValidation, async (req: Request, res: Response) => {
+router.post('/join/:shareCode', joinSessionValidation, cacheInvalidationMiddleware(['session', 'discovery']), async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -869,7 +886,7 @@ router.post('/join/:shareCode', joinSessionValidation, async (req: Request, res:
 });
 
 // Claim organizer control for an existing session
-router.post('/claim', claimSessionValidation, async (req: Request, res: Response) => {
+router.post('/claim', claimSessionValidation, optionalAuth, async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -885,6 +902,8 @@ router.post('/claim', claimSessionValidation, async (req: Request, res: Response
     }
 
     const { shareCode, secret, deviceId, playerName } = req.body;
+    // Attribute the claim to the authenticated user when one is present.
+    const userId = (req as any).user?.id as string | undefined;
 
     const session = await prisma.mvpSession.findUnique({
       where: { shareCode },
@@ -954,7 +973,8 @@ router.post('/claim', claimSessionValidation, async (req: Request, res: Response
           where: { id: organizerPlayer.id },
           data: {
             deviceId,
-            role: 'ORGANIZER'
+            role: 'ORGANIZER',
+            ...(userId ? { userId } : {})
           }
         });
       } else {
@@ -963,6 +983,7 @@ router.post('/claim', claimSessionValidation, async (req: Request, res: Response
             sessionId: session.id,
             name: playerName!,
             deviceId,
+            ...(userId ? { userId } : {}),
             status: 'ACTIVE',
             role: 'ORGANIZER'
           }
@@ -986,6 +1007,7 @@ router.post('/claim', claimSessionValidation, async (req: Request, res: Response
         where: { id: session.id },
         data: {
           ownerDeviceId: deviceId,
+          ...(userId ? { ownerUserId: userId } : {}),
           ownershipClaimedAt: now
         }
       });
@@ -1058,7 +1080,7 @@ router.post('/claim', claimSessionValidation, async (req: Request, res: Response
 });
 
 // Update player status
-router.put('/players/:playerId/status', requireOrganizerOrSelf('update_player_status'), async (req, res) => {
+router.put('/players/:playerId/status', optionalAuth, requireOrganizerOrSelf('update_player_status'), cacheInvalidationMiddleware(['session']), versioning({ entity: 'player', resolveId: (req) => req.params.playerId }), async (req, res) => {
   try {
     const { playerId } = req.params;
     const { status } = req.body;
@@ -1173,7 +1195,7 @@ router.get('/my-sessions/:deviceId', async (req, res) => {
 });
 
 // Update session settings (owner only)
-router.put('/:shareCode', rateLimiters.sensitive, requireOrganizer('edit_session'), async (req, res) => {
+router.put('/:shareCode', optionalAuth, rateLimiters.sensitive, requireOrganizer('edit_session'), versioning({ entity: 'session', resolveId: (req) => req.params.shareCode }), cacheInvalidationMiddleware(['session', 'discovery']), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { ownerDeviceId, courtCount, maxPlayers, location, description, skillLevel, cost } = req.body;
@@ -1396,7 +1418,7 @@ router.put('/:shareCode', rateLimiters.sensitive, requireOrganizer('edit_session
 });
 
 // Terminate session (owner only)
-router.put('/terminate/:shareCode', rateLimiters.sensitive, requireOrganizer('delete_session'), async (req, res) => {
+router.put('/terminate/:shareCode', optionalAuth, rateLimiters.sensitive, requireOrganizer('delete_session'), cacheInvalidationMiddleware(['session', 'discovery', 'stats']), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { ownerDeviceId } = req.body;
@@ -1490,7 +1512,7 @@ router.put('/terminate/:shareCode', rateLimiters.sensitive, requireOrganizer('de
 });
 
 // Reactivate session (owner only) - only if not past due and currently terminated
-router.put('/reactivate/:shareCode', requireOrganizer('edit_session'), async (req, res) => {
+router.put('/reactivate/:shareCode', optionalAuth, requireOrganizer('edit_session'), cacheInvalidationMiddleware(['session', 'discovery', 'stats']), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { ownerDeviceId } = req.body;
@@ -1611,7 +1633,7 @@ router.put('/reactivate/:shareCode', requireOrganizer('edit_session'), async (re
 
 // Remove player from session (owner only) - DEPRECATED: Use the one with requireOrganizer middleware at line 2745
 // This route is kept for backwards compatibility but should be removed after frontend migration
-router.delete('/:shareCode/players/:playerId', rateLimiters.sensitive, requireOrganizer('remove_players'), async (req, res) => {
+router.delete('/:shareCode/players/:playerId', optionalAuth, rateLimiters.sensitive, requireOrganizer('remove_players'), cacheInvalidationMiddleware(['session', 'discovery']), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
     const { deviceId: ownerDeviceId } = req.body;
@@ -1701,7 +1723,7 @@ router.delete('/:shareCode/players/:playerId', rateLimiters.sensitive, requireOr
 });
 
 // Add player to session (owner only)
-router.post('/:shareCode/add-player', rateLimiters.api, requireOrganizer('add_players'), async (req, res) => {
+router.post('/:shareCode/add-player', optionalAuth, rateLimiters.api, requireOrganizer('add_players'), cacheInvalidationMiddleware(['session', 'discovery']), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { playerName, deviceId: ownerDeviceId } = req.body;
@@ -1818,7 +1840,7 @@ router.post('/:shareCode/add-player', rateLimiters.api, requireOrganizer('add_pl
 // Game Management Routes
 
 // Create a new game
-router.post('/:shareCode/games', requireOrganizer('generate_pairings'), async (req, res) => {
+router.post('/:shareCode/games', optionalAuth, requireOrganizer('generate_pairings'), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { team1Player1, team1Player2, team2Player1, team2Player2, courtName } = req.body;
@@ -1882,7 +1904,7 @@ router.post('/:shareCode/games', requireOrganizer('generate_pairings'), async (r
 });
 
 // Update game score (finish game)
-router.put('/:shareCode/games/:gameId/score', requireOrganizer('modify_pairings'), async (req, res) => {
+router.put('/:shareCode/games/:gameId/score', optionalAuth, requireOrganizer('modify_pairings'), versioning({ entity: 'session', resolveId: (req) => req.params.shareCode }), async (req, res) => {
   try {
     const { shareCode, gameId } = req.params;
     const { team1FinalScore, team2FinalScore } = req.body;
@@ -2018,6 +2040,17 @@ router.put('/:shareCode/games/:gameId/score', requireOrganizer('modify_pairings'
       console.warn('Failed to emit socket update:', error instanceof Error ? error.message : 'Unknown error');
     }
 
+    // Authoritative score event (Story 6.4, AC 4 / AC 10): carries an eventId
+    // for ordering and reconnect replay, and refreshes the session snapshot.
+    // Also invalidates the HTTP cache so REST reads agree with the socket
+    // state (AC 7).
+    try {
+      await emitScoreUpdatedAuthoritative(shareCode, gameId);
+      await invalidateSessionCache(shareCode);
+    } catch (error) {
+      console.warn('Failed to emit authoritative score update:', error instanceof Error ? error.message : 'Unknown error');
+    }
+
     res.json({
       success: true,
       data: { game: updatedGame },
@@ -2039,7 +2072,7 @@ router.put('/:shareCode/games/:gameId/score', requireOrganizer('modify_pairings'
  * Delete a game (organizer only)
  * DELETE /:shareCode/games/:gameId
  */
-router.delete('/:shareCode/games/:gameId', requireOrganizer('modify_pairings'), async (req, res) => {
+router.delete('/:shareCode/games/:gameId', optionalAuth, requireOrganizer('modify_pairings'), async (req, res) => {
   try {
     const { shareCode, gameId } = req.params;
 
@@ -2153,7 +2186,7 @@ router.delete('/:shareCode/games/:gameId', requireOrganizer('modify_pairings'), 
 });
 
 // Update teams during live game (team switching)
-router.put('/:shareCode/games/:gameId/teams', requireOrganizer('modify_pairings'), async (req, res) => {
+router.put('/:shareCode/games/:gameId/teams', optionalAuth, requireOrganizer('modify_pairings'), async (req, res) => {
   try {
     const { shareCode, gameId } = req.params;
     const { team1Player1, team1Player2, team2Player1, team2Player2 } = req.body;
@@ -2439,7 +2472,7 @@ router.get('/:shareCode/rotation', async (req, res) => {
 // Match Management Routes
 
 // Create a new match (best of 3 or 5 games)
-router.post('/:shareCode/matches', requireOrganizer('generate_pairings'), async (req, res) => {
+router.post('/:shareCode/matches', optionalAuth, requireOrganizer('generate_pairings'), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { team1Player1, team1Player2, team2Player1, team2Player2, courtName, bestOf = 3 } = req.body;
@@ -2504,7 +2537,7 @@ router.post('/:shareCode/matches', requireOrganizer('generate_pairings'), async 
 });
 
 // Create a new game within a match
-router.post('/:shareCode/matches/:matchId/games', requireOrganizer('generate_pairings'), async (req, res) => {
+router.post('/:shareCode/matches/:matchId/games', optionalAuth, requireOrganizer('generate_pairings'), async (req, res) => {
   try {
     const { shareCode, matchId } = req.params;
 
@@ -2600,7 +2633,7 @@ router.post('/:shareCode/matches/:matchId/games', requireOrganizer('generate_pai
 });
 
 // Update game score and check for match completion
-router.put('/:shareCode/matches/:matchId/games/:gameId/score', requireOrganizer('modify_pairings'), async (req, res) => {
+router.put('/:shareCode/matches/:matchId/games/:gameId/score', optionalAuth, requireOrganizer('modify_pairings'), async (req, res) => {
   try {
     const { shareCode, matchId, gameId } = req.params;
     const { team1FinalScore, team2FinalScore } = req.body;
@@ -2986,7 +3019,7 @@ router.get('/:shareCode/leaderboard', async (req, res) => {
 
 // Update player status (for self-dropout or organizer management) - DEPRECATED: Use the one with requireOrganizerOrSelf at line 2960
 // This route is kept for backwards compatibility but should be removed after frontend migration
-router.put('/:shareCode/players/:playerId/status', requireOrganizerOrSelf('update_player_status'), async (req, res) => {
+router.put('/:shareCode/players/:playerId/status', optionalAuth, requireOrganizerOrSelf('update_player_status'), cacheInvalidationMiddleware(['session']), versioning({ entity: 'player', resolveId: (req) => req.params.playerId }), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
     const { status, reason } = req.body;
@@ -3091,6 +3124,14 @@ router.put('/:shareCode/players/:playerId/status', requireOrganizerOrSelf('updat
       console.warn('Failed to emit socket update:', error instanceof Error ? error.message : 'Unknown error');
     }
 
+    // Authoritative rotation event (Story 6.4, AC 4 / AC 10): typed status
+    // change carrying an eventId, plus cache invalidation so REST agrees
+    // with socket state (AC 7). Fire-and-forget — never blocks the response.
+    emitPlayerStatusChangedAuthoritative(shareCode, playerId, status).catch((error) => {
+      console.warn('Failed to emit authoritative status update:', error instanceof Error ? error.message : 'Unknown error');
+    });
+    invalidateSessionCache(shareCode).catch(() => undefined);
+
     res.json({
       success: true,
       message: `Player status updated to ${status}`,
@@ -3111,7 +3152,7 @@ router.put('/:shareCode/players/:playerId/status', requireOrganizerOrSelf('updat
 });
 
 // Remove player from session (organizer only)
-router.delete('/:shareCode/players/:playerId', rateLimiters.sensitive, requireOrganizer('remove_players'), async (req, res) => {
+router.delete('/:shareCode/players/:playerId', optionalAuth, rateLimiters.sensitive, requireOrganizer('remove_players'), cacheInvalidationMiddleware(['session', 'discovery']), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
     const { organizerDeviceId, reason } = req.body;
@@ -3327,7 +3368,7 @@ router.get('/:shareCode/players/me/:deviceId', async (req, res) => {
 });
 
 // Update player status (self-dropout or organizer management)
-router.put('/:shareCode/players/:playerId/status', requireOrganizerOrSelf('update_player_status'), async (req, res) => {
+router.put('/:shareCode/players/:playerId/status', optionalAuth, requireOrganizerOrSelf('update_player_status'), cacheInvalidationMiddleware(['session']), versioning({ entity: 'player', resolveId: (req) => req.params.playerId }), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
     const { status, deviceId, ownerDeviceId } = req.body;
@@ -3467,7 +3508,7 @@ router.put('/:shareCode/players/:playerId/status', requireOrganizerOrSelf('updat
  * Check-in a player (mark as arrived)
  * PUT /:shareCode/players/:playerId/check-in
  */
-router.put('/:shareCode/players/:playerId/check-in', requireOrganizer('modify_pairings'), async (req, res) => {
+router.put('/:shareCode/players/:playerId/check-in', optionalAuth, requireOrganizer('modify_pairings'), cacheInvalidationMiddleware(['session']), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
 
@@ -3526,7 +3567,7 @@ router.put('/:shareCode/players/:playerId/check-in', requireOrganizer('modify_pa
  * Undo check-in for a player
  * PUT /:shareCode/players/:playerId/check-out
  */
-router.put('/:shareCode/players/:playerId/check-out', requireOrganizer('modify_pairings'), async (req, res) => {
+router.put('/:shareCode/players/:playerId/check-out', optionalAuth, requireOrganizer('modify_pairings'), cacheInvalidationMiddleware(['session']), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
 
@@ -3696,7 +3737,7 @@ router.get('/:shareCode/players/me/:deviceId', async (req, res) => {
   }
 });
 
-router.post('/:shareCode/games', requireOrganizer('generate_pairings'), async (req, res) => {
+router.post('/:shareCode/games', optionalAuth, requireOrganizer('generate_pairings'), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { 
@@ -3806,7 +3847,7 @@ router.post('/:shareCode/games', requireOrganizer('generate_pairings'), async (r
 });
 
 // Update session court settings
-router.put('/:shareCode/courts', rateLimiters.api, requireOrganizer('edit_session'), async (req, res) => {
+router.put('/:shareCode/courts', optionalAuth, rateLimiters.api, requireOrganizer('edit_session'), versioning({ entity: 'session', resolveId: (req) => req.params.shareCode }), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { courtCount, ownerDeviceId } = req.body;
@@ -3962,7 +4003,7 @@ router.put('/:shareCode/courts', rateLimiters.api, requireOrganizer('edit_sessio
 // Rest Management Routes
 
 // Set player rest status (self or owner-managed)
-router.put('/:shareCode/players/:playerId/rest', requireOrganizerOrSelf('update_player_status'), async (req, res) => {
+router.put('/:shareCode/players/:playerId/rest', optionalAuth, requireOrganizerOrSelf('update_player_status'), cacheInvalidationMiddleware(['session']), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
     const { gamesCount = 1, requestedBy, deviceId, ownerDeviceId } = req.body;
@@ -4182,7 +4223,7 @@ router.get('/:shareCode/rest-status', async (req, res) => {
  * Leave session by device ID (for web interface)
  * DELETE /:shareCode/leave-by-device
  */
-router.delete('/:shareCode/leave-by-device', async (req, res) => {
+router.delete('/:shareCode/leave-by-device', optionalAuth, cacheInvalidationMiddleware(['session', 'discovery']), async (req, res) => {
   try {
     const { shareCode } = req.params;
     const { deviceId } = req.body;
@@ -4357,7 +4398,7 @@ router.get('/player-stats/:playerName', async (req, res) => {
 });
 
 // Mark player deposit as paid
-router.put('/:shareCode/players/:playerId/deposit', requireOrganizer('manage_players'), async (req, res) => {
+router.put('/:shareCode/players/:playerId/deposit', optionalAuth, requireOrganizer('manage_players'), async (req, res) => {
   try {
     const { playerId } = req.params;
     const { depositPaid } = req.body;
@@ -4369,7 +4410,7 @@ router.put('/:shareCode/players/:playerId/deposit', requireOrganizer('manage_pla
 });
 
 // Mark player attendance (showed up / no-show)
-router.put('/:shareCode/players/:playerId/attendance', requireOrganizer('manage_players'), async (req, res) => {
+router.put('/:shareCode/players/:playerId/attendance', optionalAuth, requireOrganizer('manage_players'), async (req, res) => {
   try {
     const { playerId } = req.params;
     const { noShow } = req.body;
