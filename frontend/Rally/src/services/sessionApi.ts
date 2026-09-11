@@ -1,6 +1,7 @@
 import { API_BASE_URL, DEVICE_ID_KEY } from '../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DeviceService from './deviceService';
+import { authFetch } from './authFetch';
 
 export interface CreateSessionRequest {
   name?: string;
@@ -121,7 +122,7 @@ class SessionApiService {
         maxPlayers: sessionRequest.maxPlayers || 20,
       };
 
-      const response = await fetch(`${this.baseUrl}/mvp-sessions`, {
+      const response = await authFetch(`${this.baseUrl}/mvp-sessions`, {
         method: 'POST',
         headers: await this.getHeaders(),
         body: JSON.stringify(requestData),
@@ -137,7 +138,7 @@ class SessionApiService {
   // Get session by share code
   async getSessionByShareCode(shareCode: string): Promise<SessionResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}`, {
+      const response = await authFetch(`${this.baseUrl}/mvp-sessions/${shareCode}`, {
         method: 'GET',
         headers: await this.getHeaders(),
       });
@@ -152,7 +153,7 @@ class SessionApiService {
   // Get all active sessions
   async getActiveSessions(): Promise<SessionsListResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/mvp-sessions?status=ACTIVE&limit=50`, {
+      const response = await authFetch(`${this.baseUrl}/mvp-sessions?status=ACTIVE&limit=50`, {
         method: 'GET',
         headers: await this.getHeaders(),
       });
@@ -169,7 +170,7 @@ class SessionApiService {
     try {
       const deviceId = await this.getDeviceId();
       
-      const response = await fetch(`${this.baseUrl}/mvp-sessions/my-sessions/${deviceId}`, {
+      const response = await authFetch(`${this.baseUrl}/mvp-sessions/my-sessions/${deviceId}`, {
         method: 'GET',
         headers: await this.getHeaders(),
       });
@@ -186,7 +187,7 @@ class SessionApiService {
     try {
       const deviceId = await this.getDeviceId();
       
-      const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}/join`, {
+      const response = await authFetch(`${this.baseUrl}/mvp-sessions/${shareCode}/join`, {
         method: 'POST',
         headers: await this.getHeaders(),
         body: JSON.stringify({
@@ -207,7 +208,7 @@ class SessionApiService {
     try {
       const deviceId = await this.getDeviceId();
       
-      const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}/leave`, {
+      const response = await authFetch(`${this.baseUrl}/mvp-sessions/${shareCode}/leave`, {
         method: 'POST',
         headers: await this.getHeaders(),
         body: JSON.stringify({
@@ -225,7 +226,7 @@ class SessionApiService {
   // Update session details (only for session owner)
   async updateSession(shareCode: string, updates: Partial<CreateSessionRequest>): Promise<SessionResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}`, {
+      const response = await authFetch(`${this.baseUrl}/mvp-sessions/${shareCode}`, {
         method: 'PUT',
         headers: await this.getHeaders(),
         body: JSON.stringify(updates),
@@ -241,7 +242,7 @@ class SessionApiService {
   // Cancel/Complete session (only for session owner)
   async updateSessionStatus(shareCode: string, status: 'COMPLETED' | 'CANCELLED'): Promise<SessionResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}`, {
+      const response = await authFetch(`${this.baseUrl}/mvp-sessions/${shareCode}`, {
         method: 'PUT',
         headers: await this.getHeaders(),
         body: JSON.stringify({ status }),
@@ -268,7 +269,7 @@ class SessionApiService {
     courtName?: string;
   }): Promise<ApiResponse<{ game: SessionGame }>> {
     try {
-      const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}/games`, {
+      const response = await authFetch(`${this.baseUrl}/mvp-sessions/${shareCode}/games`, {
         method: 'POST',
         headers: await this.getHeaders(),
         body: JSON.stringify(gameData),
@@ -287,7 +288,7 @@ class SessionApiService {
     team2FinalScore: number;
   }): Promise<ApiResponse<{ game: SessionGame }>> {
     try {
-      const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}/games/${gameId}/score`, {
+      const response = await authFetch(`${this.baseUrl}/mvp-sessions/${shareCode}/games/${gameId}/score`, {
         method: 'PUT',
         headers: await this.getHeaders(),
         body: JSON.stringify(scores),
@@ -311,7 +312,7 @@ class SessionApiService {
   // Check-in a player
   async checkInPlayer(shareCode: string, playerId: string): Promise<ApiResponse<any>> {
     try {
-      const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}/players/${playerId}/check-in`, {
+      const response = await authFetch(`${this.baseUrl}/mvp-sessions/${shareCode}/players/${playerId}/check-in`, {
         method: 'PUT',
         headers: await this.getHeaders(),
       });
@@ -325,7 +326,7 @@ class SessionApiService {
   // Undo check-in for a player
   async checkOutPlayer(shareCode: string, playerId: string): Promise<ApiResponse<any>> {
     try {
-      const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}/players/${playerId}/check-out`, {
+      const response = await authFetch(`${this.baseUrl}/mvp-sessions/${shareCode}/players/${playerId}/check-out`, {
         method: 'PUT',
         headers: await this.getHeaders(),
       });
@@ -339,7 +340,7 @@ class SessionApiService {
   // Get check-in summary
   async getCheckInSummary(shareCode: string): Promise<ApiResponse<any>> {
     try {
-      const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}/check-in-summary`, {
+      const response = await authFetch(`${this.baseUrl}/mvp-sessions/${shareCode}/check-in-summary`, {
         method: 'GET',
         headers: await this.getHeaders(),
       });
@@ -353,7 +354,7 @@ class SessionApiService {
   // Delete game
   async deleteGame(shareCode: string, gameId: string): Promise<ApiResponse<null>> {
     try {
-      const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}/games/${gameId}`, {
+      const response = await authFetch(`${this.baseUrl}/mvp-sessions/${shareCode}/games/${gameId}`, {
         method: 'DELETE',
         headers: await this.getHeaders(),
       });
@@ -501,7 +502,7 @@ class SessionApiService {
   async claimSessionOwnership(shareCode: string): Promise<SessionResponse> {
     try {
       const deviceId = await this.getDeviceId();
-      const response = await fetch(`${this.baseUrl}/mvp-sessions/${shareCode}`, {
+      const response = await authFetch(`${this.baseUrl}/mvp-sessions/${shareCode}`, {
         method: 'PUT',
         headers: await this.getHeaders(),
         body: JSON.stringify({ ownerDeviceId: deviceId }),
