@@ -15,7 +15,7 @@ describe('Player Statistics', () => {
         name: 'Test Session - Player Statistics',
         scheduledAt: new Date(),
         ownerName: 'Test Owner',
-        shareCode: 'STATS123'
+        shareCode: `STATS123-${Date.now()}`
       }
     });
     testSessionId = session.id;

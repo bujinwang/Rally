@@ -2,12 +2,38 @@ import { Router } from 'express';
 import { prisma } from '../config/database';
 import { JWTUtils } from '../utils/jwt';
 import { PasswordUtils } from '../utils/password';
-import { registerSchema, loginSchema, refreshTokenSchema, validate } from '../utils/validation';
+import {
+  registerSchema,
+  loginSchema,
+  refreshTokenSchema,
+  claimSchema,
+  logoutSchema,
+  validate,
+} from '../utils/validation';
+import { requiredAuth, AuthRequest } from '../middleware/auth';
+import { createRateLimiters } from '../middleware/rateLimit';
+import { deviceClaimService } from '../services/deviceClaimService';
 
 const router = Router();
 
+// Rate limiting stays ACTIVE under test so AC 7/11 are actually exercised, but
+// with a high ceiling so unrelated suites sharing the in-memory counter cannot
+// trip it. The dedicated rate-limit test tunes the ceiling down via the
+// test-only env vars to force a 429. Production values (5 / 10) are unchanged.
+const isTest = process.env.NODE_ENV === 'test';
+const rateLimiters = createRateLimiters(
+  isTest
+    ? {
+        authMax: Number(process.env.AUTH_RATE_LIMIT_MAX_TEST ?? 10000),
+        sensitiveMax: Number(process.env.SENSITIVE_RATE_LIMIT_MAX_TEST ?? 10000),
+      }
+    : undefined
+);
+const authLimiter = rateLimiters.auth;
+const sensitiveLimiter = rateLimiters.sensitive;
+
 // Register new user
-router.post('/register', validate(registerSchema), async (req, res) => {
+router.post('/register', authLimiter, validate(registerSchema), async (req, res) => {
   try {
     const { name, email, phone, password, deviceId } = req.body;
 
@@ -93,7 +119,7 @@ router.post('/register', validate(registerSchema), async (req, res) => {
 });
 
 // Login user
-router.post('/login', validate(loginSchema), async (req, res) => {
+router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
   try {
     const { email, password, deviceId } = req.body;
 
@@ -171,12 +197,13 @@ router.post('/login', validate(loginSchema), async (req, res) => {
   }
 });
 
-// Refresh access token
-router.post('/refresh', validate(refreshTokenSchema), async (req, res) => {
+// Refresh access token (rotation + reuse-detection handled atomically by
+// refreshTokenService.rotate)
+router.post('/refresh', authLimiter, validate(refreshTokenSchema), async (req, res) => {
   try {
     const { refreshToken } = req.body;
 
-    // Verify refresh token
+    // Verify refresh token signature
     const decoded = JWTUtils.verifyRefreshToken(refreshToken);
     if (!decoded) {
       return res.status(401).json({
@@ -184,19 +211,6 @@ router.post('/refresh', validate(refreshTokenSchema), async (req, res) => {
         error: {
           code: 'UNAUTHORIZED',
           message: 'Invalid refresh token'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Check if refresh token is valid in storage
-    const isValid = await JWTUtils.isRefreshTokenValid(decoded.userId, refreshToken);
-    if (!isValid) {
-      return res.status(401).json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Refresh token has been revoked'
         },
         timestamp: new Date().toISOString()
       });
@@ -218,16 +232,34 @@ router.post('/refresh', validate(refreshTokenSchema), async (req, res) => {
       });
     }
 
-    // Generate new tokens
+    // Issue a candidate pair. `rotate` owns family assignment, so no familyId is
+    // passed here — on a tolerated retry it carries the existing family forward.
     const tokens = JWTUtils.generateTokens({
       userId: user.id,
       email: user.email || '',
       role: user.role
     });
 
-    // Store new refresh token and revoke old one
-    await JWTUtils.revokeRefreshToken(decoded.userId);
-    await JWTUtils.storeRefreshToken(user.id, tokens.refreshToken);
+    // Atomically revoke the presented row, link the lineage, and persist the new
+    // token in the same family. A concurrent refresh can never revoke a token it
+    // did not present.
+    const rotation = await JWTUtils.rotateRefreshToken(
+      user.id,
+      refreshToken,
+      tokens.refreshToken,
+      { ip: req.ip, userAgent: req.get('user-agent') }
+    );
+
+    if (!rotation.ok) {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Refresh token has been revoked'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
 
     res.json({
       success: true,
@@ -242,6 +274,64 @@ router.post('/refresh', validate(refreshTokenSchema), async (req, res) => {
       error: {
         code: 'INTERNAL_ERROR',
         message: 'Token refresh failed'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Logout — revoke the caller's refresh token(s)
+router.post('/logout', sensitiveLimiter, requiredAuth, validate(logoutSchema), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { refreshToken } = req.body || {};
+
+    await JWTUtils.revokeRefreshToken(userId, refreshToken);
+
+    res.json({
+      success: true,
+      message: 'Logged out successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Logout failed'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Claim guest-created sessions/players that belong to the caller's device.
+// NOTE: distinct from `POST /mvp-sessions/claim` (organizer-secret based).
+router.post('/claim', sensitiveLimiter, requiredAuth, validate(claimSchema), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { deviceId } = req.body;
+
+    const result = await deviceClaimService.claim(userId, deviceId, {
+      actorName: req.user!.email || userId,
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Device activity linked to your account',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Device claim error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to link device activity'
       },
       timestamp: new Date().toISOString()
     });

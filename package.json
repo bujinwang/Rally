@@ -1,6 +1,7 @@
 {
   "name": "rally",
   "dependencies": {
+    "@socket.io/redis-adapter": "^8.3.0",
     "react-native-url-polyfill": "^2.0.0"
   },
   "scripts": {

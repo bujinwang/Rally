@@ -20,32 +20,32 @@ class Scheduler {
   start(): void {
     console.log('⏰ Scheduler starting...');
 
+    // Housekeeping timers must not keep the process alive on their own (the
+    // HTTP server does that); `unref()` also lets Jest workers exit cleanly.
+    const register = (timer: NodeJS.Timeout): void => {
+      if (typeof timer.unref === 'function') timer.unref();
+      this.intervals.push(timer);
+    };
+
     // Session reminders: every 60 seconds
-    this.intervals.push(
-      setInterval(() => this.sendSessionReminders(), 60_000),
-    );
+    register(setInterval(() => this.sendSessionReminders(), 60_000));
 
     // Rest expiration: every 30 seconds
-    this.intervals.push(
-      setInterval(() => this.expireRestPeriods(), 30_000),
-    );
+    register(setInterval(() => this.expireRestPeriods(), 30_000));
 
     // Match reminders: every 30 seconds
-    this.intervals.push(
-      setInterval(() => this.sendMatchReminders(), 30_000),
-    );
+    register(setInterval(() => this.sendMatchReminders(), 30_000));
 
     // Auto-complete past sessions: every 5 minutes
-    this.intervals.push(
-      setInterval(() => this.autoCompleteSessions(), 5 * 60_000),
-    );
+    register(setInterval(() => this.autoCompleteSessions(), 5 * 60_000));
 
     // Run once on startup (after a short delay to let DB connect)
-    setTimeout(() => {
+    const startupTimer = setTimeout(() => {
       this.sendSessionReminders();
       this.expireRestPeriods();
       this.sendMatchReminders();
     }, 10_000);
+    if (typeof startupTimer.unref === 'function') startupTimer.unref();
 
     console.log('⏰ Scheduler started — 4 jobs active');
   }

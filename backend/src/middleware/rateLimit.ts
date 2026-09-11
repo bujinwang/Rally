@@ -182,12 +182,12 @@ function generateDefaultKey(req: AuthRequest): string {
 }
 
 // Create rate limiters for different use cases
-export const createRateLimiters = () => {
+export const createRateLimiters = (overrides?: { authMax?: number; sensitiveMax?: number }) => {
   return {
     // Strict rate limiting for authentication endpoints
     auth: rateLimit({
       windowMs: 15 * 60 * 1000, // 15 minutes
-      maxRequests: 5, // 5 attempts per 15 minutes
+      maxRequests: overrides?.authMax ?? 5, // 5 attempts per 15 minutes
       message: 'Too many authentication attempts, please try again later.',
       keyGenerator: (req) => {
         const clientIP = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() ||
@@ -217,7 +217,7 @@ export const createRateLimiters = () => {
     // Strict rate limiting for sensitive operations
     sensitive: rateLimit({
       windowMs: 60 * 1000, // 1 minute
-      maxRequests: 10, // 10 requests per minute
+      maxRequests: overrides?.sensitiveMax ?? 10, // 10 requests per minute
       message: 'Too many sensitive operations, please try again later.'
     }),
 

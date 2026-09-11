@@ -15,7 +15,7 @@ describe('Match Model', () => {
         name: 'Test Session - Match Model',
         scheduledAt: new Date(),
         ownerName: 'Test Owner',
-        shareCode: 'TEST123'
+        shareCode: `TEST123-${Date.now()}`
       }
     });
     testSessionId = session.id;

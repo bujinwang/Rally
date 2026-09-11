@@ -1,76 +1,46 @@
-// @ts-nocheck
-
-// Mock setInterval before the module loads
-(globalThis as any).setInterval = jest.fn(() => ({ unref: jest.fn() }));
-(global as any).setInterval = (globalThis as any).setInterval;
-
+// Interface-parity tests for CacheService after the store abstraction
+// (Story 6.2, AC 5). Redis-free.
 import { cacheService } from '../cacheService';
 
 describe('CacheService', () => {
-  beforeEach(() => {
-    (cacheService as any).memoryCache.clear();
-    (cacheService as any).totalMemoryUsage = 0;
+  beforeEach(async () => {
+    await cacheService.clear();
+    cacheService.resetStats();
   });
 
-  describe('get / set', () => {
+  describe('generic get / set / delete / exists / clear', () => {
     it('stores and retrieves values', async () => {
       await cacheService.set('k1', { hello: 'world' });
-      const val = await cacheService.get('k1');
-      expect(val).toEqual({ hello: 'world' });
+      expect(await cacheService.get('k1')).toEqual({ hello: 'world' });
     });
 
     it('returns null for missing keys', async () => {
       expect(await cacheService.get('nope')).toBeNull();
     });
 
-    it('expires after expiry time', async () => {
-      await cacheService.set('k2', 'data');
-      // Manually expire it
-      const item = (cacheService as any).memoryCache.get('k2');
-      item.expires = 1; // expired in 1970
-      expect(await cacheService.get('k2')).toBeNull();
-    });
-
-    it('removes old item when overwriting', async () => {
+    it('overwrites an existing key', async () => {
       await cacheService.set('k3', 'old');
       await cacheService.set('k3', 'new');
       expect(await cacheService.get('k3')).toBe('new');
     });
-  });
 
-  describe('delete', () => {
-    it('removes a key', async () => {
+    it('delete removes a key', async () => {
       await cacheService.set('k4', 'value');
       await cacheService.delete('k4');
       expect(await cacheService.get('k4')).toBeNull();
     });
 
-    it('no-ops on missing key', async () => {
+    it('delete no-ops on a missing key', async () => {
       await expect(cacheService.delete('no-such-key')).resolves.toBeUndefined();
     });
-  });
 
-  describe('exists', () => {
-    it('returns true for existing unexpired key', async () => {
+    it('exists reflects presence', async () => {
       await cacheService.set('k5', 'val', 3600);
       expect(await cacheService.exists('k5')).toBe(true);
-    });
-
-    it('returns false for missing key', async () => {
       expect(await cacheService.exists('missing')).toBe(false);
     });
 
-    it('returns false for expired key', async () => {
-      await cacheService.set('k6', 'val');
-      // Manually expire it
-      const item = (cacheService as any).memoryCache.get('k6');
-      item.expires = Date.now() - 1000;
-      expect(await cacheService.exists('k6')).toBe(false);
-    });
-  });
-
-  describe('clear', () => {
-    it('clears all keys', async () => {
+    it('clear removes all keys', async () => {
       await cacheService.set('a', 1);
       await cacheService.set('b', 2);
       await cacheService.clear();
@@ -78,7 +48,7 @@ describe('CacheService', () => {
       expect(await cacheService.get('b')).toBeNull();
     });
 
-    it('clears by pattern', async () => {
+    it('clear with a pattern removes only matching keys', async () => {
       await cacheService.set('discovery:xyz', 1);
       await cacheService.set('session:abc', 2);
       await cacheService.clear('discovery:*');
@@ -87,59 +57,90 @@ describe('CacheService', () => {
     });
   });
 
-  describe('session cache', () => {
-    it('getSession / setSession / invalidateSession', async () => {
+  describe('TTL expiry', () => {
+    it('expires entries after their TTL', async () => {
+      jest.useFakeTimers();
+      try {
+        await cacheService.set('exp', 'v', 1);
+        expect(await cacheService.get('exp')).toBe('v');
+        jest.advanceTimersByTime(1500);
+        expect(await cacheService.get('exp')).toBeNull();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+  });
+
+  describe('domain caches', () => {
+    it('session get / set / invalidate', async () => {
       await cacheService.setSession('s1', { name: 'Test' });
       expect(await cacheService.getSession('s1')).toEqual({ name: 'Test' });
       await cacheService.invalidateSession('s1');
       expect(await cacheService.getSession('s1')).toBeNull();
     });
-  });
 
-  describe('popular sessions cache', () => {
-    it('getPopularSessions / setPopularSessions', async () => {
+    it('discovery get / set / invalidate', async () => {
+      await cacheService.setDiscoveryResults({ sport: 'tennis' }, undefined, [{ id: 'd1' }]);
+      expect(await cacheService.getDiscoveryResults({ sport: 'tennis' }, undefined)).toEqual([{ id: 'd1' }]);
+      await cacheService.invalidateDiscoveryCache();
+      expect(await cacheService.getDiscoveryResults({ sport: 'tennis' }, undefined)).toBeNull();
+    });
+
+    it('popular sessions get / set', async () => {
       await cacheService.setPopularSessions([{ id: 'p1' }]);
       expect(await cacheService.getPopularSessions()).toEqual([{ id: 'p1' }]);
     });
-  });
 
-  describe('nearby sessions cache', () => {
-    it('getNearbySessions / setNearbySessions', async () => {
+    it('nearby sessions get / set', async () => {
       await cacheService.setNearbySessions(40.78, -73.96, 10, [{ id: 'n1' }]);
       expect(await cacheService.getNearbySessions(40.78, -73.96, 10)).toEqual([{ id: 'n1' }]);
     });
-  });
 
-  describe('stats cache', () => {
-    it('getStats / setStats', async () => {
+    it('stats domain get / set', async () => {
       await cacheService.setStats({ totalSessions: 100 });
       expect(await cacheService.getStats()).toEqual({ totalSessions: 100 });
     });
   });
 
-  describe('healthCheck', () => {
-    it('returns healthy status', async () => {
-      const health = await cacheService.healthCheck();
-      expect(health.status).toBe('healthy');
-      expect(health.details.entries).toBeDefined();
+  describe('generation invalidation', () => {
+    it('bumps the generation counter', async () => {
+      const before = await cacheService.getGeneration('session');
+      await cacheService.invalidateDomain('session');
+      const after = await cacheService.getGeneration('session');
+      expect(after).toBe(before + 1);
     });
   });
 
-  describe('disconnect', () => {
-    it('clears all cache entries', async () => {
+  describe('metrics', () => {
+    it('tracks hits and misses', async () => {
+      await cacheService.set('m1', 'v');
+      await cacheService.get('m1'); // hit
+      await cacheService.get('m2'); // miss
+
+      const stats = cacheService.getCacheStats();
+      expect(stats.hits).toBeGreaterThanOrEqual(1);
+      expect(stats.misses).toBeGreaterThanOrEqual(1);
+      expect(stats.hitRate).toBeGreaterThan(0);
+      expect(stats.driver).toBe('memory');
+    });
+
+    it('getMetrics is an alias for getCacheStats', async () => {
+      expect(cacheService.getMetrics()).toEqual(cacheService.getCacheStats());
+    });
+  });
+
+  describe('healthCheck / disconnect', () => {
+    it('returns healthy status with entry details', async () => {
+      await cacheService.set('h1', 1);
+      const health = await cacheService.healthCheck();
+      expect(health.status).toBe('healthy');
+      expect(health.details.entries).toBeGreaterThanOrEqual(1);
+    });
+
+    it('disconnect clears all cache entries', async () => {
       await cacheService.set('x', 1);
       await cacheService.disconnect();
       expect(await cacheService.get('x')).toBeNull();
-    });
-  });
-
-  describe('access tracking', () => {
-    it('increments accessCount on get', async () => {
-      await cacheService.set('k7', 'val');
-      await cacheService.get('k7');
-      await cacheService.get('k7');
-      const item = (cacheService as any).memoryCache.get('k7');
-      expect(item.accessCount).toBe(2);
     });
   });
 });

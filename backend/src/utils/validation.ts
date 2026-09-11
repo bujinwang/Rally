@@ -18,6 +18,17 @@ export const refreshTokenSchema = Joi.object({
   refreshToken: Joi.string().required()
 });
 
+// Story 6.1 — device → account claim (authenticated users only)
+export const claimSchema = Joi.object({
+  deviceId: Joi.string().min(1).max(200).required()
+});
+
+// Story 6.1 — logout. Optionally revoke one specific refresh token; when omitted
+// the caller's refresh tokens are all revoked.
+export const logoutSchema = Joi.object({
+  refreshToken: Joi.string().optional()
+});
+
 export const createSessionSchema = Joi.object({
   name: Joi.string().min(3).max(200).optional(),
   dateTime: Joi.date().iso().required(),

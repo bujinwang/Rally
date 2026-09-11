@@ -1,11 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import winston from 'winston';
+import { redactionFormat } from './logRedaction';
 
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.errors({ stack: true }),
+    redactionFormat(),
     winston.format.json()
   ),
   transports: [
@@ -18,6 +20,10 @@ const logger = winston.createLogger({
   ]
 });
 
+interface CorrelationRequest extends Request {
+  correlationId?: string;
+}
+
 export interface AppError extends Error {
   statusCode?: number;
   status?: string;
@@ -26,21 +32,33 @@ export interface AppError extends Error {
 
 export const errorHandler = (
   err: AppError,
-  req: Request,
+  req: CorrelationRequest,
   res: Response,
   next: NextFunction
 ): Response | void => {
   let error = { ...err };
   error.message = err.message;
 
+  // Build a child logger with the correlation ID for this request
+  const childLogger = req.correlationId
+    ? logger.child({ correlationId: req.correlationId })
+    : logger;
+
+  // Redact sensitive headers before logging
+  const headers = { ...req.headers };
+  ['authorization', 'cookie', 'x-api-key', 'x-api-key'].forEach((key) => {
+    if (headers[key]) headers[key] = '[REDACTED]';
+  });
+
   // Log error
-  logger.error(err.message, {
+  childLogger.error(err.message, {
     error: err,
     stack: err.stack,
     url: req.originalUrl,
     method: req.method,
     ip: req.ip,
-    userAgent: req.get('User-Agent')
+    userAgent: req.get('User-Agent'),
+    headers,
   });
 
   // Mongoose bad ObjectId
