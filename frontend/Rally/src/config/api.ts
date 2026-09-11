@@ -17,8 +17,12 @@ export const DEFAULT_HEADERS = {
 // Device ID storage key
 export const DEVICE_ID_KEY = '@badminton_device_id';
 
-// Auth token storage key
-export const AUTH_TOKEN_KEY = '@badminton_auth_token';
+// Auth token storage keys — standardized on the keys used by `authSlice.ts`
+// (`accessToken` / `refreshToken`). `AUTH_TOKEN_KEY` is kept as an alias for
+// backward compatibility.
+export const ACCESS_TOKEN_KEY = 'accessToken';
+export const REFRESH_TOKEN_KEY = 'refreshToken';
+export const AUTH_TOKEN_KEY = ACCESS_TOKEN_KEY;
 
 // API endpoints
 export const API_ENDPOINTS = {
