@@ -2958,14 +2958,28 @@ model AuditLog {
 
 model PredictionModel {
   id               String   @id @default(cuid())
-  type             String // "demand", "churn", "utilization", "growth"
-  version          String   @unique
-  accuracy         Float // Model accuracy score
+  type             String // "demand", "churn", "seasonal", "optimization"
+  // Story 6.6: per-type versioning. `version` is unique *within a type*
+  // (see `@@unique([type, version])`) so `demand v1.0` and `churn v1.0`
+  // coexist. The old global `@unique` was dropped by migration
+  // `20260914000000_story_6_6_prediction_model_version`.
+  version          String
+  // Story 6.6: nullable so a labelled fallback row honestly carries *no*
+  // measured number. `modelKind` is the source of truth for honesty.
+  accuracy         Float?
   lastTrained      DateTime
   isActive         Boolean  @default(false) // Only one active per type
-  parameters       Json? // Model parameters (encrypted/sensitive)
-  hyperparameters  Json? // Training hyperparameters
+  parameters       Json? // Model coefficients + intercept (serving artifact)
+  hyperparameters  Json? // Training hyperparameters + dataset descriptor
   trainingDataSize Int? // Number of samples used
+  // Story 6.6 (AC 8): 'measured' | 'fallback' | 'heuristic'.
+  modelKind        String   @default("measured")
+  // Story 6.6 (AC 9): full held-out EvaluationReport.
+  metrics          Json?
+  // Story 6.6 (AC 9): how the model was evaluated (split protocol, seed …).
+  evaluationProtocol Json?
+  // Story 6.6 (AC 12): ordered feature names matching `coefficients`.
+  featureNames     Json?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
