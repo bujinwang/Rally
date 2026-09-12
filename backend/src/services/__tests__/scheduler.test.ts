@@ -22,9 +22,20 @@ jest.mock('../matchSchedulingService', () => ({
   },
 }));
 
+// Story 6.6 — the 24 h retrain job's two collaborators (named imports only).
+jest.mock('../ml/trainingPipeline', () => ({
+  trainingPipeline: { runAll: jest.fn() },
+}));
+
+jest.mock('../metricsRegistry', () => ({
+  predictionRetrainTotal: { inc: jest.fn() },
+}));
+
 import { prisma } from '../../config/database';
 import { notifySessionSubscribers, notifyDevice } from '../../utils/notificationHelper';
 import { MatchSchedulingService } from '../matchSchedulingService';
+import { trainingPipeline } from '../ml/trainingPipeline';
+import { predictionRetrainTotal } from '../metricsRegistry';
 
 const srv: any = scheduler;
 
@@ -37,6 +48,8 @@ const notifySubscribers = notifySessionSubscribers as jest.Mock;
 const notifyDev = notifyDevice as jest.Mock;
 const getUpcomingReminders = MatchSchedulingService.getUpcomingReminders as jest.Mock;
 const markReminderSent = MatchSchedulingService.markReminderSent as jest.Mock;
+const runAll = trainingPipeline.runAll as jest.Mock;
+const retrainInc = predictionRetrainTotal.inc as jest.Mock;
 
 describe('Scheduler', () => {
   let errorSpy: jest.SpyInstance;
@@ -71,6 +84,39 @@ describe('Scheduler', () => {
       srv.stop();
       expect(clearSpy).toHaveBeenCalledTimes(jobCount);
       expect(srv.intervals).toHaveLength(0);
+    });
+  });
+
+  // ── Predictive model retraining (Story 6.6) ─────────────────
+  describe('retrainModels', () => {
+    it('records one metric per type, mapping a skip to its literal reason', async () => {
+      runAll.mockResolvedValue({
+        demand: { status: 'trained', version: 'v1', evaluation: {} },
+        churn: { status: 'skipped', reason: 'insufficient-samples' },
+        seasonal: { status: 'trained', version: 'v2', evaluation: {} },
+      });
+
+      await srv.retrainModels();
+
+      // Trained types report 'trained' …
+      expect(retrainInc).toHaveBeenCalledWith({ type: 'demand', status: 'trained' });
+      expect(retrainInc).toHaveBeenCalledWith({ type: 'seasonal', status: 'trained' });
+      // … while a skip reports its literal `reason`, NOT the string 'skipped'.
+      // (Mapping: `status === 'trained' ? 'trained' : outcome.reason`.)
+      expect(retrainInc).toHaveBeenCalledWith({ type: 'churn', status: 'insufficient-samples' });
+      expect(retrainInc).not.toHaveBeenCalledWith({ type: 'churn', status: 'skipped' });
+
+      // One increment per returned type.
+      expect(retrainInc).toHaveBeenCalledTimes(3);
+    });
+
+    it('logs and swallows a pipeline failure — never throws', async () => {
+      runAll.mockRejectedValue(new Error('db down'));
+
+      await expect(srv.retrainModels()).resolves.toBeUndefined();
+
+      expect(errorSpy).toHaveBeenCalled();
+      expect(retrainInc).not.toHaveBeenCalled();
     });
   });
 
