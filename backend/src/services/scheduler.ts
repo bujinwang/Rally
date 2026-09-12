@@ -51,7 +51,17 @@ class Scheduler {
       this.expireRestPeriods();
       this.sendMatchReminders();
       // Deferred predictive retrain — skips types with insufficient data.
-      this.retrainModels();
+      //
+      // Suppressed under `NODE_ENV=test`: the whole test suite imports
+      // `server.ts` (which calls `start()`), so without this gate the deferred
+      // 10 s timer would fire *after* Jest tears the environment down,
+      // producing "Cannot log after tests are done" / "import after teardown"
+      // noise. Mirrors the test-gating already used by `cachingMiddleware`.
+      // (The 24 h interval above stays registered, so the "5 jobs" contract and
+      // its test are unaffected; a real process never has NODE_ENV=test.)
+      if (process.env.NODE_ENV !== 'test') {
+        this.retrainModels();
+      }
     }, 10_000);
     if (typeof startupTimer.unref === 'function') startupTimer.unref();
 
