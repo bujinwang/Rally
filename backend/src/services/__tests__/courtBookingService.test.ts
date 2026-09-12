@@ -26,8 +26,35 @@ jest.mock('../paymentService', () => ({
 }));
 
 const HOUR = 60 * 60 * 1000;
-const tomorrow = (h = 10) => new Date(Date.now() + 24 * HOUR + (h - 10) * HOUR);
-const inFuture = (addHours: number) => new Date(Date.now() + addHours * HOUR);
+
+/**
+ * Tomorrow at a specific local wall-clock hour.
+ *
+ * The service prices by `startTime.getHours()` (local) against `peakHours`, so
+ * the hour MUST be deterministic. The previous form
+ * `new Date(Date.now() + 24*HOUR + (h-10)*HOUR)` silently returned the *current*
+ * wall-clock hour whenever `h === 10` (the offset term is zero), which made these
+ * assertions depend on when the suite ran — the default court's
+ * `peakHours: ['18:00','19:00','20:00']` then matched a real 18:00–20:59 run and
+ * the price became `peakPrice` instead of `basePrice`.
+ *
+ * This version anchors the hour explicitly while staying timezone-agnostic:
+ * build from local date parts, then `setHours(h, 0, 0, 0)`. It also correctly
+ * advances the calendar day, so it is immune to DST shifts.
+ */
+const tomorrow = (h = 10): Date => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(h, 0, 0, 0);
+  return d;
+};
+
+/** Now + `addHours`, rounded to the top of the hour (deterministic minute/ms). */
+const inFuture = (addHours: number): Date => {
+  const d = new Date();
+  d.setHours(d.getHours() + addHours, 0, 0, 0);
+  return d;
+};
 
 describe('CourtBookingService', () => {
   let venueId: string;
