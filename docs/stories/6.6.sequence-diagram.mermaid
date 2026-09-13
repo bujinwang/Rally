@@ -1,0 +1,68 @@
+sequenceDiagram
+    autonumber
+    actor Admin
+    participant R as routes/predictions.ts
+    participant S as PredictiveAnalyticsService
+    participant Reg as PredictionModelRegistry
+    participant Cache as cachingMiddleware
+    participant Pipe as TrainingPipeline
+    participant FB as features.ts
+    participant Est as estimators.ts
+    participant Eval as evaluation.ts
+    participant DB as Prisma (PredictionModel/Result)
+
+    Note over Admin,DB: A. Serve a prediction (GET /api/v1/predictions/:type)
+    Admin->>R: GET /predictions/demand?location=X
+    R->>Cache: check analytics cache
+    Cache-->>R: MISS (X-Cache: MISS)
+    R->>S: forecastSessionDemand(location, 7)
+    S->>Reg: getActive('demand')
+    Reg->>DB: findFirst({ type:'demand', isActive:true })
+    alt active MEASURED model exists
+        DB-->>Reg: ModelArtifact (coefficients, accuracy)
+        S->>S: predict = intercept + sum(beta_i * x_i) ; contributions = beta_i * x_i
+        S->>DB: create PredictionResult (prediction embeds modelKind:'measured', accuracy, contributions)
+    else no model / insufficient data
+        S->>Reg: ensureFallback('demand','insufficient-samples')
+        Reg->>DB: upsert fallback row (modelKind:'fallback', accuracy:null)
+        S->>S: heuristic forecast = recent rolling average
+        S->>DB: create PredictionResult (modelKind:'fallback', accuracy:null, fallbackReason)
+    end
+    S-->>R: PredictionResult (envelope-stable)
+    R->>Cache: store 2xx (TTL.analytics) ; X-Cache: HIT on next call
+    R-->>Admin: { success, data:{ prediction, featureContributions, modelKind, accuracy, explanation } }
+
+    Note over Admin,DB: B. Train + evaluate + activate (POST /api/v1/predictions/train, ADMIN)
+    Admin->>R: POST /predictions/train { type:'churn', force }
+    R->>Pipe: run('churn')
+    Pipe->>FB: buildChurnDataset()
+    FB->>DB: read mvp_sessions JOIN mvp_players (anonymized)
+    FB->>FB: resolveIdentity(row)=COALESCE(userId,deviceId); dedupe participation rows; recency label(>60d)
+    alt identities < 60 or positives < 10
+        FB-->>Pipe: { insufficient:true, reason }
+        Pipe-->>R: { status:'skipped', reason:'insufficient-samples' }
+    else enough data
+        Pipe->>Eval: splitStratified(rows, 0.2, seed)
+        Pipe->>Est: LogisticRegressor.fit(trainX, trainY)
+        Est-->>Pipe: coefficients, intercept
+        Pipe->>Eval: evaluateChurn(testRows, coefficients)
+        Eval-->>Pipe: EvaluationReport { metric:'accuracy', value, auc }
+        Pipe->>Reg: nextVersion('churn') -> 'v1.4'
+        Pipe->>Reg: saveVersion(artifact, { activate: canActivate })
+        Reg->>DB: tx: deactivate type='churn' ; create v1.4 ; set isActive if gate passed
+        Pipe-->>R: { status:'trained', version, evaluation }
+    end
+    R->>Cache: invalidate analytics domain
+    R-->>Admin: { success, data:{ status, version, accuracy } }
+
+    Note over Admin,DB: C. Rollback (POST /api/v1/predictions/rollback, ADMIN)
+    Admin->>R: POST /predictions/rollback { type:'churn', version:'v1.3' }
+    R->>Reg: activate('churn','v1.3',{force:true})
+    Reg->>DB: tx: deactivate all churn ; set v1.3 isActive=true
+    R->>Cache: invalidate analytics domain
+    R-->>Admin: { success, data:{ activeVersion:'v1.3' } }
+
+    Note over Admin,DB: D. Scheduled retrain (scheduler.ts, every 24h)
+    Pipe->>Pipe: retrainModels() for each measured type
+    Pipe->>Reg: run + activate-if-gate-passes
+    Pipe->>Pipe: metricsRegistry.retrain_total.inc({type,status})

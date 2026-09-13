@@ -1,0 +1,103 @@
+classDiagram
+    class ModelType { <<enum>> demand churn seasonal optimization }
+    class ModelKind { <<enum>> measured fallback heuristic }
+
+    class FeatureSpec {
+      +string[] names
+      +number[] mean
+      +number[] std
+      +string anonymizationVersion
+    }
+    class DatasetDescriptor {
+      +ModelType type
+      +number rowCount
+      +number minSamples
+      +FeatureSpec featureSpec
+      +string windowFrom
+      +string windowTo
+      +object classBalance
+    }
+    class EvaluationReport {
+      +string metric
+      +number value
+      +number auc
+      +number mae
+      +number rmse
+      +number mape
+      +object protocol
+    }
+    class ModelArtifact {
+      +ModelType type
+      +string version
+      +ModelKind modelKind
+      +number[] coefficients
+      +number intercept
+      +FeatureSpec featureSpec
+      +object hyperparameters
+      +EvaluationReport evaluation
+      +number trainingDataSize
+    }
+    class TrainedPrediction {
+      +any prediction
+      +Contribution[] featureContributions
+      +number confidence
+      +ModelKind modelKind
+      +string version
+      +number accuracy
+      +string explanation
+      +string fallbackReason
+    }
+    class Contribution { +string feature +number contribution +number value }
+
+    class RidgeRegressor {
+      +fit(X, y, alpha) ModelArtifact
+      +predict(x) number
+    }
+    class LogisticRegressor {
+      +fit(X, y, opts) ModelArtifact
+      +predictProba(x) number
+    }
+    class EvaluationModule {
+      +evaluateChurn(rows) EvaluationReport
+      +evaluateDemand(rows) EvaluationReport
+    }
+    class FeatureBuilder {
+      +buildDemandDataset(location) Dataset
+      +buildChurnDataset() Dataset
+      +buildSeasonalDataset() Dataset
+      +resolveIdentity(row) string
+      +anonymizeLocation(location) string
+    }
+    class PredictionModelRegistry {
+      +getActive(type) ModelArtifact
+      +ensureFallback(type, reason) ModelArtifact
+      +saveVersion(artifact, opts) ModelRecord
+      +nextVersion(type) string
+      +activate(type, version, opts) void
+      +rollback(type) string
+      +listVersions(type) ModelSummary[]
+      +canActivate(artifact) boolean
+    }
+    class TrainingPipeline {
+      +run(type, opts) TrainingOutcome
+    }
+    class PredictiveAnalyticsService {
+      +forecastSessionDemand(location, days) PredictionResult
+      +predictChurn(playerId) PredictionResult
+      +analyzeSeasonalTrends() PredictionResult
+      +optimizeResourceAllocation(venueId, date) PredictionResult
+    }
+
+    RidgeRegressor ..> ModelArtifact : produces
+    LogisticRegressor ..> ModelArtifact : produces
+    TrainingPipeline --> FeatureBuilder : uses
+    TrainingPipeline --> RidgeRegressor : fits
+    TrainingPipeline --> LogisticRegressor : fits
+    TrainingPipeline --> EvaluationModule : evaluates
+    TrainingPipeline --> PredictionModelRegistry : persists/activates
+    PredictiveAnalyticsService --> PredictionModelRegistry : reads active
+    PredictiveAnalyticsService --> TrainingPipeline : delegates
+    ModelArtifact --> FeatureSpec
+    ModelArtifact --> EvaluationReport
+    DatasetDescriptor --> FeatureSpec
+    TrainedPrediction --> Contribution
