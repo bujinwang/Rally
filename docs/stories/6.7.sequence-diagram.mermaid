@@ -1,0 +1,57 @@
+sequenceDiagram
+    autonumber
+    actor Org as Organizer
+    participant R as routes/tournaments.ts
+    participant G as requireTournamentOrganizer
+    participant S as tournamentBracketService (facade)
+    participant E as bracket/engine.ts
+    participant P as bracket/persistence.ts
+    participant DB as Prisma
+    participant Emit as socket/events/tournamentAnalytics
+    participant An as tournamentAnalyticsService
+
+    Note over Org,An: A. Generate (POST /:id/start  OR  POST /:id/bracket/generate)
+    Org->>R: POST /api/v1/tournaments/:id/bracket/generate
+    R->>G: authorize (identity == organizerUserId/DeviceId)
+    G-->>R: ok (else 403)
+    R->>S: generateBracket({tournamentId, players, type, seed})
+    S->>E: generateSingleElimination(...)
+    E->>E: sort (seed->winRate->matches->name); standard seeding; byes to top seeds; seed PRNG
+    E-->>S: TournamentBracket (feed links set, no BYE-vs-BYE)
+    S->>E: validateBracket(bracket)
+    S->>P: persistBracket(bracket)
+    P->>DB: $transaction(createMany rounds, createMany matches)
+    S-->>R: bracket
+    R-->>Org: { success, data:{ bracket } }
+
+    Note over Org,An: B. Record a result (POST /:id/matches/:matchId/result)
+    Org->>R: POST .../result { winnerId, score }
+    R->>G: authorize
+    R->>S: updateMatchResult(tournamentId, matchId, winnerId, score)
+    S->>P: applyResult(matchId, winnerId, score)
+    P->>DB: tx: set match.winnerId=COMPLETED; clear non-R1 slots; write game score
+    P->>E: projectBracket(all matches)
+    E-->>P: projected slots (feedMatch1->player1, feedMatch2->player2; byes auto-advance)
+    P->>DB: tx: update next-round slots; round/tournament status
+    P-->>S: done
+    S->>An: calculateParticipationMetrics(id) (upsert) THEN calculateBracketEfficiency(id) (update)
+    S->>Emit: emitMatchComplete(id, matchId); emitLeaderboardUpdate(id) (best-effort)
+    S-->>R: void
+    R-->>Org: { success, message }
+
+    Note over Org,An: C. Correct a mistaken result (POST /:id/matches/:matchId/correct) — AC 12
+    Org->>R: POST .../correct { winnerId, reason, cascade }
+    R->>G: authorize
+    R->>S: correctMatchResult(tournamentId, matchId, winnerId, reason, cascade)
+    alt downstream match already COMPLETED and cascade=false
+        S-->>R: { success:false, error:{code:'DOWNSTREAM_COMPLETED'} }
+    else
+        S->>P: correctResult(...)
+        P->>DB: tx: set new winner; clear derived downstream slots/winners; correctedAt/reason
+        P->>E: projectBracket(all matches)
+        P->>DB: tx: rewrite downstream; recompute status
+        S->>An: refresh analytics
+        S->>Emit: emitMatchComplete + emitLeaderboardUpdate (re-emit corrected state)
+        S-->>R: { success, data:{ recomputed:true } }
+    end
+    R-->>Org: result
