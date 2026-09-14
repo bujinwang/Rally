@@ -202,6 +202,26 @@ describe('tournamentApi — bracket responses and errors', () => {
     }
   });
 
+  it('surfaces DOWNSTREAM_COMPLETED (409) when a correction needs a cascade', async () => {
+    authFetchMock.mockResolvedValue(
+      jsonResponse(409, {
+        success: false,
+        error: {
+          code: 'DOWNSTREAM_COMPLETED',
+          message:
+            'Cannot correct match m1: 2 downstream match(es) are already completed. ' +
+            'Retry with cascade=true to void them.',
+        },
+      }),
+    );
+
+    await expect(tournamentApi.correctResult('t1', 'm1', 'p2', 'wrong winner')).rejects.toMatchObject({
+      name: 'TournamentApiError',
+      code: 'DOWNSTREAM_COMPLETED',
+      status: 409,
+    });
+  });
+
   it('returns standings from the envelope', async () => {
     const standings = [
       {
