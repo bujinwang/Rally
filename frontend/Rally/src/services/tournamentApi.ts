@@ -1,4 +1,7 @@
 import apiService from './apiService';
+import { authFetch } from './authFetch';
+import DeviceService from './deviceService';
+import { API_BASE_URL } from '../config/api';
 
 // Tournament Types
 export interface Tournament {
@@ -172,6 +175,121 @@ export interface TournamentListResponse {
   offset: number;
 }
 
+// ---------------------------------------------------------------------------
+// Story 6.7 — Bracket Management types
+//
+// These mirror the canonical domain shape returned by
+// `GET /tournaments/:id/bracket` (see `backend/src/services/bracket/types.ts`).
+// Slot nullability is meaningful: a `PENDING` placeholder has both slots
+// `null`; a `BYE` has exactly one real player and its `winnerId` is already
+// set (auto-advanced). A bye is therefore *not* the same thing as an unplayed
+// match and the UI renders the two differently.
+// ---------------------------------------------------------------------------
+
+/** Which sub-bracket a round/match belongs to. */
+export type BracketSide = 'WINNERS' | 'LOSERS' | 'GRAND_FINAL';
+
+/**
+ * Lifecycle state of a bracket match. A superset of the database enum that adds
+ * the domain-only `PENDING` (future-round placeholder) and `BYE` states.
+ */
+export type BracketMatchStatus =
+  | 'PENDING'
+  | 'SCHEDULED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'WALKOVER'
+  | 'BYE';
+
+/** A single match inside a bracket. */
+export interface BracketMatch {
+  id: string;
+  /** 1-based round number within the whole bracket. */
+  round: number;
+  /** 1-based match number within its round. */
+  match: number;
+  player1Id: string | null;
+  player2Id: string | null;
+  winnerId: string | null;
+  status: BracketMatchStatus;
+  feedMatch1Id: string | null;
+  feedMatch2Id: string | null;
+  /** Sub-bracket membership. Defaults to `WINNERS` when omitted. */
+  bracket?: BracketSide;
+  /** Denormalised display names (presentation convenience only). */
+  player1Name?: string;
+  player2Name?: string;
+  winnerName?: string;
+  /** Free-text score line, when known. */
+  score?: string;
+  court?: string;
+  scheduledTime?: string;
+  /** Set when the result was corrected (AC 12 audit trail). */
+  correctedAt?: string | null;
+  correctionReason?: string | null;
+}
+
+/** A fully-structured bracket, as returned by the API. */
+export interface TournamentBracket {
+  tournamentId: string;
+  totalRounds: number;
+  totalPlayers: number;
+  /** Matches grouped by round; index 0 is round 1. */
+  bracket: BracketMatch[][];
+  currentRound: number;
+  isComplete: boolean;
+  format: 'SINGLE_ELIMINATION' | 'DOUBLE_ELIMINATION' | 'ROUND_ROBIN' | 'SWISS' | 'MIXED';
+  /** Total match nodes, including bye matches. */
+  totalMatches: number;
+  /** Ids of first-round bye recipients, highest seed first. */
+  byePlayers: string[];
+}
+
+/** One row of `GET /tournaments/:id/standings`. */
+export interface StandingsEntry {
+  playerId: string;
+  playerName: string;
+  rank: number;
+  seed?: number | null;
+  winRate: number;
+  totalMatches: number;
+  isEliminated: boolean;
+  status: string;
+}
+
+/** Outcome of `POST /tournaments/:id/matches/:matchId/correct` (AC 12). */
+export interface CorrectionResult {
+  matchId: string;
+  previousWinnerId: string | null;
+  winnerId: string;
+  reason: string;
+  cascade: boolean;
+  recomputed: boolean;
+  clearedDownstreamMatchIds: string[];
+}
+
+/**
+ * A bracket-domain failure surfaced from the backend's standard error envelope
+ * (`{ success: false, error: { code, message } }`).
+ *
+ * The `code` is preserved verbatim so callers can distinguish the cases that
+ * matter to the UI: `FORBIDDEN` (403, not the organizer),
+ * `BRACKET_GENERATION_FAILED` (400, e.g. an unsupported non-power-of-two
+ * double-elimination field) and `BRACKET_NOT_FOUND` (404, no bracket yet).
+ */
+export class TournamentApiError extends Error {
+  readonly code: string;
+  readonly status: number;
+
+  constructor(code: string, status: number, message: string) {
+    super(message);
+    this.name = 'TournamentApiError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
 class TournamentApi {
   /**
    * Create a new tournament
@@ -329,6 +447,168 @@ class TournamentApi {
       limit,
       offset: 0,
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // Story 6.7 — Bracket Management API
+  // -------------------------------------------------------------------------
+
+  /**
+   * Perform a bracket request, always attaching the caller's device id as the
+   * `x-device-id` header.
+   *
+   * Why a dedicated path (rather than the shared `apiService` helpers): the
+   * bracket *mutation* endpoints are guarded by `requireTournamentOrganizer`,
+   * which — for an anonymous caller — authorizes **only** when
+   * `deviceId === tournament.organizerDeviceId`, read from `req.body.deviceId`
+   * or the `x-device-id` header. `apiService` uses `authFetch` (which attaches
+   * the stored token only when present) and offers no way to add a custom
+   * header, so a **logged-out device-based organizer would otherwise send no
+   * identity at all and get 403 on their own tournament**. Attaching the header
+   * here fixes that while leaving the logged-in path untouched: `authFetch`
+   * still attaches the bearer token when one is stored, and the guard decides
+   * solely by `userId` in that case (the header is simply ignored).
+   *
+   * Throws {@link TournamentApiError} carrying the backend `error.code` and the
+   * HTTP status so callers can surface 403/400/404 meaningfully instead of a
+   * generic failure.
+   */
+  private async bracketRequest<T>(
+    endpoint: string,
+    init: { method: 'GET' | 'POST'; body?: unknown } = { method: 'GET' },
+  ): Promise<T> {
+    const deviceId = await DeviceService.getDeviceId();
+    const response = await authFetch(`${API_BASE_URL}${endpoint}`, {
+      method: init.method,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-device-id': deviceId,
+      },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+
+    const body: any = await response.json().catch(() => ({}));
+    const errorField = body?.error;
+    const isErrorEnvelope = body?.success === false;
+
+    if (!response.ok || isErrorEnvelope) {
+      const code =
+        (typeof errorField === 'object' && errorField?.code) || `HTTP_${response.status}`;
+      const message =
+        typeof errorField === 'string'
+          ? errorField
+          : errorField?.message || `HTTP ${response.status}`;
+      throw new TournamentApiError(String(code), response.status, String(message));
+    }
+
+    return body as T;
+  }
+
+  /**
+   * Fetch the persisted (projected) bracket for a tournament.
+   *
+   * Returns `null` when no bracket exists yet (the backend answers 404
+   * `BRACKET_NOT_FOUND`) so the caller can render a sensible empty state rather
+   * than an error. Every other failure propagates as a {@link TournamentApiError}.
+   */
+  async getBracket(tournamentId: string): Promise<TournamentBracket | null> {
+    try {
+      const body = await this.bracketRequest<{ data: { bracket: TournamentBracket } }>(
+        `/tournaments/${tournamentId}/bracket`,
+        { method: 'GET' },
+      );
+      return body?.data?.bracket ?? null;
+    } catch (error) {
+      if (error instanceof TournamentApiError && error.code === 'BRACKET_NOT_FOUND') {
+        return null;
+      }
+      console.error('Error fetching bracket:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate and persist the tournament bracket (idempotent server-side).
+   *
+   * Organizer-guarded. Surfaces `BRACKET_GENERATION_FAILED` (e.g. an
+   * unsupported non-power-of-two double-elimination field) and `FORBIDDEN`
+   * (not the organizer) as a {@link TournamentApiError}.
+   */
+  async generateBracket(tournamentId: string): Promise<TournamentBracket> {
+    try {
+      const body = await this.bracketRequest<{ data: { bracket: TournamentBracket } }>(
+        `/tournaments/${tournamentId}/bracket/generate`,
+        { method: 'POST' },
+      );
+      return body.data.bracket;
+    } catch (error) {
+      console.error('Error generating bracket:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Record a match result and advance the bracket. Organizer-guarded.
+   *
+   * `winnerId` must be one of the match's two current occupants.
+   */
+  async recordResult(
+    tournamentId: string,
+    matchId: string,
+    winnerId: string,
+    score?: string,
+  ): Promise<void> {
+    try {
+      await this.bracketRequest(`/tournaments/${tournamentId}/matches/${matchId}/result`, {
+        method: 'POST',
+        body: score ? { winnerId, score } : { winnerId },
+      });
+    } catch (error) {
+      console.error('Error recording result:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Correct a recorded result and self-heal the bracket (AC 12).
+   * Organizer-guarded.
+   *
+   * When a downstream match is already completed the backend refuses unless
+   * `cascade` is `true` (it then voids the downstream results and re-projects).
+   */
+  async correctResult(
+    tournamentId: string,
+    matchId: string,
+    winnerId: string,
+    reason: string,
+    cascade: boolean = false,
+  ): Promise<CorrectionResult> {
+    try {
+      const body = await this.bracketRequest<{ data: CorrectionResult }>(
+        `/tournaments/${tournamentId}/matches/${matchId}/correct`,
+        { method: 'POST', body: { winnerId, reason, cascade } },
+      );
+      return body.data;
+    } catch (error) {
+      console.error('Error correcting result:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch the tournament standings (derived from persisted players). Public.
+   */
+  async getStandings(tournamentId: string): Promise<StandingsEntry[]> {
+    try {
+      const body = await this.bracketRequest<{ data: { standings: StandingsEntry[] } }>(
+        `/tournaments/${tournamentId}/standings`,
+        { method: 'GET' },
+      );
+      return body?.data?.standings ?? [];
+    } catch (error) {
+      console.error('Error fetching standings:', error);
+      throw error;
+    }
   }
 }
 
