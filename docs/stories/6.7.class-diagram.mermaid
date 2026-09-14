@@ -49,7 +49,7 @@ classDiagram
       +getBracketState(tournamentId) TournamentBracket
     }
     class TournamentOrganizerGuard {
-      +requireTournamentOrganizer(req, res, next) void
+      +requireTournamentOrganizer(options?) RequestHandler
     }
 
     TournamentBracketService --> Engine : delegates generation
