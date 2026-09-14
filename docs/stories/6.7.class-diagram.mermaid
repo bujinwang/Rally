@@ -9,6 +9,7 @@ classDiagram
       +MatchStatus status
       +string feedMatch1Id
       +string feedMatch2Id
+      +BracketSide bracket
     }
     class TournamentBracket {
       +string tournamentId
@@ -17,19 +18,24 @@ classDiagram
       +BracketMatch[][] bracket
       +int currentRound
       +bool isComplete
+      +TournamentFormat format
+      +int totalMatches
+      +string[] byePlayers
     }
     class BracketGenerationOptions {
       +string tournamentId
       +PlayerSeed[] players
-      +TournamentType tournamentType
+      +TournamentFormat tournamentType
       +bool randomizeSeeding
       +number seed
+      +number swissRounds
     }
     class Engine {
       +generateSingleElimination(opts) TournamentBracket
       +generateDoubleElimination(opts) TournamentBracket
       +generateRoundRobin(opts) TournamentBracket
       +generateSwiss(opts) TournamentBracket
+      +isPowerOfTwo(n) boolean
       +seededShuffle(items, seed) any[]
       +getRoundName(round, total) string
       +validateBracket(bracket) ValidationResult
