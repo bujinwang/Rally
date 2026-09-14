@@ -43,13 +43,19 @@ classDiagram
     }
     class Persistence {
       +persistBracket(bracket) void
+      +generateAndPersistBracket(opts) TournamentBracket
       +getBracketState(tournamentId) TournamentBracket
       +applyResult(matchId, winnerId, score) void
-      +correctResult(matchId, winnerId, reason, cascade) void
-      +clearDerivedDownstream(tournamentId, matchId) void
+      +correctResult(matchId, winnerId, reason, cascade) CorrectionResult
+      +clearDerivedDownstream(tournamentId, matchId) string[]
+    }
+    class BracketError {
+      +string code
+      +number statusCode
     }
     class TournamentBracketService {
       +generateBracket(options) TournamentBracket
+      +generateAndPersistBracket(options) TournamentBracket
       +updateMatchResult(tournamentId, matchId, winnerId, score) void
       +correctMatchResult(tournamentId, matchId, winnerId, reason, cascade) void
       +getBracketState(tournamentId) TournamentBracket
@@ -61,6 +67,8 @@ classDiagram
     TournamentBracketService --> Engine : delegates generation
     TournamentBracketService --> Persistence : delegates writes/reads
     Persistence --> Engine : projectBracket
+    Persistence ..> BracketError : throws
+    TournamentBracketService ..> BracketError : re-exports
     TournamentBracketService --> TournamentOrganizerGuard : route-level guard
     BracketGenerationOptions --> TournamentBracket
     Engine --> BracketMatch
