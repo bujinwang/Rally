@@ -1,99 +1,114 @@
-// @ts-nocheck
 /**
  * Tournament match-completion → real-time emitter wiring (Story 6.4, AC 3;
- * Defect-3 regression).
+ * Defect-3 regression) — re-pointed at the Story 6.7 facade.
  *
- * Proves that the previously-dead emitters (`emitMatchComplete`,
- * `emitLeaderboardUpdate`) are actually invoked on the real match-result write
- * path (`tournamentBracketService.updateMatchResult`), AFTER persistence, and
- * that a real-time failure can never break the business path.
+ * Proves that `tournamentBracketService.updateMatchResult` **persists first**
+ * (through `bracket/persistence.applyResult`) and only then emits, and that a
+ * real-time failure can never break the business path.
+ *
+ * The persistence layer is mocked here on purpose: this is a wiring test, not a
+ * behaviour test. The real persistence behaviour is asserted against Postgres in
+ * `bracket/__tests__/correction.test.ts`.
  */
-import { PrismaClient } from '@prisma/client';
+
+const mockApplyResult = jest.fn();
+const mockCorrectResult = jest.fn();
+const mockGetBracketState = jest.fn();
+const mockPersistBracket = jest.fn();
+
+jest.mock('../bracket/persistence', () => ({
+  BracketError: class BracketError extends Error {
+    readonly code: string;
+    readonly statusCode: number;
+    constructor(code: string, statusCode: number, message: string) {
+      super(message);
+      this.name = 'BracketError';
+      this.code = code;
+      this.statusCode = statusCode;
+    }
+  },
+  applyResult: (...args: unknown[]) => mockApplyResult(...args),
+  correctResult: (...args: unknown[]) => mockCorrectResult(...args),
+  getBracketState: (...args: unknown[]) => mockGetBracketState(...args),
+  persistBracket: (...args: unknown[]) => mockPersistBracket(...args),
+}));
 
 const mockEmitMatchComplete = jest.fn();
 const mockEmitLeaderboardUpdate = jest.fn();
 
 jest.mock('../../socket/events/tournamentAnalytics', () => ({
-  emitMatchComplete: (...a: unknown[]) => mockEmitMatchComplete(...a),
-  emitLeaderboardUpdate: (...a: unknown[]) => mockEmitLeaderboardUpdate(...a),
+  emitMatchComplete: (...args: unknown[]) => mockEmitMatchComplete(...args),
+  emitLeaderboardUpdate: (...args: unknown[]) => mockEmitLeaderboardUpdate(...args),
 }));
 
-jest.mock('@prisma/client', () => {
-  const instance = {
-    tournamentMatch: { update: jest.fn(), findUnique: jest.fn() },
-    tournamentGame: { update: jest.fn() },
-    tournamentRound: { findFirst: jest.fn() },
-    tournamentPlayer: { findUnique: jest.fn() },
-    tournamentResult: { create: jest.fn() },
-    tournament: { update: jest.fn() },
-  };
-  return { PrismaClient: jest.fn(() => instance) };
-});
-
 import tournamentBracketService from '../tournamentBracketService';
-
-const prisma = new PrismaClient() as any;
 
 describe('updateMatchResult → emitters (Story 6.4, AC 3 — Defect-3)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockApplyResult.mockResolvedValue(undefined);
+    mockCorrectResult.mockResolvedValue({
+      matchId: 'm1',
+      previousWinnerId: null,
+      winnerId: 'winner-1',
+      reason: 'x',
+      cascade: false,
+      recomputed: true,
+      clearedDownstreamMatchIds: [],
+    });
     mockEmitMatchComplete.mockResolvedValue(undefined);
     mockEmitLeaderboardUpdate.mockResolvedValue(undefined);
-
-    // Persistence succeeds and advances the winner to the next round.
-    prisma.tournamentMatch.update.mockResolvedValue({ id: 'm1' });
-    prisma.tournamentMatch.findUnique.mockResolvedValue({
-      id: 'm1',
-      roundId: 'r1',
-      round: { roundNumber: 1 },
-    });
-    prisma.tournamentRound.findFirst.mockResolvedValue({
-      matches: [{ id: 'm2', player1Id: null, player2Id: null }],
-    });
   });
 
-  it('invokes emitMatchComplete + emitLeaderboardUpdate after the write commits', async () => {
-    const persistCallOrder: string[] = [];
-    prisma.tournamentMatch.update.mockImplementation(async () => {
-      persistCallOrder.push('persist');
-      return { id: 'm1' };
+  it('persists before emitting the authoritative state', async () => {
+    const order: string[] = [];
+    mockApplyResult.mockImplementation(async () => {
+      order.push('persist');
     });
     mockEmitMatchComplete.mockImplementation(async () => {
-      persistCallOrder.push('emitMatchComplete');
+      order.push('emitMatchComplete');
     });
     mockEmitLeaderboardUpdate.mockImplementation(async () => {
-      persistCallOrder.push('emitLeaderboardUpdate');
+      order.push('emitLeaderboardUpdate');
     });
 
     await tournamentBracketService.updateMatchResult('t1', 'm1', 'winner-1');
 
+    expect(mockApplyResult).toHaveBeenCalledWith('m1', 'winner-1', undefined);
     expect(mockEmitMatchComplete).toHaveBeenCalledWith('t1', 'm1');
     expect(mockEmitLeaderboardUpdate).toHaveBeenCalledWith('t1');
-    // Persist must happen first (the story forbids emitting unpersisted state).
-    expect(persistCallOrder[0]).toBe('persist');
-    expect(persistCallOrder).toContain('emitMatchComplete');
-    expect(persistCallOrder).toContain('emitLeaderboardUpdate');
+    // The story forbids emitting unpersisted state.
+    expect(order[0]).toBe('persist');
+    expect(order).toContain('emitMatchComplete');
+    expect(order).toContain('emitLeaderboardUpdate');
   });
 
   it('never lets a real-time failure break the business path', async () => {
     mockEmitMatchComplete.mockRejectedValue(new Error('socket down'));
 
     await expect(
-      tournamentBracketService.updateMatchResult('t1', 'm1', 'winner-1')
+      tournamentBracketService.updateMatchResult('t1', 'm1', 'winner-1'),
     ).resolves.toBeUndefined();
 
-    // The write still happened.
-    expect(prisma.tournamentMatch.update).toHaveBeenCalled();
+    expect(mockApplyResult).toHaveBeenCalled();
   });
 
-  it('does not emit when the persistence step throws', async () => {
-    prisma.tournamentMatch.update.mockRejectedValue(new Error('write failed'));
+  it('does not emit when persistence throws, and propagates the error', async () => {
+    mockApplyResult.mockRejectedValue(new Error('write failed'));
 
     await expect(
-      tournamentBracketService.updateMatchResult('t1', 'm1', 'winner-1')
-    ).rejects.toThrow('Failed to update match result');
+      tournamentBracketService.updateMatchResult('t1', 'm1', 'winner-1'),
+    ).rejects.toThrow('write failed');
 
     expect(mockEmitMatchComplete).not.toHaveBeenCalled();
     expect(mockEmitLeaderboardUpdate).not.toHaveBeenCalled();
+  });
+
+  it('re-emits after a correction', async () => {
+    await tournamentBracketService.correctMatchResult('t1', 'm1', 'winner-2', 'wrong', true);
+
+    expect(mockCorrectResult).toHaveBeenCalledWith('m1', 'winner-2', 'wrong', true);
+    expect(mockEmitMatchComplete).toHaveBeenCalledWith('t1', 'm1');
+    expect(mockEmitLeaderboardUpdate).toHaveBeenCalledWith('t1');
   });
 });
