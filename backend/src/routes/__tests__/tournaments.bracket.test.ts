@@ -239,8 +239,10 @@ describe('AC 9 — bracket generation through completion (anti-vacuity)', () => 
     const names = ['Ann', 'Ben', 'Cara', 'Dan', 'Eve', 'Finn', 'Gus', 'Hana']; // seeds 1..8
     await registerPlayers(tournamentId, names);
 
-    // ---- Generate through POST /:id/start (existing public contract) --------
-    const start = await request(app).post(`/tournaments/${tournamentId}/start`);
+    // ---- Generate through POST /:id/start (organizer-guarded, see below) ----
+    const start = await request(app)
+      .post(`/tournaments/${tournamentId}/start`)
+      .set('Authorization', `Bearer ${organizer.token}`);
     expect(start.status).toBe(200);
     expect(start.body.success).toBe(true);
     const startBracket = start.body.data.bracket as BracketJson;
@@ -313,7 +315,9 @@ describe('AC 9 — bracket generation through completion (anti-vacuity)', () => 
     const tournamentId = await createTournament({ maxPlayers: 5 }, { token: organizer.token });
     await registerPlayers(tournamentId, ['A', 'B', 'C', 'D', 'E']); // seeds 1..5
 
-    const start = await request(app).post(`/tournaments/${tournamentId}/start`);
+    const start = await request(app)
+      .post(`/tournaments/${tournamentId}/start`)
+      .set('Authorization', `Bearer ${organizer.token}`);
     expect(start.status).toBe(200);
     const bracket = start.body.data.bracket as BracketJson;
 
@@ -431,6 +435,89 @@ describe('organizer guard on the new mutation endpoints (AC 15)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /:id/start is organizer-guarded (deliberate contract change)
+// ---------------------------------------------------------------------------
+
+describe('organizer guard on POST /:id/start (deliberate contract change)', () => {
+  it('denies anonymous and non-organizers, and lets only the organizer start', async () => {
+    const organizer = await createUser('organizer');
+    const intruder = await createUser('intruder');
+    const tournamentId = await createTournament({ maxPlayers: 8 }, { token: organizer.token });
+    await registerPlayers(tournamentId, ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);
+
+    // Anonymous → 403, and crucially the bracket is NOT generated and the
+    // tournament is NOT flipped to IN_PROGRESS. This is the "frozen bracket"
+    // hazard: an open /start would let anyone generate-and-persist, after which
+    // the idempotent generator refuses to regenerate for the real organizer.
+    const anonymous = await request(app).post(`/tournaments/${tournamentId}/start`);
+    expect(anonymous.status).toBe(403);
+    expect(anonymous.body.error.code).toBe('FORBIDDEN');
+    expect(await prisma.tournamentRound.count({ where: { tournamentId } })).toBe(0);
+    expect(
+      (await prisma.tournament.findUnique({ where: { id: tournamentId } }))?.status,
+    ).not.toBe('IN_PROGRESS');
+
+    // A different authenticated user → 403, still no side effects.
+    const wrong = await request(app)
+      .post(`/tournaments/${tournamentId}/start`)
+      .set('Authorization', `Bearer ${intruder.token}`);
+    expect(wrong.status).toBe(403);
+    expect(wrong.body.error.code).toBe('FORBIDDEN');
+    expect(await prisma.tournamentRound.count({ where: { tournamentId } })).toBe(0);
+
+    // The organizer → 200, with the preserved `{ success, message }` shape and
+    // the additive `data.bracket` (8 players → 3 rounds).
+    const ok = await request(app)
+      .post(`/tournaments/${tournamentId}/start`)
+      .set('Authorization', `Bearer ${organizer.token}`);
+    expect(ok.status).toBe(200);
+    expect(ok.body.success).toBe(true);
+    expect(ok.body.message).toBe('Tournament started successfully');
+    const bracket = ok.body.data.bracket as BracketJson;
+    expect(bracket.totalRounds).toBe(3);
+    expect(await prisma.tournamentRound.count({ where: { tournamentId } })).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// optionalAuth bounds on the create path (design D1)
+// ---------------------------------------------------------------------------
+
+describe('optionalAuth bounds on POST /tournaments (design D1)', () => {
+  it('accepts a valid token and no token (201), but rejects an invalid token (401)', async () => {
+    const organizer = await createUser('organizer');
+
+    // 1. Valid token → 201, and the JWT identity is recorded on the row.
+    const withToken = await request(app)
+      .post('/tournaments')
+      .set('Authorization', `Bearer ${organizer.token}`)
+      .send(tournamentBody());
+    expect(withToken.status).toBe(201);
+    const authedId = withToken.body.data.id as string;
+    createdTournamentIds.push(authedId);
+    const authedRow = await prisma.tournament.findUnique({
+      where: { id: authedId },
+      select: { organizerUserId: true, organizerDeviceId: true },
+    });
+    expect(authedRow?.organizerUserId).toBe(organizer.id);
+    expect(authedRow?.organizerDeviceId).toBeNull();
+
+    // 2. No token → 201 (anonymous creation stays allowed; AC 5).
+    const noToken = await request(app).post('/tournaments').send(tournamentBody());
+    expect(noToken.status).toBe(201);
+    createdTournamentIds.push(noToken.body.data.id as string);
+
+    // 3. Invalid token → 401, never a silent downgrade to anonymous.
+    const badToken = await request(app)
+      .post('/tournaments')
+      .set('Authorization', 'Bearer not-a-real-token')
+      .send(tournamentBody());
+    expect(badToken.status).toBe(401);
+    expect(badToken.body.error.code).toBe('UNAUTHORIZED');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // BracketError → HTTP status mapping
 // ---------------------------------------------------------------------------
 
@@ -476,7 +563,9 @@ describe('result correction through HTTP (AC 12)', () => {
     const tournamentId = await createTournament({ maxPlayers: 4 }, { token: organizer.token });
     await registerPlayers(tournamentId, ['A', 'B', 'C', 'D']);
 
-    const start = await request(app).post(`/tournaments/${tournamentId}/start`);
+    const start = await request(app)
+      .post(`/tournaments/${tournamentId}/start`)
+      .set('Authorization', `Bearer ${organizer.token}`);
     expect(start.status).toBe(200);
 
     const seeds = await loadSeedMaps(tournamentId);
@@ -524,6 +613,9 @@ describe('result correction through HTTP (AC 12)', () => {
 // Existing public contracts preserved (AC 5)
 // ---------------------------------------------------------------------------
 
+// NOTE: `POST /:id/start` is deliberately NOT in this list. AC 5 preserves the
+// *read* and *register* contracts; it does not license leaving a now-mutating
+// endpoint (generate + persist) open. See the `/start` guard suite above.
 describe('existing public endpoints stay unauthenticated (AC 5)', () => {
   it('serves the pre-existing endpoints without any auth header', async () => {
     const organizer = await createUser('organizer');

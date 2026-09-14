@@ -29,6 +29,15 @@ jest.mock('../../services/tournamentBracketService', () => ({
   },
 }));
 
+// Story 6.7: `POST /:id/start` is now organizer-guarded (a deliberate contract
+// change — it mutates). This file only checks the route/handler contract, so
+// the guard is stubbed to a pass-through here; that also keeps the suite
+// DB-free. The real fail-closed guard is exercised end-to-end in
+// tournaments.bracket.test.ts.
+jest.mock('../../middleware/tournamentPermissions', () => ({
+  requireTournamentOrganizer: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+}));
+
 import * as tournamentService from '../../services/tournamentService';
 import tournamentsRouter from '../tournaments';
 
@@ -122,10 +131,13 @@ describe('Tournament Routes', () => {
   });
 
   describe('POST /tournaments/:id/start', () => {
+    // The organizer guard is stubbed above; this asserts the handler contract
+    // (status flip + additive `data.bracket`) for an authorized caller.
     it('starts tournament', async () => {
       (tournamentService.startTournament as jest.Mock).mockResolvedValue(undefined);
       const res = await request(app).post('/tournaments/t1/start').expect(200);
       expect(res.body.success).toBe(true);
+      expect(res.body.data.bracket).toEqual({ tournamentId: 't1' });
     });
   });
 
