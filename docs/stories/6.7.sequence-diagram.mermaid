@@ -2,7 +2,7 @@ sequenceDiagram
     autonumber
     actor Org as Organizer
     participant R as routes/tournaments.ts
-    participant G as requireTournamentOrganizer
+    participant G as requireTournamentOrganizer()
     participant S as tournamentBracketService (facade)
     participant E as bracket/engine.ts
     participant P as bracket/persistence.ts
@@ -12,8 +12,8 @@ sequenceDiagram
 
     Note over Org,An: A. Generate (POST /:id/start  OR  POST /:id/bracket/generate)
     Org->>R: POST /api/v1/tournaments/:id/bracket/generate
-    R->>G: authorize (identity == organizerUserId/DeviceId)
-    G-->>R: ok (else 403)
+    R->>G: authorize (strict: jwt->userId===organizerUserId; device->deviceId===organizerDeviceId)
+    G-->>R: ok (else 400/403/404/500)
     R->>S: generateBracket({tournamentId, players, type, seed})
     S->>E: generateSingleElimination(...)
     E->>E: sort (seed->winRate->matches->name); standard seeding; byes to top seeds; seed PRNG
