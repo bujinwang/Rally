@@ -42,14 +42,17 @@ import {
   applyResult as persistApplyResult,
   correctResult as persistCorrectResult,
   getBracketState as persistGetBracketState,
+  loadBracketSeedData,
   persistBracket as persistBracketRows,
 } from './bracket/persistence';
 import type {
   BracketGenerationOptions,
   CorrectionResult,
   TournamentBracket,
+  TournamentFormat,
   ValidationResult,
 } from './bracket/types';
+import { TournamentAnalyticsService } from './tournamentAnalyticsService';
 
 // Re-export the canonical domain types so existing importers of this module keep
 // working (design §1 D2). `BracketError` is re-exported so routes can map a
@@ -156,6 +159,49 @@ class TournamentBracketService {
   }
 
   /**
+   * Load the tournament's registered players + format, generate, and persist —
+   * the single entry point the routes use (design §1 D4 / §5 flow A).
+   *
+   * Idempotent: when the tournament already has rounds the existing bracket is
+   * returned untouched, so `POST /:id/start` and `POST /:id/bracket/generate`
+   * can both call it without orphaning results.
+   */
+  async generateAndPersistForTournament(
+    tournamentId: string,
+    overrides: { randomizeSeeding?: boolean; seed?: number } = {},
+  ): Promise<TournamentBracket> {
+    const seedData = await loadBracketSeedData(tournamentId);
+    if (!seedData) {
+      throw new BracketError('TOURNAMENT_NOT_FOUND', 404, `Tournament ${tournamentId} not found`);
+    }
+
+    const existing = await persistGetBracketState(tournamentId);
+    if (existing) return existing;
+
+    if (seedData.players.length < 2) {
+      throw new BracketError(
+        'NOT_ENOUGH_PLAYERS',
+        400,
+        'At least 2 registered players are required to generate a bracket',
+      );
+    }
+
+    const bracket = await this.generateBracket({
+      tournamentId,
+      players: seedData.players,
+      tournamentType: seedData.format as TournamentFormat,
+      randomizeSeeding: overrides.randomizeSeeding ?? false,
+      seed: overrides.seed,
+    });
+    await persistBracketRows(bracket);
+
+    // Return the *persisted* (projected) state, not the raw engine output, so
+    // the response matches the database exactly — e.g. bye winners already
+    // advanced into round 2.
+    return (await persistGetBracketState(tournamentId)) ?? bracket;
+  }
+
+  /**
    * Record a match result and advance the bracket (AC 3, AC 11).
    *
    * Persists first, then re-emits the authoritative state (Story 6.4, AC 3). A
@@ -169,6 +215,7 @@ class TournamentBracketService {
     score?: string,
   ): Promise<void> {
     await persistApplyResult(matchId, winnerId, score);
+    await this.refreshAnalytics(tournamentId);
     await this.emitTournamentUpdates(tournamentId, matchId);
   }
 
@@ -187,8 +234,29 @@ class TournamentBracketService {
     cascade = false,
   ): Promise<CorrectionResult> {
     const result = await persistCorrectResult(matchId, winnerId, reason, cascade);
+    await this.refreshAnalytics(tournamentId);
     await this.emitTournamentUpdates(tournamentId, matchId);
     return result;
+  }
+
+  /**
+   * Refresh the tournament's analytics rows after a result or correction
+   * (design §1 D7 / AC 4).
+   *
+   * Order matters: `calculateParticipationMetrics` **upserts** the analytics row,
+   * so it must run before `calculateBracketEfficiency`, which only `update`s and
+   * used to throw when no row existed yet (design §0 finding 15).
+   *
+   * Best-effort: an analytics failure is logged but never propagated, so a
+   * derived-metric problem can never break the authoritative result write.
+   */
+  private async refreshAnalytics(tournamentId: string): Promise<void> {
+    try {
+      await TournamentAnalyticsService.calculateParticipationMetrics(tournamentId);
+      await TournamentAnalyticsService.calculateBracketEfficiency(tournamentId);
+    } catch (error) {
+      console.warn('Failed to refresh tournament analytics:', error);
+    }
   }
 
   /**

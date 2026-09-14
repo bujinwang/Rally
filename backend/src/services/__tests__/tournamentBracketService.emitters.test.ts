@@ -41,6 +41,16 @@ jest.mock('../../socket/events/tournamentAnalytics', () => ({
   emitLeaderboardUpdate: (...args: unknown[]) => mockEmitLeaderboardUpdate(...args),
 }));
 
+const mockParticipation = jest.fn();
+const mockEfficiency = jest.fn();
+
+jest.mock('../tournamentAnalyticsService', () => ({
+  TournamentAnalyticsService: {
+    calculateParticipationMetrics: (...args: unknown[]) => mockParticipation(...args),
+    calculateBracketEfficiency: (...args: unknown[]) => mockEfficiency(...args),
+  },
+}));
+
 import tournamentBracketService from '../tournamentBracketService';
 
 describe('updateMatchResult → emitters (Story 6.4, AC 3 — Defect-3)', () => {
@@ -58,6 +68,8 @@ describe('updateMatchResult → emitters (Story 6.4, AC 3 — Defect-3)', () => 
     });
     mockEmitMatchComplete.mockResolvedValue(undefined);
     mockEmitLeaderboardUpdate.mockResolvedValue(undefined);
+    mockParticipation.mockResolvedValue({});
+    mockEfficiency.mockResolvedValue({});
   });
 
   it('persists before emitting the authoritative state', async () => {
@@ -110,5 +122,32 @@ describe('updateMatchResult → emitters (Story 6.4, AC 3 — Defect-3)', () => 
     expect(mockCorrectResult).toHaveBeenCalledWith('m1', 'winner-2', 'wrong', true);
     expect(mockEmitMatchComplete).toHaveBeenCalledWith('t1', 'm1');
     expect(mockEmitLeaderboardUpdate).toHaveBeenCalledWith('t1');
+  });
+
+  it('refreshes analytics participation BEFORE efficiency (design §D7)', async () => {
+    const order: string[] = [];
+    mockParticipation.mockImplementation(async () => {
+      order.push('participation');
+    });
+    mockEfficiency.mockImplementation(async () => {
+      order.push('efficiency');
+    });
+
+    await tournamentBracketService.updateMatchResult('t1', 'm1', 'winner-1');
+
+    // The participation upsert must run first so the efficiency update has a row.
+    expect(order).toEqual(['participation', 'efficiency']);
+    expect(mockParticipation).toHaveBeenCalledWith('t1');
+    expect(mockEfficiency).toHaveBeenCalledWith('t1');
+  });
+
+  it('never lets an analytics failure break the business path', async () => {
+    mockParticipation.mockRejectedValue(new Error('analytics down'));
+
+    await expect(
+      tournamentBracketService.updateMatchResult('t1', 'm1', 'winner-1'),
+    ).resolves.toBeUndefined();
+
+    expect(mockEmitMatchComplete).toHaveBeenCalled();
   });
 });
