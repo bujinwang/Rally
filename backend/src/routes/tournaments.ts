@@ -419,10 +419,24 @@ router.delete(
 /**
  * @route POST /api/tournaments/:id/start
  * @desc Start tournament and generate bracket
- * @access Public (should be restricted to organizers)
+ * @access Organizer only
+ *
+ * DELIBERATE CONTRACT CHANGE (Story 6.7). This endpoint was previously public
+ * and only flipped `status`. It now *mutates* — it generates and persists the
+ * bracket — so leaving it open would let an unauthenticated caller start any
+ * tournament. Because `generateAndPersistBracket` is idempotent (it skips when
+ * rounds already exist), that bracket would then be **frozen**: the organizer
+ * could no longer regenerate after late registrations, and the tournament would
+ * already be `IN_PROGRESS` (dropping out of upcoming lists). The organizer guard
+ * is therefore applied here, exactly as on the other mutation endpoints. The
+ * `{ success, message }` response shape and the additive `data.bracket` are
+ * unchanged; only the access rule tightened. AC 5 covers the read/register
+ * contracts, not a now-mutating endpoint.
  */
 router.post(
   '/:id/start',
+  optionalAuth,
+  requireTournamentOrganizer(),
   [param('id').isString().isLength({ min: 1 })],
   async (req: Request, res: Response) => {
     try {
