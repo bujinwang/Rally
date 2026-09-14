@@ -239,8 +239,25 @@ export interface BracketRound {
 }
 
 /**
- * A fully-structured bracket. Shape is fixed by design §4 (class diagram) —
- * `bracket[0]` is round 1, `bracket[R - 1]` is the final.
+ * A fully-structured bracket.
+ *
+ * The first six fields are exactly the design §4 (class diagram) shape —
+ * `bracket[0]` is round 1, `bracket[R - 1]` is the final. The last three are
+ * **additive extensions beyond the class diagram**, added because they are
+ * needed and cannot be derived from the diagram's shape:
+ *
+ *   - `format` — `validateBracket` and `projectBracket` cannot distinguish a
+ *     2-player round robin from a 2-player single-elimination bracket by
+ *     structure alone (both are one round with one match), and the round-size
+ *     and losers-bracket invariants are format-specific. Round naming needs it
+ *     too. Without this the validator would have to guess.
+ *   - `totalMatches` / `byePlayers` — the dead `bracketService.ts` declared
+ *     these on its own local interface but the live generators never populated
+ *     them (they came back `undefined`); the story requires them populated.
+ *
+ * For double elimination the flat `bracket` array is ordered winners-bracket
+ * rounds, then losers-bracket rounds, then the grand final, and each match's
+ * `bracket` field names its side.
  */
 export interface TournamentBracket {
   tournamentId: string;
@@ -254,6 +271,19 @@ export interface TournamentBracket {
   currentRound: number;
   /** True once a champion is decided (final match has a winner). */
   isComplete: boolean;
+  /** Format this bracket was generated for. */
+  format: TournamentFormat;
+  /**
+   * Total match nodes in the bracket, **including bye matches**. For single
+   * elimination `realMatches = totalMatches - byePlayers.length` (which is
+   * `totalPlayers - 1`); for double elimination it is `2 * totalPlayers - 2`.
+   */
+  totalMatches: number;
+  /**
+   * Ids of the players who received a first-round bye, highest seed first.
+   * Empty for formats with no byes.
+   */
+  byePlayers: string[];
 }
 
 // ---------------------------------------------------------------------------
