@@ -1,0 +1,61 @@
+classDiagram
+    class BracketMatch {
+      +string id
+      +int round
+      +int match
+      +string player1Id
+      +string player2Id
+      +string winnerId
+      +MatchStatus status
+      +string feedMatch1Id
+      +string feedMatch2Id
+    }
+    class TournamentBracket {
+      +string tournamentId
+      +int totalRounds
+      +int totalPlayers
+      +BracketMatch[][] bracket
+      +int currentRound
+      +bool isComplete
+    }
+    class BracketGenerationOptions {
+      +string tournamentId
+      +PlayerSeed[] players
+      +TournamentType tournamentType
+      +bool randomizeSeeding
+      +number seed
+    }
+    class Engine {
+      +generateSingleElimination(opts) TournamentBracket
+      +generateDoubleElimination(opts) TournamentBracket
+      +generateRoundRobin(opts) TournamentBracket
+      +generateSwiss(opts) TournamentBracket
+      +seededShuffle(items, seed) any[]
+      +getRoundName(round, total) string
+      +validateBracket(bracket) ValidationResult
+      +projectBracket(matches) ProjectedState
+    }
+    class Persistence {
+      +persistBracket(bracket) void
+      +getBracketState(tournamentId) TournamentBracket
+      +applyResult(matchId, winnerId, score) void
+      +correctResult(matchId, winnerId, reason, cascade) void
+      +clearDerivedDownstream(tournamentId, matchId) void
+    }
+    class TournamentBracketService {
+      +generateBracket(options) TournamentBracket
+      +updateMatchResult(tournamentId, matchId, winnerId, score) void
+      +correctMatchResult(tournamentId, matchId, winnerId, reason, cascade) void
+      +getBracketState(tournamentId) TournamentBracket
+    }
+    class TournamentOrganizerGuard {
+      +requireTournamentOrganizer(req, res, next) void
+    }
+
+    TournamentBracketService --> Engine : delegates generation
+    TournamentBracketService --> Persistence : delegates writes/reads
+    Persistence --> Engine : projectBracket
+    TournamentBracketService --> TournamentOrganizerGuard : route-level guard
+    BracketGenerationOptions --> TournamentBracket
+    Engine --> BracketMatch
+    TournamentBracket --> BracketMatch
