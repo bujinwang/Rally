@@ -53,6 +53,7 @@ import type {
   BracketSide,
   CorrectionResult,
   MatchStatus,
+  PlayerSeed,
   ProjectedMatch,
   ProjectedState,
   RoundStatus,
@@ -226,14 +227,18 @@ function parseScoreToGameScores(score?: string): Prisma.InputJsonValue | undefin
 /**
  * Persist a generated bracket.
  *
- * Runs inside a single `$transaction` and uses a **fixed three statements**
- * regardless of field size (design §6 / AC 16):
+ * Runs inside a single `$transaction` and uses a **fixed three statements** for
+ * the structural write regardless of field size (design §6 / AC 16):
  *
  *   1. `createManyAndReturn` the rounds → the `roundNumber -> roundId` map.
  *   2. `createManyAndReturn` the matches (feed links omitted) → the
  *      `(round, match) -> id` map, which is how the synthetic ids are resolved.
  *   3. one `UPDATE … FROM (VALUES …)` that rewrites `feedMatch1Id` /
  *      `feedMatch2Id` from the synthetic ids to the stored cuids.
+ *
+ * A fourth step then runs a projection pass so the persisted rows are
+ * internally consistent the moment the bracket exists (bye winners advance
+ * immediately instead of only appearing once `getBracketState` projects them).
  *
  * The remap (step 3) is the critical one: the engine's feed links reference
  * synthetic ids, and a bracket persisted without the translation would have
@@ -327,6 +332,15 @@ export async function persistBracket(bracket: TournamentBracket): Promise<void> 
         WHERE m.id = v.id
       `);
     }
+
+    // ---- 4. Materialise derived state (bye auto-advance) ------------------
+    // Byes are decided at generation time, so their winners must be written
+    // into the next round immediately. Without this the persisted rows would
+    // disagree with what `getBracketState` projects until the first result is
+    // recorded — a bye would look un-advanced to anything reading the table.
+    const context = await loadProjection(tx, bracket.tournamentId);
+    await writeBackProjection(tx, context.projected);
+    await updateRoundStatuses(tx, context);
   });
 }
 
@@ -457,6 +471,45 @@ function deriveByePlayers(bracket: BracketMatch[][], seedById: Map<string, numbe
     const seedB = seedById.get(b) ?? Number.POSITIVE_INFINITY;
     return seedA - seedB;
   });
+}
+
+// ---------------------------------------------------------------------------
+// Seed data (players + format) for generation
+// ---------------------------------------------------------------------------
+
+/** Everything the engine needs to generate a tournament's bracket. */
+export interface BracketSeedData {
+  tournamentId: string;
+  format: TournamentFormat;
+  players: PlayerSeed[];
+}
+
+/**
+ * Load a tournament's registered players (seeded) and its format.
+ *
+ * Used by the facade's `generateAndPersistForTournament` so the route never has
+ * to know how a `TournamentPlayer` row maps onto the engine's `PlayerSeed`.
+ * Returns `null` when the tournament does not exist.
+ */
+export async function loadBracketSeedData(tournamentId: string): Promise<BracketSeedData | null> {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    include: { players: { orderBy: { seed: 'asc' } } },
+  });
+  if (!tournament) return null;
+
+  return {
+    tournamentId,
+    format: tournament.tournamentType as TournamentFormat,
+    players: tournament.players.map((player) => ({
+      id: player.id,
+      name: player.playerName,
+      seed: player.seed,
+      winRate: player.winRate,
+      totalMatches: player.totalMatches,
+      skillLevel: player.skillLevel,
+    })),
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -13,6 +13,22 @@ jest.mock('../../services/tournamentService', () => ({
   getTournamentStats: jest.fn(),
 }));
 
+// Story 6.7 T04: `POST /:id/start` now also generates + persists the bracket.
+// Mock the facade so these contract tests stay DB-free (the real generate path
+// is exercised end-to-end in tournaments.bracket.test.ts).
+jest.mock('../../services/tournamentBracketService', () => ({
+  tournamentBracketService: {
+    generateAndPersistForTournament: jest.fn().mockResolvedValue({ tournamentId: 't1' }),
+    getBracketState: jest.fn(),
+    updateMatchResult: jest.fn(),
+    correctMatchResult: jest.fn(),
+  },
+  BracketError: class BracketError extends Error {
+    readonly code = 'BRACKET_ERROR';
+    readonly statusCode = 400;
+  },
+}));
+
 import * as tournamentService from '../../services/tournamentService';
 import tournamentsRouter from '../tournaments';
 
