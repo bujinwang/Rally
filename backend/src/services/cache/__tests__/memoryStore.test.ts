@@ -69,7 +69,7 @@ describe('MemoryStore', () => {
     await store.delete('a');
     expect(await store.exists('a')).toBe(false);
 
-    await store.clear();
+    await store.clear('');
     expect(await store.get('b')).toBeNull();
   });
 

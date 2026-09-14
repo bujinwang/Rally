@@ -10,6 +10,8 @@ describe('redactionFormat', () => {
 
   it('redacts sensitive keys at top level', () => {
     const info = format.transform({
+      level: 'info',
+      message: 'top-level fixture',
       password: 'secret123',
       token: 'bearer-token',
       apiKey: 'my-api-key',
@@ -22,6 +24,8 @@ describe('redactionFormat', () => {
 
   it('redacts nested sensitive keys', () => {
     const info = format.transform({
+      level: 'info',
+      message: 'nested fixture',
       user: {
         name: 'Alice',
         password: 'secret',
@@ -42,6 +46,7 @@ describe('redactionFormat', () => {
 
   it('preserves non-sensitive data', () => {
     const info = format.transform({
+      level: 'info',
       message: 'hello',
       count: 42,
       nested: { foo: 'bar' },
@@ -54,6 +59,8 @@ describe('redactionFormat', () => {
 
   it('handles arrays', () => {
     const info = format.transform({
+      level: 'info',
+      message: 'array fixture',
       items: [
         { password: 'p1', name: 'A' },
         { password: 'p2', name: 'B' },

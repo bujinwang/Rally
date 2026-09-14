@@ -298,7 +298,7 @@ describe('QA 6.2 — circuit breaker (AC 14)', () => {
   });
 
   it('re-probes after the cooldown window expires', async () => {
-    const get = jest.fn(async () => { throw new Error('boom'); });
+    const get = jest.fn(async (): Promise<string> => { throw new Error('boom'); });
     const client = fakeClient({ get });
     const store = new RedisStore(client as any, { failureThreshold: 2, cooldownMs: 40 });
 
