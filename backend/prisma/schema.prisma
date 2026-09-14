@@ -890,6 +890,13 @@ model Tournament {
   organizerEmail String?
   organizerPhone String?
 
+  // Organizer identity (Story 6.7 §2 / D6, AC 15). `organizer` above is free
+  // text and MUST NOT be used for authorization (design §0 finding 13). These
+  // nullable columns carry the resolvable identity that `requireTournamentOrganizer`
+  // matches against: a verified JWT `userId` first, else a `deviceId`.
+  organizerUserId   String?
+  organizerDeviceId String?
+
   // Discovery and Visibility
   visibility     String  @default("PUBLIC") // PUBLIC, PRIVATE, INVITATION_ONLY
   accessCode     String? // For private tournaments
@@ -929,6 +936,13 @@ model TournamentPlayer {
   email      String?
   phone      String?
   deviceId   String? // For MVP integration
+
+  // Platform identity link (Story 6.7 §2 / D8). Additive and nullable: there is
+  // no `TournamentPlayer` -> `MvpPlayer`/`User` bridge today, so this stays NULL
+  // until a platform-level identity exists. `syncTournamentRankings()` is a
+  // documented no-op until then — tournament data is never fed into
+  // `rankingService` to fabricate cross-domain ratings.
+  userId String?
 
   // Registration Details
   registeredAt DateTime               @default(now())
@@ -999,10 +1013,37 @@ model TournamentMatch {
   round   TournamentRound? @relation(fields: [roundId], references: [id], onDelete: Cascade)
 
   // Match Participants
-  player1Id String
-  player1   TournamentPlayer @relation("Player1Matches", fields: [player1Id], references: [id])
-  player2Id String
-  player2   TournamentPlayer @relation("Player2Matches", fields: [player2Id], references: [id])
+  // Story 6.7 §2 / D5: slots are NULLABLE so a future-round match can exist as a
+  // placeholder and a bye match can carry exactly one real player. Previously
+  // NOT NULL, which made AC 3 (persisting a bracket) impossible — see design §0
+  // finding 11. Existing rows are unaffected (relax-only change).
+  //
+  // `onDelete: Restrict` is stated explicitly on purpose: making the relation
+  // optional would otherwise flip Prisma's default referential action from
+  // `Restrict` (required relation) to `SetNull`, silently changing the live FK
+  // and letting a player deletion blank out a bracket slot. Restrict preserves
+  // the pre-6.7 database behaviour exactly and keeps this change relax-only.
+  player1Id String?
+  player1   TournamentPlayer? @relation("Player1Matches", fields: [player1Id], references: [id], onUpdate: Cascade, onDelete: Restrict)
+  player2Id String?
+  player2   TournamentPlayer? @relation("Player2Matches", fields: [player2Id], references: [id], onUpdate: Cascade, onDelete: Restrict)
+
+  // Bracket feed links (Story 6.7 §2 / D5). The winner of `feedMatch1` advances
+  // into this match's `player1` slot; the winner of `feedMatch2` into `player2`.
+  // Explicit links make progression format-agnostic (single elimination can also
+  // be derived arithmetically, but double elimination cannot), which is what lets
+  // `projectBracket` recompute state deterministically after a correction.
+  feedMatch1Id String?
+  feedMatch1   TournamentMatch?  @relation("MatchFeedsInto1", fields: [feedMatch1Id], references: [id])
+  feedMatch1Targets TournamentMatch[] @relation("MatchFeedsInto1")
+  feedMatch2Id String?
+  feedMatch2   TournamentMatch?  @relation("MatchFeedsInto2", fields: [feedMatch2Id], references: [id])
+  feedMatch2Targets TournamentMatch[] @relation("MatchFeedsInto2")
+
+  // Correction audit trail (Story 6.7 §2 / D5, AC 12). Set when an organizer
+  // corrects a recorded result; `correctionReason` is the operator-supplied why.
+  correctedAt      DateTime?
+  correctionReason String?
 
   // Match Details
   matchNumber Int // Sequential match number in tournament
@@ -1038,6 +1079,8 @@ model TournamentMatch {
   @@index([status])
   @@index([scheduledAt])
   @@index([tournamentId, status])
+  @@index([feedMatch1Id])
+  @@index([feedMatch2Id])
   @@map("tournament_matches")
 }
 

@@ -6,46 +6,139 @@ import { Tournament, TournamentPlayer, TournamentRound, TournamentMatch, Tournam
 
 const prisma = new PrismaClient();
 
-interface TournamentInput {
-  name: string;
-  format: 'single_elimination' | 'round_robin';
-  maxPlayers: number;
-  organizer: string;
-  startDate: Date;
-  // Add other fields as needed
-}
-
 interface SeedingInput {
   tournamentId: string;
   players: string[]; // Player IDs
 }
 
-// Simple bracket generation for single elimination (power of 2 players)
+/**
+ * Input accepted by {@link createTournament}.
+ *
+ * Field names mirror the `POST /api/v1/tournaments` request body that
+ * `routes/tournaments.ts` validates in its `body(...)` chain, so the route can
+ * forward `req.body` without a translation layer.
+ *
+ * History: the previous shape required `format: 'single_elimination' |
+ * 'round_robin'` (a field the route never sends and the schema does not have)
+ * and read `input.organizer`, while the route validates `organizerName`. The
+ * result was that `organizer` was `undefined` on every HTTP create, so the
+ * NOT NULL column rejected the insert and `POST /tournaments` was broken
+ * end-to-end (design §0 finding 19). The same path also hard-coded
+ * `tournamentType: 'SINGLES'`, which is not a member of the `TournamentType`
+ * enum, so even a correct organizer would have failed the write.
+ */
+export interface TournamentInput {
+  name: string;
+  description?: string;
+  tournamentType?: TournamentType;
+  maxPlayers?: number;
+  minPlayers?: number;
+  startDate: string | Date;
+  endDate?: string | Date | null;
+  registrationDeadline?: string | Date;
+  matchFormat?: string;
+  scoringSystem?: string;
+  bestOfGames?: number;
+  entryFee?: number;
+  prizePool?: number;
+  currency?: string;
+  /** Organizer display name — the field `routes/tournaments.ts` validates. */
+  organizerName?: string;
+  /**
+   * Back-compat alias for `organizerName`, kept so existing direct callers keep
+   * working. The HTTP route never sends it.
+   */
+  organizer?: string;
+  organizerEmail?: string;
+  organizerPhone?: string;
+  /**
+   * Resolvable organizer identity (design §1 D6 / AC 15), populated by the route
+   * from `resolveIdentity(req)` when a verified JWT user or a device id is
+   * present. Nullable, and never used for authorization until it is set.
+   */
+  organizerUserId?: string;
+  organizerDeviceId?: string;
+  visibility?: string;
+  accessCode?: string;
+  skillLevelMin?: string;
+  skillLevelMax?: string;
+}
+
+/** Coerce an ISO-8601 string or `Date` into a `Date`, or fail loudly. */
+function toDate(value: string | Date, field: string): Date {
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Invalid ${field}`);
+  }
+  return parsed;
+}
+
+/** Coerce an optional ISO-8601 string or `Date`; empty/missing becomes `null`. */
+function toOptionalDate(
+  value: string | Date | null | undefined,
+  field: string,
+): Date | null {
+  if (value === null || value === undefined || value === '') return null;
+  return toDate(value, field);
+}
+
+/**
+ * Create a tournament from the validated `POST /api/v1/tournaments` body.
+ *
+ * Every field the route validates is now actually persisted; the previous
+ * implementation silently dropped most of them and hard-coded the rest.
+ */
 export async function createTournament(input: TournamentInput) {
+  // Accept either spelling; `organizerName` is what the route validates.
+  const organizerName = (input.organizerName ?? input.organizer ?? '').trim();
+  if (!organizerName) {
+    throw new Error('Organizer name is required');
+  }
+
+  const startDate = toDate(input.startDate, 'startDate');
+
+  const tournamentType = input.tournamentType ?? TournamentType.SINGLE_ELIMINATION;
+  if (!(Object.values(TournamentType) as string[]).includes(tournamentType)) {
+    throw new Error(`Unsupported tournamentType: ${String(tournamentType)}`);
+  }
+
   return prisma.tournament.create({
     data: {
       name: input.name,
-      // format: input.format, // format field not in schema
+      description: input.description ?? null,
+      tournamentType,
       status: 'REGISTRATION_OPEN',
-      organizer: input.organizer,
-      startDate: input.startDate,
-      maxPlayers: input.maxPlayers,
-      minPlayers: 4,
-      visibility: 'PUBLIC',
-      // Other fields with defaults
-      description: '',
-      venueName: '',
-      venueAddress: '',
+      maxPlayers: input.maxPlayers ?? 32,
+      minPlayers: input.minPlayers ?? 4,
+      startDate,
+      endDate: toOptionalDate(input.endDate, 'endDate'),
+      // The route validates `registrationDeadline`; direct callers that omit it
+      // keep the previous behaviour (registration closes when the tournament
+      // starts) rather than failing on a NOT NULL column.
+      registrationDeadline:
+        toOptionalDate(input.registrationDeadline, 'registrationDeadline') ?? startDate,
+      venueName: null,
+      venueAddress: null,
       latitude: null,
       longitude: null,
-      tournamentType: 'SINGLES' as TournamentType,
-      scoringSystem: '21_POINT',
-      bestOfGames: 3,
-      entryFee: 0,
-      prizePool: 0,
-      currency: 'USD',
-      registrationDeadline: input.startDate,
-      endDate: null,
+      matchFormat: input.matchFormat ?? 'SINGLES',
+      scoringSystem: input.scoringSystem ?? '21_POINT',
+      bestOfGames: input.bestOfGames ?? 3,
+      entryFee: input.entryFee ?? 0,
+      prizePool: input.prizePool ?? 0,
+      currency: input.currency ?? 'USD',
+      // Free text, kept for back-compat with existing rows and readers.
+      organizer: organizerName,
+      organizerEmail: input.organizerEmail ?? null,
+      organizerPhone: input.organizerPhone ?? null,
+      // ...plus the resolvable identity that authorization actually matches on
+      // (design §1 D6 / AC 15). `organizer` above must never be used for auth.
+      organizerUserId: input.organizerUserId ?? null,
+      organizerDeviceId: input.organizerDeviceId ?? null,
+      visibility: input.visibility ?? 'PUBLIC',
+      accessCode: input.accessCode ?? null,
+      skillLevelMin: input.skillLevelMin ?? null,
+      skillLevelMax: input.skillLevelMax ?? null,
     },
   });
 }
