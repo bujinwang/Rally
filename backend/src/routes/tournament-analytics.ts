@@ -1,10 +1,10 @@
 import express, { Request } from 'express';
+import Joi from 'joi';
 import { authenticateToken, requireRole, optionalAuth } from '../middleware/auth';
 import { resolveIdentity } from '../middleware/permissions';
 import { TournamentAnalyticsService } from '../services/tournamentAnalyticsService';
 import { prisma } from '../config/database';
-// import { validationMiddleware } from '../middleware/validation'; // Not implemented
-// import { z } from 'zod'; // Not installed
+import { validate } from '../utils/validation';
 
 // Story 6.11: this mirrors the shape `authenticateToken`/`optionalAuth` actually
 // set (`{ id, email, role }`). It previously declared an optional `name`, which
@@ -20,11 +20,17 @@ interface AuthRequest extends Request {
 
 const router = express.Router();
 
-// Schema for feedback validation (zod not installed)
-// const feedbackSchema = z.object({
-//   rating: z.number().min(1).max(5),
-//   comments: z.string().optional(),
-// });
+// Story 6.8 (D5): CSAT feedback validation, restored.
+//
+// `rating` is the **1–5 CSAT** scale (`TournamentFeedback.rating Int // 1-5`),
+// NOT the 0–10 NPS scale (`NpsResponse.score`). The two instruments never mix.
+// `deviceId` is accepted so a device-only participant can be resolved (see the
+// route below); it is read by `resolveIdentity`, never trusted for ownership.
+const feedbackSchema = Joi.object({
+  rating: Joi.number().integer().min(1).max(5).required(),
+  comments: Joi.string().max(2000).allow('').optional(),
+  deviceId: Joi.string().max(200).optional(),
+});
 
 // GET /api/tournaments/:id/analytics - Get tournament analytics
 //
@@ -149,53 +155,98 @@ router.get(
   }
 );
 
-// POST /api/tournaments/:id/feedback - Submit tournament feedback
+// POST /api/tournaments/:id/feedback - Submit tournament feedback (CSAT, 1-5)
+//
+// Story 6.8 (D5) repair. The previous implementation was **unimplementable**:
+//   * it set `playerId = req.user.id` (a `User.id`) while
+//     `TournamentFeedback.playerId` FK'd to `MvpPlayer.id` (`schema.prisma`), and
+//     `MvpPlayer` is *session*-scoped (`sessionId` required) with **no**
+//     `TournamentPlayer → MvpPlayer` bridge — so a tournament-scoped row could
+//     never reference a valid `MvpPlayer`;
+//   * its fallback `'temp-user-id'` guaranteed an FK violation on every write;
+//   * its participation check compared a device id to a user id
+//     (`deviceId: playerId`);
+//   * validation was commented out and the response skipped the envelope.
+//
+// The FK is now repointed to `TournamentPlayer.id` (migration
+// `20260916000000_story_6_8_community`) and the write path resolves the caller's
+// **tournament-scoped** participant row. Identity is resolved with the only
+// sanctioned resolver, `resolveIdentity`. `deviceId` is matched **first** because
+// `TournamentPlayer.userId` is NULL-by-design (Story 6.7 §D8); `userId` is the
+// fallback. No match → 403. Fully anonymous callers are rejected (no identity).
 router.post(
   '/:id/feedback',
-  authenticateToken,
-  // validationMiddleware(feedbackSchema), // Validation middleware not available
+  optionalAuth,
+  validate(feedbackSchema),
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { rating, comments } = req.body;
-      const playerId = (req as AuthRequest).user?.id || 'temp-user-id'; // Get from req.user when auth is properly set up
+      const { rating, comments } = req.body as { rating: number; comments?: string };
       const tournamentId = id as string;
 
-      // Verify player participated in tournament
-      const participation = await prisma.tournamentPlayer.findFirst({
-        where: {
-          tournamentId,
-          // playerId field not in TournamentPlayer schema
-          deviceId: playerId, // Using deviceId instead
-        },
-      });
-
-      if (!participation) {
-        return res.status(403).json({ error: 'Must participate in tournament to provide feedback' });
+      const identity = resolveIdentity(req);
+      if (identity.source === 'anonymous') {
+        return res.status(401).json({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'A user or device identity is required to submit feedback' },
+          timestamp: new Date().toISOString(),
+        });
       }
 
+      // Resolve the caller's tournament-scoped participant row.
+      //   * deviceId is the PRIMARY key — `TournamentPlayer.userId` is NULL-by-design.
+      //   * userId is the secondary fallback.
+      let participant: { id: string } | null = null;
+      if (identity.deviceId) {
+        participant = await prisma.tournamentPlayer.findFirst({
+          where: { tournamentId, deviceId: identity.deviceId },
+          select: { id: true },
+        });
+      }
+      if (!participant && identity.userId) {
+        participant = await prisma.tournamentPlayer.findFirst({
+          where: { tournamentId, userId: identity.userId },
+          select: { id: true },
+        });
+      }
+
+      if (!participant) {
+        return res.status(403).json({
+          success: false,
+          error: { code: 'NOT_PARTICIPANT', message: 'Must participate in tournament to provide feedback' },
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // `playerId` is now a `TournamentPlayer.id` (never a `User.id`/`MvpPlayer.id`).
       const feedback = await prisma.tournamentFeedback.create({
         data: {
           tournamentId,
-          playerId,
-          rating,
-          comments,
+          playerId: participant.id,
+          rating: Number(rating),
+          comments: comments ?? null,
         },
         include: {
           tournament: true,
         },
       });
 
-      // Optionally update analytics aggregate
-      await TournamentAnalyticsService.calculateParticipationMetrics(tournamentId); // Triggers feedback aggregation
+      // Optionally update analytics aggregate (triggers feedback aggregation).
+      await TournamentAnalyticsService.calculateParticipationMetrics(tournamentId);
 
       res.status(201).json({
+        success: true,
+        data: feedback,
         message: 'Feedback submitted successfully',
-        feedback,
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       console.error('Error submitting tournament feedback:', error);
-      res.status(500).json({ error: 'Failed to submit feedback' });
+      res.status(500).json({
+        success: false,
+        error: { code: 'FEEDBACK_FAILED', message: 'Failed to submit feedback' },
+        timestamp: new Date().toISOString(),
+      });
     }
   }
 );

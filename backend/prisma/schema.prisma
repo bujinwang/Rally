@@ -355,8 +355,6 @@ model MvpPlayer {
   // Sport preferences
   preferredSports String[] // e.g. ["badminton", "tennis", "pickleball"]
 
-  TournamentFeedback    TournamentFeedback[]
-
   @@unique([sessionId, name]) // Prevent duplicate names in same session
   @@unique([sessionId, deviceId]) // Prevent same device joining same session twice
   // Performance indexes
@@ -963,6 +961,12 @@ model TournamentPlayer {
   player1Matches TournamentMatch[] @relation("Player1Matches")
   player2Matches TournamentMatch[] @relation("Player2Matches")
 
+  // Story 6.8 (D5): tournament-scoped CSAT feedback. `TournamentFeedback.playerId`
+  // is repointed here (was `MvpPlayer.id`) — the only correct tournament-scoped
+  // identity for a tournament-scoped feedback row (no `TournamentPlayer` →
+  // `MvpPlayer` bridge exists; see the note on `userId` above).
+  feedback TournamentFeedback[]
+
   @@unique([tournamentId, playerName])
   @@unique([tournamentId, deviceId])
   // Performance indexes
@@ -1532,7 +1536,9 @@ model Share {
   createdAt DateTime @default(now())
 
   // Relations
-  sharer MvpPlayer @relation(fields: [sharerId], references: [id], onDelete: Cascade)
+  sharer  MvpPlayer     @relation(fields: [sharerId], references: [id], onDelete: Cascade)
+  // Story 6.8 (D6): moderation reports against this share (additive).
+  reports ShareReport[]
 
   // Performance indexes
   @@index([sharerId])
@@ -1898,12 +1904,51 @@ model TournamentFeedback {
   comments     String?
   submittedAt  DateTime @default(now())
 
-  tournament Tournament @relation(fields: [tournamentId], references: [id])
-  player     MvpPlayer  @relation(fields: [playerId], references: [id])
+  tournament Tournament       @relation(fields: [tournamentId], references: [id])
+  // Story 6.8 (D5): repointed from `MvpPlayer` (a *session*-scoped model) to
+  // `TournamentPlayer` (the tournament-scoped identity). The field name and the
+  // column (`playerId`/`player_id`, `String`, NOT NULL) are unchanged; only the
+  // referenced table changes. Justified in `docs/stories/6.8.design.md` §14.
+  player     TournamentPlayer @relation(fields: [playerId], references: [id])
 
   @@index([tournamentId])
   @@index([playerId])
   @@map("tournament_feedback")
+}
+
+/// Story 6.8 (D4) — Net Promoter Score. Platform-level ("how likely are you to
+/// recommend Rally?"), NOT per-tournament. Additive new table.
+///
+/// `score` is the NPS 0–10 scale (promoters 9–10, passives 7–8, detractors 0–6).
+/// This is a **different instrument** from `TournamentFeedback.rating` (CSAT,
+/// 1–5) — never store a 0–10 value there, and never read one from here as CSAT.
+model NpsResponse {
+  id          String   @id @default(cuid())
+  score       Int // 0-10 (NPS) — NOT TournamentFeedback.rating (1-5 CSAT)
+  userId      String?
+  deviceId    String?
+  comment     String?
+  submittedAt DateTime @default(now())
+
+  @@index([submittedAt])
+  @@map("nps_responses")
+}
+
+/// Story 6.8 (D6) — moderation / reporting. Additive new table.
+/// Routes (`POST /sharing/:shareId/report`, `GET /sharing/reports`) are owned by
+/// task T05; this task adds the model only.
+model ShareReport {
+  id               String   @id @default(cuid())
+  shareId          String
+  reporterUserId   String?
+  reporterDeviceId String?
+  reason           String
+  createdAt        DateTime @default(now())
+
+  share Share @relation(fields: [shareId], references: [id], onDelete: Cascade)
+
+  @@index([shareId])
+  @@map("share_reports")
 }
 
 model SystemAnalytics {
