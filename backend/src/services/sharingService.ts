@@ -6,6 +6,42 @@ const prisma = new PrismaClient();
 /** Fixed size of the "recent public sessions" rail (bounded, non-paginated). */
 const RECENT_SESSIONS_RAIL_LIMIT = 10;
 
+/**
+ * Build the "the sharer's governing privacy key is not `private`" relation
+ * filter for one share type — mirroring the **write path** exactly.
+ *
+ * Read/write parity (Story 6.8 follow-up). The write path treats a missing key
+ * as allowed: `privacyMiddleware.ts:23` and `shareEntity` both do
+ * `settings[key] || 'public'`, and `getPrivacySettings` returns a full default
+ * object when the column is `NULL`. So an **absent** governing key (or a `NULL`
+ * `privacySettings`) means *public*. The naive single-key filter
+ * `{ path: [key], not: 'private' }` does NOT honour that: Prisma compiles it to
+ * a raw `<>` comparison, and SQL `NULL <> 'private'` is `NULL` (not `TRUE`), so
+ * rows whose sharer never set the key were silently dropped — shares that the
+ * write path had happily created.
+ *
+ * The second `OR` branch fixes it: `{ path: [key], equals: Prisma.DbNull }`
+ * compiles to `(privacySettings #> ARRAY[key])::jsonb IS NULL`, which is `TRUE`
+ * both when the key is absent and when the whole column is `NULL`. Together the
+ * two branches are `(<key> <> 'private') OR (<key> IS NULL)`.
+ *
+ * Verified against the live database (Prisma 6.14 / PostgreSQL):
+ *   absent key → visible,  key='public' → visible,
+ *   key='private' → hidden,  NULL column → visible.
+ * Explicit `'private'` stays hidden — the P0 guard is preserved.
+ *
+ * @param key - `session_share` | `stats_share` | `achievements_share`.
+ * @returns A `MvpPlayerWhereInput` to use as the `sharer` relation filter.
+ */
+function privacyVisibilityFor(key: string): Prisma.MvpPlayerWhereInput {
+  return {
+    OR: [
+      { privacySettings: { path: [key], not: 'private' } },
+      { privacySettings: { path: [key], equals: Prisma.DbNull } },
+    ],
+  };
+}
+
 export interface ShareData {
   type: 'session' | 'match' | 'achievement';
   entityId: string;
@@ -119,8 +155,11 @@ export class SharingService {
    *     `match`/`achievement` shares whose sharer had set the matching key to
    *     `private`. Prisma JSON `path` filters cannot be parameterised by a
    *     column, so the fix is one `findMany` with an `OR` of three
-   *     `{ type, sharer: { privacySettings: { path: [key], not: 'private' } } }`
-   *     branches (no raw SQL — see design D2).
+   *     `{ type, sharer }` branches (no raw SQL — see design D2).
+   *     **Read/write parity:** an *absent* governing key (or a `NULL`
+   *     `privacySettings`) is treated as *public* — visible — matching the write
+   *     path's `settings[key] || 'public'` default. Explicit `'private'` stays
+   *     hidden. See `privacyVisibilityFor`.
    *  2. **Real `total`.** `prisma.share.count` over the *same* privacy filter
    *     (never the page length), so it is the true collection size and is stable
    *     across pages. The cursor window is pagination, not filtering, and is
@@ -146,20 +185,13 @@ export class SharingService {
   ): Promise<CommunityFeedResult> {
     // ── D2: per-type privacy filter (the P0 fix) ─────────────────────────────
     // Each branch pairs a share `type` with the privacy key that governs it.
+    // `privacyVisibilityFor` also makes an ABSENT key visible, matching the write
+    // path (read/write parity — see the helper's docstring).
     const privacyWhere: Prisma.ShareWhereInput = {
       OR: [
-        {
-          type: 'session',
-          sharer: { privacySettings: { path: ['session_share'], not: 'private' } },
-        },
-        {
-          type: 'match',
-          sharer: { privacySettings: { path: ['stats_share'], not: 'private' } },
-        },
-        {
-          type: 'achievement',
-          sharer: { privacySettings: { path: ['achievements_share'], not: 'private' } },
-        },
+        { type: 'session', sharer: privacyVisibilityFor('session_share') },
+        { type: 'match', sharer: privacyVisibilityFor('stats_share') },
+        { type: 'achievement', sharer: privacyVisibilityFor('achievements_share') },
       ],
     };
 
