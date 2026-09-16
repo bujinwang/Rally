@@ -56,8 +56,17 @@ const TournamentAnalyticsScreen: React.FC = () => {
     try {
       setLoading(true);
       const response = await tournamentApi.getTournamentStats(tournamentId);
-      // response is TournamentStats; this screen expects a richer AnalyticsData payload.
-      setAnalytics((response as any).data);
+      // Story 6.10: `apiService` now unwraps the backend envelope, so `response`
+      // *is* the stats payload. Previously this read `(response as any).data`
+      // because `response` was the envelope — that unwrap is no longer correct.
+      //
+      // NOTE (pre-existing, NOT fixed here): the payload the backend returns for
+      // `/tournaments/:id/stats` is `{ totalPlayers, maxPlayers, totalMatches,
+      // completedMatches, completionRate, status }`, which does not match this
+      // screen's `AnalyticsData` shape. Only `completionRate` and `totalMatches`
+      // ever populate. This edit preserves the existing behaviour exactly; it does
+      // not make the screen correct. Tracked as a separate defect.
+      setAnalytics(response as any);
       setError(null);
     } catch (err) {
       setError('Failed to load analytics');
