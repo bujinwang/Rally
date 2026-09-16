@@ -1,7 +1,7 @@
 import { Router, Request } from 'express';
 import { sharingService } from '../services/sharingService';
 import { validate } from '../utils/validation';
-import { checkPrivacyMiddleware, validateShareOwnership, generatePreviewMiddleware } from '../utils/privacyMiddleware';
+import { validateShareOwnership, generatePreviewMiddleware } from '../utils/privacyMiddleware';
 import Joi from 'joi';
 
 const router = Router();
