@@ -8,10 +8,19 @@
  * privacy predicate or a wrong `total` produces a failing assertion rather than
  * a passing mock.
  *
- * The load-bearing test is:
- *   `getCommunityFeed › per-type privacy (P0) › excludes a 'match' share whose
- *    sharer set stats_share='private' (and session_share='public')`
- * — that is the single proof that the P0 privacy leak is fixed.
+ * Privacy rule under test (three-valued enum, viewer-agnostic feed):
+ *   a share is surfaced iff its governing key's EFFECTIVE value is `'public'`,
+ *   where the effective value is the stored value or the key's own default when
+ *   the key is absent / the column is `NULL`:
+ *     session_share      → 'public'  ⇒ absent/NULL resolves to public  ⇒ visible
+ *     stats_share        → 'friends' ⇒ absent/NULL resolves to friends ⇒ HIDDEN
+ *     achievements_share → 'public'  ⇒ absent/NULL resolves to public  ⇒ visible
+ *   `'friends'` is HIDDEN because the feed has no viewer scoping (serving it to
+ *   everyone would be a leak).
+ *
+ * The load-bearing P0 test is:
+ *   `per-type privacy (P0) › excludes a 'match' share whose sharer set
+ *    stats_share='private' (and session_share='public')`
  */
 
 type JsonRecord = Record<string, any>;
@@ -50,37 +59,59 @@ function makeShare(
 }
 
 /**
- * 5 visible shares (newest → oldest) + 3 shares that MUST be hidden.
+ * 5 visible shares (newest → oldest) + 6 shares that MUST be hidden.
  *
- * Note the hidden rows deliberately carry a *public* value for the privacy key
- * the old single-key filter consulted (`session_share`) — that is precisely the
- * leak: the old query would have returned them.
+ * The hidden `h-*` rows deliberately carry a *public* value for the key the old
+ * single-key filter consulted (`session_share`) — that is precisely the leak.
+ * They also cover `'friends'`, which the feed must hide (no viewer scoping).
  */
 const DATASET: FixtureShare[] = [
   // ── must be HIDDEN ──
-  makeShare('h-session', 'session', '2026-01-10T00:00:00Z', {
+  makeShare('h-session-private', 'session', '2026-01-12T00:00:00Z', {
     session_share: 'private',
   }),
-  makeShare('h-match', 'match', '2026-01-09T00:00:00Z', {
+  makeShare('h-session-friends', 'session', '2026-01-11T00:00:00Z', {
+    session_share: 'friends',
+  }),
+  makeShare('h-match-private', 'match', '2026-01-10T00:00:00Z', {
     session_share: 'public', // ← old filter key; would have leaked this row
     stats_share: 'private',
   }),
-  makeShare('h-achievement', 'achievement', '2026-01-08T00:00:00Z', {
+  makeShare('h-match-friends', 'match', '2026-01-09T00:00:00Z', {
+    stats_share: 'friends',
+  }),
+  makeShare('h-achievement-private', 'achievement', '2026-01-08T00:00:00Z', {
     session_share: 'public',
     stats_share: 'public',
     achievements_share: 'private',
+  }),
+  makeShare('h-achievement-friends', 'achievement', '2026-01-07T00:00:00Z', {
+    achievements_share: 'friends',
   }),
 
   // ── must be VISIBLE ──
   makeShare('v-session-1', 'session', '2026-01-06T00:00:00Z', { session_share: 'public' }),
   makeShare('v-match-1', 'match', '2026-01-05T00:00:00Z', { stats_share: 'public' }),
   makeShare('v-achievement-1', 'achievement', '2026-01-04T00:00:00Z', { achievements_share: 'public' }),
-  makeShare('v-session-2', 'session', '2026-01-03T00:00:00Z', { session_share: 'friends' }),
-  makeShare('v-match-2', 'match', '2026-01-02T00:00:00Z', { stats_share: 'friends' }),
+  makeShare('v-session-2', 'session', '2026-01-03T00:00:00Z', {}), // absent ⇒ default public
+  makeShare('v-achievement-2', 'achievement', '2026-01-02T00:00:00Z', { achievements_share: 'public' }),
 ];
 
-const VISIBLE_IDS = DATASET.filter((s) => s.id.startsWith('v-')).map((s) => s.id);
-const HIDDEN_IDS = DATASET.filter((s) => s.id.startsWith('h-')).map((s) => s.id);
+const VISIBLE_IDS = [
+  'v-session-1',
+  'v-match-1',
+  'v-achievement-1',
+  'v-session-2',
+  'v-achievement-2',
+];
+const HIDDEN_IDS = [
+  'h-session-private',
+  'h-session-friends',
+  'h-match-private',
+  'h-match-friends',
+  'h-achievement-private',
+  'h-achievement-friends',
+];
 const TOTAL_VISIBLE = VISIBLE_IDS.length; // 5
 
 // ── A tiny evaluator for the Prisma `where` shapes the service emits ──────────
@@ -110,11 +141,11 @@ function matchScalar(value: any, condition: any): boolean {
 /**
  * Evaluate a `sharer` relation filter the way PostgreSQL would.
  *
- * The crucial detail: Prisma compiles `{ path:[key], not: value }` to
- * `<key> <> value` (true only when the key is PRESENT and differs), and
- * `{ path:[key], equals: Prisma.DbNull }` to `<key> IS NULL` (true when the key
- * — or the whole object — is absent). Modelling both faithfully is what lets a
- * wrong predicate fail these tests.
+ * Faithfully models the two JSON-path shapes the service emits:
+ *   - `{ path:[key], equals: value }` → `<key> = value` (present AND equal)
+ *   - `{ path:[key], equals: Prisma.DbNull }` → `<key> IS NULL` (key OR column absent)
+ * and the `not` form (kept for completeness) → `<key> <> value` (present AND unequal).
+ * Modelling these exactly is what lets a wrong predicate fail these tests.
  */
 function matchesSharer(sharer: FixtureShare['sharer'], condition: JsonRecord): boolean {
   if (Array.isArray(condition.OR)) {
@@ -135,7 +166,7 @@ function matchesSharer(sharer: FixtureShare['sharer'], condition: JsonRecord): b
     if ('not' in ps) return present && actual !== ps.not; // `<key> <> value`
     if ('equals' in ps) {
       if (isPrismaNull(ps.equals)) return !present; // `<key> IS NULL`
-      return present && actual === ps.equals;
+      return present && actual === ps.equals; // `<key> = value`
     }
   }
   return true;
@@ -238,23 +269,22 @@ describe('SharingService.getCommunityFeed (Story 6.8 T01)', () => {
 
   describe('per-type privacy (P0)', () => {
     it("excludes a 'match' share whose sharer set stats_share='private' (and session_share='public')", async () => {
-      // This is THE proof the P0 leak is fixed. `h-match` has
+      // This is THE proof the P0 leak is fixed. `h-match-private` has
       // session_share='public' — the *only* key the old filter consulted — so the
       // old implementation returned it. The per-type filter must drop it.
       const feed = await feedPage(50);
       const ids = idsOf(feed);
 
-      expect(ids).not.toContain('h-match');
-      // ...while legitimate match shares remain visible.
+      expect(ids).not.toContain('h-match-private');
+      // ...while a legitimate (public) match share remains visible.
       expect(ids).toContain('v-match-1');
-      expect(ids).toContain('v-match-2');
     });
 
     it("excludes an 'achievement' share whose sharer set achievements_share='private'", async () => {
       const feed = await feedPage(50);
       const ids = idsOf(feed);
 
-      expect(ids).not.toContain('h-achievement');
+      expect(ids).not.toContain('h-achievement-private');
       expect(ids).toContain('v-achievement-1');
     });
 
@@ -262,9 +292,17 @@ describe('SharingService.getCommunityFeed (Story 6.8 T01)', () => {
       const feed = await feedPage(50);
       const ids = idsOf(feed);
 
-      expect(ids).not.toContain('h-session');
+      expect(ids).not.toContain('h-session-private');
       expect(ids).toContain('v-session-1');
-      expect(ids).toContain('v-session-2');
+    });
+
+    it("hides 'friends' shares — the feed is viewer-agnostic and has no friend scoping", async () => {
+      const feed = await feedPage(50);
+      const ids = idsOf(feed);
+
+      expect(ids).not.toContain('h-session-friends');
+      expect(ids).not.toContain('h-match-friends');
+      expect(ids).not.toContain('h-achievement-friends');
     });
 
     it('returns exactly the visible set and no hidden rows', async () => {
@@ -277,110 +315,118 @@ describe('SharingService.getCommunityFeed (Story 6.8 T01)', () => {
       }
     });
 
-    it('builds one branch per type; each is visible when its key is not "private" OR absent', async () => {
+    it('builds per-key predicates using each key\'s OWN default', async () => {
       await feedPage(20);
       const where = mockShareFindMany.mock.calls[0][0].where;
 
       expect(where.OR).toHaveLength(3);
-
       const branchFor = (type: string) => where.OR.find((b: JsonRecord) => b.type === type);
 
-      for (const [type, key] of [
-        ['session', 'session_share'],
-        ['match', 'stats_share'],
-        ['achievement', 'achievements_share'],
-      ] as const) {
-        expect(branchFor(type).sharer).toEqual({
-          OR: [
-            { privacySettings: { path: [key], not: 'private' } },
-            // `<key> IS NULL` — restores rows whose sharer never set the key.
-            { privacySettings: { path: [key], equals: mockDbNull } },
-          ],
-        });
-      }
+      // session_share default 'public' → 'public' OR absent
+      expect(branchFor('session').sharer).toEqual({
+        OR: [
+          { privacySettings: { path: ['session_share'], equals: 'public' } },
+          { privacySettings: { path: ['session_share'], equals: mockDbNull } },
+        ],
+      });
+      // stats_share default 'friends' → 'public' ONLY (no IS NULL branch)
+      expect(branchFor('match').sharer).toEqual({
+        OR: [{ privacySettings: { path: ['stats_share'], equals: 'public' } }],
+      });
+      // achievements_share default 'public' → 'public' OR absent
+      expect(branchFor('achievement').sharer).toEqual({
+        OR: [
+          { privacySettings: { path: ['achievements_share'], equals: 'public' } },
+          { privacySettings: { path: ['achievements_share'], equals: mockDbNull } },
+        ],
+      });
     });
   });
 
-  // ── Read/write parity: an ABSENT governing key means public (visible) ───────
-  // The write path (`privacyMiddleware.ts:23`, `shareEntity`) defaults a missing
-  // key to `public`, so the feed must surface those shares instead of silently
-  // dropping them.
+  // ── Per-key-default matrix (the corrected rule) ────────────────────────────
 
-  describe('absent governing key / null settings (read/write parity)', () => {
-    const PARITY_DATASET: FixtureShare[] = [
-      // No `stats_share` key at all — the write path allowed this share.
-      makeShare('p-match-absent', 'match', '2026-02-10T00:00:00Z', {
-        session_share: 'public',
-      }),
-      // No `achievements_share` key at all.
-      makeShare('p-achievement-absent', 'achievement', '2026-02-09T00:00:00Z', {
-        session_share: 'public',
-      }),
-      // Completely empty settings object.
-      makeShare('p-session-absent', 'session', '2026-02-08T00:00:00Z', {}),
-      // NULL privacySettings column.
-      makeShare('p-match-null', 'match', '2026-02-07T00:00:00Z', null),
-      // Explicit `private` — MUST stay hidden (the P0 guard).
-      makeShare('p-match-private', 'match', '2026-02-06T00:00:00Z', {
-        stats_share: 'private',
-      }),
-      makeShare('p-achievement-private', 'achievement', '2026-02-05T00:00:00Z', {
-        achievements_share: 'private',
-      }),
+  describe('privacy matrix — effective value must be public', () => {
+    const MATRIX_DATASET: FixtureShare[] = [
+      // match — stats_share defaults to 'friends'
+      makeShare('mx-absent-match', 'match', '2026-03-14T00:00:00Z', { session_share: 'public' }),
+      makeShare('mx-pub-match', 'match', '2026-03-13T00:00:00Z', { stats_share: 'public' }),
+      makeShare('mx-friends-match', 'match', '2026-03-12T00:00:00Z', { stats_share: 'friends' }),
+      makeShare('mx-priv-match', 'match', '2026-03-11T00:00:00Z', { stats_share: 'private' }),
+      makeShare('mx-null-match', 'match', '2026-03-10T00:00:00Z', null),
+      // session — session_share defaults to 'public'
+      makeShare('mx-pub-session', 'session', '2026-03-09T00:00:00Z', { session_share: 'public' }),
+      makeShare('mx-empty-session', 'session', '2026-03-08T00:00:00Z', {}),
+      makeShare('mx-null-session', 'session', '2026-03-07T00:00:00Z', null),
+      makeShare('mx-friends-session', 'session', '2026-03-06T00:00:00Z', { session_share: 'friends' }),
+      makeShare('mx-priv-session', 'session', '2026-03-05T00:00:00Z', { session_share: 'private' }),
+      // achievement — achievements_share defaults to 'public'
+      makeShare('mx-empty-ach', 'achievement', '2026-03-04T00:00:00Z', {}),
+      makeShare('mx-null-ach', 'achievement', '2026-03-03T00:00:00Z', null),
+      makeShare('mx-friends-ach', 'achievement', '2026-03-02T00:00:00Z', { achievements_share: 'friends' }),
+      makeShare('mx-priv-ach', 'achievement', '2026-03-01T00:00:00Z', { achievements_share: 'private' }),
     ];
 
     beforeEach(() => {
-      activeDataset = PARITY_DATASET;
+      activeDataset = MATRIX_DATASET;
     });
 
-    it("a 'match' share whose sharer has {session_share:'public'} (no stats_share key) is VISIBLE", async () => {
-      const ids = idsOf(await feedPage(50));
+    const visibleSet = async () => new Set(idsOf(await feedPage(50)));
 
-      expect(ids).toContain('p-match-absent');
+    it('#1 a match with {session_share:"public"} (no stats_share) is HIDDEN', async () => {
+      expect(await visibleSet()).not.toContain('mx-absent-match');
+    });
+    it('#2 a match with {stats_share:"public"} is VISIBLE', async () => {
+      expect(await visibleSet()).toContain('mx-pub-match');
+    });
+    it('#3 a match with {stats_share:"friends"} is HIDDEN', async () => {
+      expect(await visibleSet()).not.toContain('mx-friends-match');
+    });
+    it('#4 a match with {stats_share:"private"} is HIDDEN', async () => {
+      expect(await visibleSet()).not.toContain('mx-priv-match');
+    });
+    it('#5 a match with NULL privacySettings is HIDDEN (stats_share defaults to friends)', async () => {
+      expect(await visibleSet()).not.toContain('mx-null-match');
+    });
+    it('#6 a session with {session_share:"public"} is VISIBLE', async () => {
+      expect(await visibleSet()).toContain('mx-pub-session');
+    });
+    it('#7 a session with empty settings is VISIBLE (default public)', async () => {
+      expect(await visibleSet()).toContain('mx-empty-session');
+    });
+    it('#8 a session with NULL privacySettings is VISIBLE (default public)', async () => {
+      expect(await visibleSet()).toContain('mx-null-session');
+    });
+    it('#9 a session with {session_share:"friends"} is HIDDEN', async () => {
+      expect(await visibleSet()).not.toContain('mx-friends-session');
+    });
+    it('#10 a session with {session_share:"private"} is HIDDEN', async () => {
+      expect(await visibleSet()).not.toContain('mx-priv-session');
+    });
+    it('#11 an achievement with empty/NULL settings is VISIBLE (default public)', async () => {
+      const visible = await visibleSet();
+      expect(visible).toContain('mx-empty-ach');
+      expect(visible).toContain('mx-null-ach');
+    });
+    it('#12 an achievement with friends/private is HIDDEN', async () => {
+      const visible = await visibleSet();
+      expect(visible).not.toContain('mx-friends-ach');
+      expect(visible).not.toContain('mx-priv-ach');
     });
 
-    it("an 'achievement' share whose sharer has no achievements_share key is VISIBLE", async () => {
-      const ids = idsOf(await feedPage(50));
-
-      expect(ids).toContain('p-achievement-absent');
-    });
-
-    it('a share whose sharer has empty settings is VISIBLE', async () => {
-      const ids = idsOf(await feedPage(50));
-
-      expect(ids).toContain('p-session-absent');
-    });
-
-    it('a share whose sharer has NULL privacySettings is VISIBLE (matches the write path)', async () => {
-      // Resolved direction: NULL privacySettings ⇒ public ⇒ VISIBLE, because
-      // `shareEntity` reads `privacySettings?.[key] || 'public'` and
-      // `getPrivacySettings` returns a full default object when the column is
-      // NULL. The read path agrees via the `<key> IS NULL` branch.
-      const ids = idsOf(await feedPage(50));
-
-      expect(ids).toContain('p-match-null');
-    });
-
-    it('a match share with explicit stats_share="private" is STILL HIDDEN (P0 guard)', async () => {
-      const ids = idsOf(await feedPage(50));
-
-      expect(ids).not.toContain('p-match-private');
-    });
-
-    it('an achievement share with explicit achievements_share="private" is STILL HIDDEN', async () => {
-      const ids = idsOf(await feedPage(50));
-
-      expect(ids).not.toContain('p-achievement-private');
-    });
-
-    it('returns exactly the parity-visible set (total counts the same way)', async () => {
+    it('returns exactly the corrected visible set, and total agrees', async () => {
       const feed = await feedPage(50);
-      const ids = idsOf(feed);
 
-      expect(new Set(ids)).toEqual(
-        new Set(['p-match-absent', 'p-achievement-absent', 'p-session-absent', 'p-match-null']),
+      expect(new Set(idsOf(feed))).toEqual(
+        new Set([
+          'mx-pub-match',
+          'mx-pub-session',
+          'mx-empty-session',
+          'mx-null-session',
+          'mx-empty-ach',
+          'mx-null-ach',
+        ]),
       );
-      expect(feed.total).toBe(4);
+      expect(feed.total).toBe(6);
     });
   });
 
