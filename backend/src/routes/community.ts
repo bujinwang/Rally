@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { CommunityService } from '../services/communityService';
-import { authenticateToken, requireRole } from '../middleware/auth';
+import { authenticateToken, requireRole, optionalAuth } from '../middleware/auth';
 import { resolveIdentity } from '../middleware/permissions';
 import { validate } from '../utils/validation';
 import Joi from 'joi';
@@ -145,7 +145,7 @@ router.get('/venues', validate(venueQuerySchema), async (req: Request, res: Resp
  * Submit a platform-level NPS response (0-10). Device or account identity.
  * Story 6.8 (D4) — this is NOT CSAT; see `TournamentFeedback` for the 1-5 scale.
  */
-router.post('/nps', validate(npsSchema), async (req: Request, res: Response) => {
+router.post('/nps', optionalAuth, validate(npsSchema), async (req: Request, res: Response) => {
   try {
     const { score, comment } = req.body as { score: number; comment?: string };
     const identity = resolveIdentity(req);
