@@ -25,7 +25,7 @@ interface FixtureShare {
   url: string;
   message: string | null;
   createdAt: Date;
-  sharer: { id: string; name: string; privacySettings: JsonRecord };
+  sharer: { id: string; name: string; privacySettings: JsonRecord | null };
 }
 
 // ── In-memory "database" ─────────────────────────────────────────────────────
@@ -34,7 +34,7 @@ function makeShare(
   id: string,
   type: FixtureShare['type'],
   createdAtIso: string,
-  privacySettings: JsonRecord,
+  privacySettings: JsonRecord | null,
 ): FixtureShare {
   return {
     id,
@@ -85,8 +85,13 @@ const TOTAL_VISIBLE = VISIBLE_IDS.length; // 5
 
 // ── A tiny evaluator for the Prisma `where` shapes the service emits ──────────
 
-function valueAtPath(obj: any, path: string[]): any {
-  return path.reduce((acc, key) => (acc == null ? acc : acc[key]), obj);
+/** Prisma's JSON-null sentinels, as exported by the mocked `@prisma/client`. */
+const mockDbNull = { __prismaNullKind: 'DbNull' };
+const mockJsonNull = { __prismaNullKind: 'JsonNull' };
+const mockAnyNull = { __prismaNullKind: 'AnyNull' };
+
+function isPrismaNull(value: any): boolean {
+  return !!value && typeof value === 'object' && typeof value.__prismaNullKind === 'string';
 }
 
 function matchScalar(value: any, condition: any): boolean {
@@ -102,6 +107,40 @@ function matchScalar(value: any, condition: any): boolean {
   return true;
 }
 
+/**
+ * Evaluate a `sharer` relation filter the way PostgreSQL would.
+ *
+ * The crucial detail: Prisma compiles `{ path:[key], not: value }` to
+ * `<key> <> value` (true only when the key is PRESENT and differs), and
+ * `{ path:[key], equals: Prisma.DbNull }` to `<key> IS NULL` (true when the key
+ * — or the whole object — is absent). Modelling both faithfully is what lets a
+ * wrong predicate fail these tests.
+ */
+function matchesSharer(sharer: FixtureShare['sharer'], condition: JsonRecord): boolean {
+  if (Array.isArray(condition.OR)) {
+    return (condition.OR as JsonRecord[]).some((sub) => matchesSharer(sharer, sub));
+  }
+  if (Array.isArray(condition.AND)) {
+    return (condition.AND as JsonRecord[]).every((sub) => matchesSharer(sharer, sub));
+  }
+
+  const ps = condition.privacySettings;
+  if (ps && Array.isArray(ps.path)) {
+    const settings = sharer.privacySettings;
+    const key = ps.path[0];
+    const present =
+      settings != null && Object.prototype.hasOwnProperty.call(settings, key);
+    const actual = present ? (settings as JsonRecord)[key] : undefined;
+
+    if ('not' in ps) return present && actual !== ps.not; // `<key> <> value`
+    if ('equals' in ps) {
+      if (isPrismaNull(ps.equals)) return !present; // `<key> IS NULL`
+      return present && actual === ps.equals;
+    }
+  }
+  return true;
+}
+
 function matchesWhere(row: FixtureShare, where: JsonRecord): boolean {
   return Object.entries(where).every(([key, condition]) => {
     if (key === 'OR') {
@@ -113,16 +152,7 @@ function matchesWhere(row: FixtureShare, where: JsonRecord): boolean {
     if (key === 'type') return row.type === condition;
     if (key === 'id') return matchScalar(row.id, condition);
     if (key === 'createdAt') return matchScalar(row.createdAt, condition);
-    if (key === 'sharer') {
-      const ps = (condition as any).privacySettings;
-      if (ps && Array.isArray(ps.path)) {
-        // `path` is relative to the JSON column (`privacySettings`), not `sharer`.
-        const actual = valueAtPath(row.sharer.privacySettings, ps.path);
-        if ('not' in ps) return actual !== ps.not;
-        if ('equals' in ps) return actual === ps.equals;
-      }
-      return true;
-    }
+    if (key === 'sharer') return matchesSharer(row.sharer, condition as JsonRecord);
     return true;
   });
 }
@@ -162,6 +192,9 @@ jest.mock('@prisma/client', () => ({
     share: { findMany: mockShareFindMany, count: mockShareCount },
     mvpSession: { findMany: mockSessionFindMany },
   })),
+  // The service builds its JSON-null predicate with `Prisma.DbNull`; the mock
+  // must expose the sentinels or `Prisma.DbNull` would be `undefined`.
+  Prisma: { DbNull: mockDbNull, JsonNull: mockJsonNull, AnyNull: mockAnyNull },
 }));
 
 import { sharingService } from '../sharingService';
@@ -172,14 +205,18 @@ const feedPage = (limit: number, cursor?: string, offset = 0) =>
 
 const idsOf = (page: { shares: Array<{ id: string }> }) => page.shares.map((s) => s.id);
 
+/** Dataset the mock "DB" is evaluated against; tests may swap it. */
+let activeDataset: FixtureShare[] = DATASET;
+
 describe('SharingService.getCommunityFeed (Story 6.8 T01)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    activeDataset = DATASET;
 
     // The mock "DB": filter by the service's own `where`, order by the service's
     // own `orderBy`, then apply the service's own `take`/`skip`.
     mockShareFindMany.mockImplementation(async (args: JsonRecord) =>
-      orderAndWindow(applyWhere(DATASET, args.where), args).map((s) => ({
+      orderAndWindow(applyWhere(activeDataset, args.where), args).map((s) => ({
         id: s.id,
         type: s.type,
         entityId: s.entityId,
@@ -192,7 +229,7 @@ describe('SharingService.getCommunityFeed (Story 6.8 T01)', () => {
       })),
     );
     mockShareCount.mockImplementation(
-      async (args: JsonRecord) => applyWhere(DATASET, args.where).length,
+      async (args: JsonRecord) => applyWhere(activeDataset, args.where).length,
     );
     mockSessionFindMany.mockResolvedValue([]);
   });
@@ -240,27 +277,110 @@ describe('SharingService.getCommunityFeed (Story 6.8 T01)', () => {
       }
     });
 
-    it('builds one OR branch per share type, each paired with its own privacy key', async () => {
+    it('builds one branch per type; each is visible when its key is not "private" OR absent', async () => {
       await feedPage(20);
       const where = mockShareFindMany.mock.calls[0][0].where;
 
       expect(where.OR).toHaveLength(3);
-      expect(where.OR).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            type: 'session',
-            sharer: { privacySettings: { path: ['session_share'], not: 'private' } },
-          }),
-          expect.objectContaining({
-            type: 'match',
-            sharer: { privacySettings: { path: ['stats_share'], not: 'private' } },
-          }),
-          expect.objectContaining({
-            type: 'achievement',
-            sharer: { privacySettings: { path: ['achievements_share'], not: 'private' } },
-          }),
-        ]),
+
+      const branchFor = (type: string) => where.OR.find((b: JsonRecord) => b.type === type);
+
+      for (const [type, key] of [
+        ['session', 'session_share'],
+        ['match', 'stats_share'],
+        ['achievement', 'achievements_share'],
+      ] as const) {
+        expect(branchFor(type).sharer).toEqual({
+          OR: [
+            { privacySettings: { path: [key], not: 'private' } },
+            // `<key> IS NULL` — restores rows whose sharer never set the key.
+            { privacySettings: { path: [key], equals: mockDbNull } },
+          ],
+        });
+      }
+    });
+  });
+
+  // ── Read/write parity: an ABSENT governing key means public (visible) ───────
+  // The write path (`privacyMiddleware.ts:23`, `shareEntity`) defaults a missing
+  // key to `public`, so the feed must surface those shares instead of silently
+  // dropping them.
+
+  describe('absent governing key / null settings (read/write parity)', () => {
+    const PARITY_DATASET: FixtureShare[] = [
+      // No `stats_share` key at all — the write path allowed this share.
+      makeShare('p-match-absent', 'match', '2026-02-10T00:00:00Z', {
+        session_share: 'public',
+      }),
+      // No `achievements_share` key at all.
+      makeShare('p-achievement-absent', 'achievement', '2026-02-09T00:00:00Z', {
+        session_share: 'public',
+      }),
+      // Completely empty settings object.
+      makeShare('p-session-absent', 'session', '2026-02-08T00:00:00Z', {}),
+      // NULL privacySettings column.
+      makeShare('p-match-null', 'match', '2026-02-07T00:00:00Z', null),
+      // Explicit `private` — MUST stay hidden (the P0 guard).
+      makeShare('p-match-private', 'match', '2026-02-06T00:00:00Z', {
+        stats_share: 'private',
+      }),
+      makeShare('p-achievement-private', 'achievement', '2026-02-05T00:00:00Z', {
+        achievements_share: 'private',
+      }),
+    ];
+
+    beforeEach(() => {
+      activeDataset = PARITY_DATASET;
+    });
+
+    it("a 'match' share whose sharer has {session_share:'public'} (no stats_share key) is VISIBLE", async () => {
+      const ids = idsOf(await feedPage(50));
+
+      expect(ids).toContain('p-match-absent');
+    });
+
+    it("an 'achievement' share whose sharer has no achievements_share key is VISIBLE", async () => {
+      const ids = idsOf(await feedPage(50));
+
+      expect(ids).toContain('p-achievement-absent');
+    });
+
+    it('a share whose sharer has empty settings is VISIBLE', async () => {
+      const ids = idsOf(await feedPage(50));
+
+      expect(ids).toContain('p-session-absent');
+    });
+
+    it('a share whose sharer has NULL privacySettings is VISIBLE (matches the write path)', async () => {
+      // Resolved direction: NULL privacySettings ⇒ public ⇒ VISIBLE, because
+      // `shareEntity` reads `privacySettings?.[key] || 'public'` and
+      // `getPrivacySettings` returns a full default object when the column is
+      // NULL. The read path agrees via the `<key> IS NULL` branch.
+      const ids = idsOf(await feedPage(50));
+
+      expect(ids).toContain('p-match-null');
+    });
+
+    it('a match share with explicit stats_share="private" is STILL HIDDEN (P0 guard)', async () => {
+      const ids = idsOf(await feedPage(50));
+
+      expect(ids).not.toContain('p-match-private');
+    });
+
+    it('an achievement share with explicit achievements_share="private" is STILL HIDDEN', async () => {
+      const ids = idsOf(await feedPage(50));
+
+      expect(ids).not.toContain('p-achievement-private');
+    });
+
+    it('returns exactly the parity-visible set (total counts the same way)', async () => {
+      const feed = await feedPage(50);
+      const ids = idsOf(feed);
+
+      expect(new Set(ids)).toEqual(
+        new Set(['p-match-absent', 'p-achievement-absent', 'p-session-absent', 'p-match-null']),
       );
+      expect(feed.total).toBe(4);
     });
   });
 
