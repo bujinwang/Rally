@@ -16,6 +16,7 @@ import pairingRoutes from './pairings';
 import discoveryRoutes from './discovery';
 import sessionConfigRoutes from './sessionConfig';
 import tournamentRoutes from './tournaments';
+import tournamentAnalyticsRoutes from './tournament-analytics';
 import matchesRoutes from './matches';
 import statisticsRoutes from './statistics';
 import rankingsRoutes from './rankings';
@@ -80,6 +81,10 @@ router.use('/sessions/discovery', discoveryRoutes);
 console.log('  - /sessions/config');
 router.use('/sessions/config', sessionConfigRoutes);
 console.log('  - /tournaments');
+// Story 6.11: mounted before `tournamentRoutes`. This router's `/:id/analytics`
+// has no counterpart in `tournaments.ts` (verified), so ordering is not load
+// bearing — but the more specific router goes first so the intent is explicit.
+router.use('/tournaments', tournamentAnalyticsRoutes);
 router.use('/tournaments', tournamentRoutes);
 console.log('  - /session-history');
 router.use('/session-history', sessionHistoryRoutes);

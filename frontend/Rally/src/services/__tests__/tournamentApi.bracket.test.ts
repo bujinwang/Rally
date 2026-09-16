@@ -45,7 +45,7 @@ jest.mock('../apiService', () => ({
 
 import { authFetch } from '../authFetch';
 import tournamentApi, { TournamentApiError } from '../tournamentApi';
-import type { TournamentBracket } from '../tournamentApi';
+import type { TournamentBracket, TournamentAnalytics } from '../tournamentApi';
 
 const authFetchMock = authFetch as unknown as jest.Mock;
 
@@ -238,5 +238,70 @@ describe('tournamentApi — bracket responses and errors', () => {
     authFetchMock.mockResolvedValue(jsonResponse(200, { success: true, data: { standings } }));
 
     await expect(tournamentApi.getStandings('t1')).resolves.toEqual(standings);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story 6.11 — tournament analytics
+//
+// The screen that consumes this was orphaned and fed by the wrong endpoint for
+// its whole life, so these pin the two things that made it wrong: the URL it
+// calls, and the level it unwraps to.
+// ---------------------------------------------------------------------------
+
+describe('tournamentApi — tournament analytics (Story 6.11)', () => {
+  const sampleAnalytics: TournamentAnalytics = {
+    totalRegistered: 8,
+    participationRate: 0.5,
+    completionRate: 0.43,
+    noShowRate: 0,
+    matchesCompleted: 3,
+    totalMatches: 7,
+    completedMatches: 3,
+    bracketEfficiency: 0.43,
+    averageUpsets: 0.33,
+    rankingChanges: [
+      { playerId: 'p1', finalRank: 1, wins: 3, totalMatches: 3, winRate: 1, pointsGained: 30 },
+    ],
+    timestamp: '2026-09-16T00:00:00.000Z',
+  };
+
+  it('calls /tournaments/:id/analytics (not /stats) and attaches x-device-id', async () => {
+    authFetchMock.mockResolvedValue(jsonResponse(200, { success: true, data: sampleAnalytics }));
+
+    await tournamentApi.getTournamentAnalytics('t1');
+
+    expect(authFetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = authFetchMock.mock.calls[0];
+    expect(String(url)).toContain('/tournaments/t1/analytics');
+    expect(String(url)).not.toContain('/stats');
+    // Device-first: a logged-out organizer is identified by this header.
+    expect((init?.headers as Record<string, string>)['x-device-id']).toBe('device-xyz');
+  });
+
+  it('unwraps `data` from the envelope', async () => {
+    authFetchMock.mockResolvedValue(jsonResponse(200, { success: true, data: sampleAnalytics }));
+
+    const result = await tournamentApi.getTournamentAnalytics('t1');
+
+    expect(result).toEqual(sampleAnalytics);
+    // The defect: callers used to receive the envelope, so this was `true`.
+    expect((result as any).success).toBeUndefined();
+    expect((result as any).data).toBeUndefined();
+  });
+
+  it('surfaces TOURNAMENT_NOT_FOUND for a hidden or missing tournament', async () => {
+    authFetchMock.mockResolvedValue(
+      jsonResponse(404, {
+        success: false,
+        error: { code: 'TOURNAMENT_NOT_FOUND', message: 'Tournament not found or access denied' },
+      }),
+    );
+
+    await expect(tournamentApi.getTournamentAnalytics('t1')).rejects.toMatchObject({
+      name: 'TournamentApiError',
+      code: 'TOURNAMENT_NOT_FOUND',
+      status: 404,
+    });
   });
 });
