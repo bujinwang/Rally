@@ -24,6 +24,7 @@ import AchievementScreen from '../screens/AchievementScreen';
 import TournamentListScreen from '../screens/TournamentListScreen';
 import TournamentDetailScreen from '../screens/TournamentDetailScreen';
 import TournamentCreateScreen from '../screens/TournamentCreateScreen';
+import TournamentAnalyticsScreen from '../components/TournamentAnalyticsScreen';
 import PairingScreen from '../screens/pairing/PairingScreen';
 import MatchSchedulingScreen from '../screens/MatchSchedulingScreen';
 import CreateMatchScreen from '../screens/CreateMatchScreen';
@@ -58,6 +59,20 @@ const SessionsStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
 const TournamentsStack = createNativeStackNavigator();
 const MessagesStack = createNativeStackNavigator();
+
+/**
+ * Params for the Tournaments stack.
+ *
+ * Exported so the screens in this stack share one definition instead of each
+ * declaring a private copy (which is how `TournamentAnalytics` ended up
+ * unreachable — nothing referenced it from anywhere).
+ */
+export type TournamentsStackParamList = {
+  TournamentList: undefined;
+  TournamentDetail: { tournamentId: string; tournamentName?: string };
+  TournamentCreate: undefined;
+  TournamentAnalytics: { tournamentId: string; tournamentName: string };
+};
 
 // Stack navigator for Create Session tab
 function HomeStackNavigator() {
@@ -334,6 +349,11 @@ function TournamentsStackNavigator() {
         name="TournamentCreate"
         component={TournamentCreateScreen}
         options={{ title: 'Create Tournament' }}
+      />
+      <TournamentsStack.Screen
+        name="TournamentAnalytics"
+        component={TournamentAnalyticsScreen}
+        options={{ title: 'Tournament Analytics' }}
       />
     </TournamentsStack.Navigator>
   );

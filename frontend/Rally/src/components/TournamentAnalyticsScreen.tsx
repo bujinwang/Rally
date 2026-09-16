@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { tournamentApi } from '../services/tournamentApi'; // Assume API service
+import { tournamentApi, TournamentAnalytics } from '../services/tournamentApi';
 import { Card as RNECard, Icon } from 'react-native-elements';
 import { LineChart, BarChart } from 'react-native-chart-kit'; // Assume chart library installed
 import { Dimensions } from 'react-native';
@@ -21,23 +21,12 @@ const Card = RNECard as React.ComponentType<{
   containerStyle?: any;
 }>;
 
-interface AnalyticsData {
-  totalRegistered: number;
-  participationRate: number;
-  completionRate: number;
-  matchesCompleted: number;
-  totalMatches: number;
-  bracketEfficiency: number;
-  averageUpsets: number;
-  rankingChanges: Array<{
-    playerId: string;
-    finalRank: number;
-    wins: number;
-    totalMatches: number;
-    winRate: number;
-    pointsGained: number;
-  }>;
-}
+// Story 6.11: the shape is now the API's own type. It used to be declared here
+// and fed from `/tournaments/:id/stats`, whose payload overlaps it on two of
+// eight fields — so every field but `completionRate` and `totalMatches` rendered
+// `undefined`. The endpoint that produces this shape existed but was never
+// mounted; it is now mounted and this is the only caller.
+type AnalyticsData = TournamentAnalytics;
 
 const TournamentAnalyticsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -55,18 +44,8 @@ const TournamentAnalyticsScreen: React.FC = () => {
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
-      const response = await tournamentApi.getTournamentStats(tournamentId);
-      // Story 6.10: `apiService` now unwraps the backend envelope, so `response`
-      // *is* the stats payload. Previously this read `(response as any).data`
-      // because `response` was the envelope — that unwrap is no longer correct.
-      //
-      // NOTE (pre-existing, NOT fixed here): the payload the backend returns for
-      // `/tournaments/:id/stats` is `{ totalPlayers, maxPlayers, totalMatches,
-      // completedMatches, completionRate, status }`, which does not match this
-      // screen's `AnalyticsData` shape. Only `completionRate` and `totalMatches`
-      // ever populate. This edit preserves the existing behaviour exactly; it does
-      // not make the screen correct. Tracked as a separate defect.
-      setAnalytics(response as any);
+      const data = await tournamentApi.getTournamentAnalytics(tournamentId);
+      setAnalytics(data);
       setError(null);
     } catch (err) {
       setError('Failed to load analytics');

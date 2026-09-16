@@ -13,6 +13,8 @@ import {
   Switch,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { TournamentsStackParamList } from '../navigation/MainTabNavigator';
 import { Ionicons } from '@expo/vector-icons';
 import tournamentApi, {
   Tournament,
@@ -66,7 +68,8 @@ function describeError(error: unknown): string {
 }
 
 const TournamentDetailScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<TournamentsStackParamList, 'TournamentDetail'>>();
   const route = useRoute();
   const { tournamentId } = route.params as { tournamentId: string };
 
@@ -360,6 +363,21 @@ const TournamentDetailScreen: React.FC = () => {
         <Text style={styles.organizerText}>
           Organized by {tournament.organizerName}
         </Text>
+        {/* Story 6.11 — entry point for the analytics view. The screen existed but
+            was not registered in any navigator, so it was unreachable. */}
+        <TouchableOpacity
+          style={styles.analyticsButton}
+          onPress={() =>
+            navigation.navigate('TournamentAnalytics', {
+              tournamentId: tournament.id,
+              tournamentName: tournament.name,
+            })
+          }
+          accessibilityRole="button"
+        >
+          <Ionicons name="stats-chart-outline" size={16} color="#fff" />
+          <Text style={styles.analyticsButtonText}>View Analytics</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Tab switcher */}
@@ -806,6 +824,22 @@ const styles = StyleSheet.create({
   organizerText: {
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.9)',
+  },
+  analyticsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  analyticsButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
   },
   section: {
     backgroundColor: 'white',

@@ -12,12 +12,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import tournamentApi, { Tournament, TournamentFilters } from '../services/tournamentApi';
-
-type TournamentsStackParamList = {
-  TournamentList: undefined;
-  TournamentDetail: { tournamentId: string };
-  TournamentCreate: undefined;
-};
+import type { TournamentsStackParamList } from '../navigation/MainTabNavigator';
 
 type TournamentListNavigationProp = NativeStackNavigationProp<
   TournamentsStackParamList,

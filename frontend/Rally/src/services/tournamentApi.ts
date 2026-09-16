@@ -270,6 +270,47 @@ export interface CorrectionResult {
 }
 
 /**
+ * One entry of {@link TournamentAnalytics.rankingChanges}.
+ *
+ * `finalRank` is nullable because it is backed by `TournamentPlayer.finalRank`,
+ * which is unset until the tournament finishes. The UI renders it as text, so a
+ * null is displayed as blank rather than crashing.
+ */
+export interface TournamentRankingChange {
+  playerId: string;
+  finalRank: number | null;
+  wins: number;
+  totalMatches: number;
+  winRate: number;
+  pointsGained: number;
+}
+
+/**
+ * Computed analytics for a tournament — `GET /tournaments/:id/analytics`.
+ *
+ * Mirrors the merge performed by the backend route: the spread of
+ * `TournamentAnalyticsService.calculateParticipationMetrics` and
+ * `calculateBracketEfficiency`, plus `trackPlayerRankingChanges`.
+ *
+ * Story 6.11: this replaced an earlier screen-local type that expected the same
+ * shape but was fed by `/tournaments/:id/stats`, whose payload overlaps it on
+ * only two of eight fields.
+ */
+export interface TournamentAnalytics {
+  totalRegistered: number;
+  participationRate: number;
+  completionRate: number;
+  noShowRate: number;
+  matchesCompleted: number;
+  totalMatches: number;
+  completedMatches: number;
+  bracketEfficiency: number;
+  averageUpsets: number;
+  rankingChanges: TournamentRankingChange[];
+  timestamp: string;
+}
+
+/**
  * A bracket-domain failure surfaced from the backend's standard error envelope
  * (`{ success: false, error: { code, message } }`).
  *
@@ -607,6 +648,31 @@ class TournamentApi {
       return body?.data?.standings ?? [];
     } catch (error) {
       console.error('Error fetching standings:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch computed analytics for a tournament (Story 6.11).
+   *
+   * `GET /tournaments/:id/analytics`. A PUBLIC tournament is readable by anyone;
+   * a non-public one only by its organizer. It therefore goes through
+   * `bracketRequest` like the other bracket calls — that path attaches
+   * `x-device-id`, so a logged-out, device-based organizer is recognised by the
+   * backend's ownership check.
+   *
+   * Throws {@link TournamentApiError} carrying `TOURNAMENT_NOT_FOUND` when the
+   * tournament does not exist or is not visible to the caller.
+   */
+  async getTournamentAnalytics(tournamentId: string): Promise<TournamentAnalytics> {
+    try {
+      const body = await this.bracketRequest<{ data: TournamentAnalytics }>(
+        `/tournaments/${tournamentId}/analytics`,
+        { method: 'GET' },
+      );
+      return body.data;
+    } catch (error) {
+      console.error('Error fetching tournament analytics:', error);
       throw error;
     }
   }
