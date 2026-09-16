@@ -15,7 +15,8 @@ sequenceDiagram
     SVC->>R: request (authFetch, 1-envelope unwrap)
     R->>R: validate limit in [1,50], offset>=0, cursor opaque
     R->>S: getCommunityFeed(userId, limit, offset, cursor)
-    S->>DB: share.findMany({ where: OR(3 per-type privacy branches), orderBy(createdAt,id), take, skip|cursor })
+    S->>DB: share.findMany({ where: OR(3 per-type privacy branches, effective value = 'public' only), orderBy(createdAt,id), take, skip|cursor })
+    note over S,DB: session/achievement: ='public' OR NULL; match/stats_share: ='public' only (default friends)
     DB-->>S: shares (page)
     S->>DB: share.count({ where })   %% true total, fixes G3
     DB-->>S: total
