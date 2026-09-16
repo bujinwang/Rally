@@ -1,0 +1,112 @@
+%% Story 6.8 — Community and Social Engagement
+%% Flow 1: Feed load (keyset pagination + per-type privacy)   [T01, T04]
+
+sequenceDiagram
+    autonumber
+    participant UI as CommunityFeedScreen
+    participant API as socialApi
+    participant SVC as apiService
+    participant R as routes/sharing.ts
+    participant S as SharingService
+    participant DB as Prisma
+
+    UI->>API: getCommunityFeed(limit=20, offset=0, userId?, cursor?)
+    API->>SVC: GET /sharing/feed?limit&offset[&cursor]
+    SVC->>R: request (authFetch, 1-envelope unwrap)
+    R->>R: validate limit in [1,50], offset>=0, cursor opaque
+    R->>S: getCommunityFeed(userId, limit, offset, cursor)
+    S->>DB: share.findMany({ where: OR(3 per-type privacy branches), orderBy(createdAt,id), take, skip|cursor })
+    DB-->>S: shares (page)
+    S->>DB: share.count({ where })   %% true total, fixes G3
+    DB-->>S: total
+    S->>DB: mvpSession.findMany({ public, ACTIVE, take: bounded })
+    DB-->>S: recentSessions
+    S->>S: nextCursor = encode(last share) if full page else null
+    S-->>R: { shares, sessions, total, nextCursor }
+    R-->>SVC: { success, data, message }
+    SVC-->>API: { success:true, data:{shares,sessions,total,nextCursor} }
+    API-->>UI: render feed; keep nextCursor for infinite scroll
+
+%% Flow 2a: NPS submit + summary   [T02]
+sequenceDiagram
+    autonumber
+    participant UI as NPSPrompt
+    participant R as routes/community.ts
+    participant ID as resolveIdentity
+    participant CS as CommunityService
+    participant DB as Prisma
+
+    UI->>R: POST /community/nps { score (0-10), comment? }
+    R->>R: Joi: score int 0..10 (reject otherwise)
+    R->>ID: resolveIdentity(req)
+    ID-->>R: { source, userId?, deviceId? }
+    R->>CS: submitNps(identity, { score, comment })
+    CS->>DB: npsResponse.create({ score, userId, deviceId, comment })
+    DB-->>CS: row
+    CS-->>R: NpsResponse
+    R-->>UI: { success:true, data:{ id, score } }
+
+    note over R,DB: Admin: GET /community/nps/summary
+    participant AD as Admin
+    AD->>R: GET /community/nps/summary
+    R->>CS: getNpsSummary()
+    CS->>DB: groupBy(score buckets)
+    DB-->>CS: counts
+    CS->>CS: nps = (promoters - detractors)/responses * 100
+    CS-->>R: NpsSummary
+    R-->>AD: { success, data:{ responses, promoters, passives, detractors, nps } }
+
+%% Flow 2b: CSAT submit (repaired path)   [T02]
+sequenceDiagram
+    autonumber
+    participant UI as TournamentDetailScreen
+    participant R as routes/tournament-analytics.ts
+    participant ID as resolveIdentity
+    participant DB as Prisma
+
+    UI->>R: POST /tournaments/:id/feedback { rating (1-5), comments }
+    R->>R: Joi: rating int 1..5  %% was commented out (G5)
+    R->>ID: resolveIdentity(req)
+    ID-->>R: { source, userId?, deviceId? }
+    R->>DB: tournamentPlayer.findFirst({ tournamentId, deviceId|userId })
+    alt not a participant
+        R-->>UI: 403 { success:false, error }
+    else participant
+        DB-->>R: participant (resolve real MvpPlayer.id)  %% fixes FK (was User.id)
+        R->>DB: tournamentFeedback.create({ tournamentId, playerId:MvpPlayer.id, rating, comments })
+        DB-->>R: feedback
+        R->>R: TournamentAnalyticsService.calculateParticipationMetrics(id)
+        R-->>UI: { success:true, data: feedback }   %% was { message, feedback }
+    end
+
+%% Flow 3: Share -> optional feed:new -> report   [T05]
+sequenceDiagram
+    autonumber
+    participant UI as ShareButton
+    participant R as routes/sharing.ts
+    participant S as SharingService
+    participant DB as Prisma
+    participant FE as FeedEvents
+    participant IO as ioRegistry
+    participant WS as feed:global sockets
+
+    UI->>R: POST /sharing/share { type, entityId, platform, message, deviceId? }
+    R->>R: validateShareOwnership + checkPrivacyMiddleware (per-type key)
+    R->>S: shareEntity(sharerId, data)
+    S->>DB: share.create(...)
+    DB-->>S: share
+    S-->>R: { share, shareUrl, preview }
+    R-->>UI: 201 { success:true, data }
+
+    note over R,WS: Only when FEED_REALTIME_ENABLED=true (default false, D7)
+    R->>FE: emitFeedNew(share)  %% after persist, try/catch (6.4 FIX-7 discipline)
+    FE->>IO: emitToRoom('feed:global','feed:new', item)
+    IO-->>WS: feed:new
+
+    participant RU as ReportingUser
+    RU->>R: POST /sharing/:shareId/report { reason, deviceId? }
+    R->>S: reportShare(shareId, reporter, reason)
+    S->>DB: shareReport.create({ shareId, reporterUserId?, reporterDeviceId?, reason })
+    DB-->>S: report
+    S-->>R: ShareReport
+    R-->>RU: 201 { success:true, data }
