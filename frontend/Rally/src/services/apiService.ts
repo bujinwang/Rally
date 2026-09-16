@@ -97,12 +97,27 @@ export class ApiService {
         };
       }
 
-      const data = await response.json();
+      const body = await response.json();
+
+      // The backend wraps every payload in `{ success, data, message, timestamp }`
+      // (see `backend/src/routes/tournaments.ts`, `routes/mvpSessions.ts`), while
+      // `ApiResponse<T>.data` is declared as the *payload*. Unwrap exactly one
+      // level so the runtime shape matches the declared contract.
+      //
+      // Detection keys off a boolean `success` field rather than the presence of
+      // `data`, because a payload may legitimately carry a `data` key of its own.
+      // A raw array or a plain object (no boolean `success`) passes through
+      // untouched, so non-enveloped endpoints keep working.
+      const isEnvelope =
+        body !== null && typeof body === 'object' && typeof body.success === 'boolean';
+      const payload = isEnvelope ? body.data : body;
+
       return {
         success: true,
-        data,
-        message: data.message,
-        timestamp: data.timestamp || new Date().toISOString(),
+        data: payload,
+        // `message`/`timestamp` live on the envelope, so read them before unwrapping.
+        message: isEnvelope ? body.message : body?.message,
+        timestamp: (isEnvelope ? body.timestamp : body?.timestamp) || new Date().toISOString(),
       };
     } catch (error: any) {
       // If offline and operation should be queued
