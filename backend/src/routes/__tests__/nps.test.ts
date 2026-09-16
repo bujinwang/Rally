@@ -61,7 +61,14 @@ async function submitNps(score: number): Promise<request.Response> {
 
 afterAll(async () => {
   await prisma.npsResponse
-    .deleteMany({ where: { deviceId: { in: createdDeviceIds } } })
+    .deleteMany({
+      where: {
+        OR: [
+          { deviceId: { in: createdDeviceIds } },
+          { userId: { in: createdUserIds } },
+        ],
+      },
+    })
     .catch(() => undefined);
   for (const id of createdUserIds) {
     await prisma.user.delete({ where: { id } }).catch(() => undefined);
@@ -103,6 +110,67 @@ describe('POST /community/nps — NPS is a 0-10 scale', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC 6 — identity: account (JWT) and device both accepted
+// ---------------------------------------------------------------------------
+
+describe('POST /community/nps — identity', () => {
+  it('accepts an account (JWT) caller with NO deviceId and persists userId', async () => {
+    const user = await createUser('PLAYER');
+
+    const res = await request(app)
+      .post('/community/nps')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({ score: 9 });
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+
+    const row = await prisma.npsResponse.findUnique({ where: { id: res.body.data.id } });
+    expect(row).not.toBeNull();
+    expect(row!.userId).toBe(user.id);
+    expect(row!.deviceId).toBeNull();
+  });
+
+  it('rejects a present-but-invalid Bearer token (401, never a 500 or silent anonymous)', async () => {
+    const res = await request(app)
+      .post('/community/nps')
+      .set('Authorization', 'Bearer not-a-real-token')
+      .send({ score: 9 });
+
+    // `optionalAuth` never downgrades a present-but-invalid token to anonymous.
+    expect(res.status).toBe(401);
+    expect(res.body.success).toBe(false);
+  });
+
+  it('still accepts a device-only caller via the x-device-id header', async () => {
+    const deviceId = `nps-device-${uniqueSuffix()}`;
+    createdDeviceIds.push(deviceId);
+
+    const res = await request(app)
+      .post('/community/nps')
+      .set('x-device-id', deviceId)
+      .send({ score: 8 });
+
+    expect(res.status).toBe(201);
+    const row = await prisma.npsResponse.findUnique({ where: { id: res.body.data.id } });
+    expect(row!.deviceId).toBe(deviceId);
+    expect(row!.userId).toBeNull();
+  });
+
+  it('still accepts a device-only caller via a body deviceId', async () => {
+    const deviceId = `nps-device-${uniqueSuffix()}`;
+    createdDeviceIds.push(deviceId);
+
+    const res = await request(app).post('/community/nps').send({ score: 7, deviceId });
+
+    expect(res.status).toBe(201);
+    const row = await prisma.npsResponse.findUnique({ where: { id: res.body.data.id } });
+    expect(row!.deviceId).toBe(deviceId);
+    expect(row!.userId).toBeNull();
   });
 });
 
