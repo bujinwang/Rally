@@ -6,16 +6,27 @@ const prisma = new PrismaClient();
 /** Fixed size of the "recent public sessions" rail (bounded, non-paginated). */
 const RECENT_SESSIONS_RAIL_LIMIT = 10;
 
+/** The privacy keys governing the three share types. */
+type PrivacyKey = 'session_share' | 'stats_share' | 'achievements_share';
+
+/** The three-valued privacy enum accepted by the sharing routes (`routes/sharing.ts`). */
+type PrivacyValue = 'public' | 'friends' | 'private';
+
 /**
- * Per-key default from `getPrivacySettings` (`sharingService.ts` — the
- * `player?.privacySettings || { session_share:'public', stats_share:'friends',
- * achievements_share:'public' }` fallback). The privacy enum is three-valued
- * (`'public' | 'friends' | 'private'` — `routes/sharing.ts`), and the feed is
- * **viewer-agnostic** (`userId` is accepted but never used; there is no
- * friend-scoping), so a `'friends'` value would be served to everyone — the
- * same exposure as `'public'`. Only an EFFECTIVE value of `'public'` is served.
+ * Authoritative per-key privacy defaults — the SINGLE source of truth.
+ *
+ * Both the read path (`privacyVisibilityFor`) and the write path
+ * (`getPrivacySettings`) derive from this one object, so the two can never drift
+ * apart — which is exactly the class of bug that produced the original feed
+ * leak. Do not re-inline these literals anywhere.
+ *
+ * The feed is **viewer-agnostic** (`userId` is accepted but never used; there is
+ * no friend-scoping), so a `'friends'` value would be served to everyone — the
+ * same exposure as `'public'`. Only an EFFECTIVE value of `'public'` is served,
+ * so `stats_share` (default `'friends'`) hides an absent key, while the two
+ * `'public'`-defaulted keys surface it.
  */
-const PRIVACY_KEY_DEFAULT: Record<string, 'public' | 'friends'> = {
+const PRIVACY_KEY_DEFAULT: Record<PrivacyKey, PrivacyValue> = {
   session_share: 'public',
   stats_share: 'friends',
   achievements_share: 'public',
@@ -49,7 +60,7 @@ const PRIVACY_KEY_DEFAULT: Record<string, 'public' | 'friends'> = {
  * @param key - `session_share` | `stats_share` | `achievements_share`.
  * @returns A `MvpPlayerWhereInput` to use as the `sharer` relation filter.
  */
-function privacyVisibilityFor(key: string): Prisma.MvpPlayerWhereInput {
+function privacyVisibilityFor(key: PrivacyKey): Prisma.MvpPlayerWhereInput {
   const branches: Prisma.MvpPlayerWhereInput[] = [
     { privacySettings: { path: [key], equals: 'public' } },
   ];
@@ -356,6 +367,10 @@ export class SharingService {
 
   /**
    * Get privacy settings
+   *
+   * The default object derives from {@link PRIVACY_KEY_DEFAULT} (the single
+   * source of truth shared with the feed's read path), so the two can never
+   * drift apart.
    */
   async getPrivacySettings(playerId: string) {
     const player = await prisma.mvpPlayer.findUnique({
@@ -363,11 +378,7 @@ export class SharingService {
       select: { privacySettings: true }
     });
 
-    return player?.privacySettings || {
-      session_share: 'public',
-      stats_share: 'friends',
-      achievements_share: 'public'
-    };
+    return player?.privacySettings || { ...PRIVACY_KEY_DEFAULT };
   }
 
   /**
