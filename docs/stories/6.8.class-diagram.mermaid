@@ -1,0 +1,140 @@
+classDiagram
+    %% Story 6.8 — Community and Social Engagement
+    %% NEW models are marked (new); repaired members are marked (fix).
+
+    class SharingService {
+        +getCommunityFeed(userId?, limit, offset, cursor?) CommunityFeedResult
+        +shareEntity(sharerId, data) ShareResult
+        +getShareStats(playerId) ShareStat[]
+        +reportShare(shareId, reporter, reason) ShareReport
+        -encodeCursor(share) string
+        -decodeCursor(cursor) FeedCursor
+    }
+
+    class CommunityService {
+        +getCommunityLeaderboard(sortBy, limit, offset) LeaderboardRow[]
+        +getCommunityLeaderboardCount() number
+        +getTrendingSessions(limit) MvpSession[]
+        +getNearbyPlayers(limit) Player[]
+        +getVenueDirectory(limit, offset) VenuePage
+        +submitNps(identity, input) NpsResponse
+        +getNpsSummary() NpsSummary
+        +getRetentionMetrics(window) RetentionMetrics
+    }
+
+    class TournamentAnalyticsRoute {
+        +POST_analytics(id) AnalyticsData
+        +POST_feedback(id, rating, comments) Envelope~TournamentFeedback~
+    }
+
+    class FeedEvents {
+        +emitFeedNew(item) void
+    }
+
+    class FeedCursorUtil {
+        +encode(createdAt, id) string
+        +decode(cursor) FeedCursor
+    }
+
+    class CommunityFeedResult {
+        +FeedShare[] shares
+        +RecentSession[] sessions
+        +number total
+        +string nextCursor
+    }
+
+    class FeedShare {
+        +string id
+        +string type
+        +string entityId
+        +Sharer sharer
+        +string platform
+        +string message
+        +DateTime createdAt
+    }
+
+    class NpsResponse {
+        +string id
+        +int score
+        +string userId
+        +string deviceId
+        +string comment
+        +DateTime submittedAt
+    }
+
+    class ShareReport {
+        +string id
+        +string shareId
+        +string reporterUserId
+        +string reporterDeviceId
+        +string reason
+        +DateTime createdAt
+    }
+
+    class Share {
+        +string id
+        +string type
+        +string entityId
+        +string sharerId
+        +string platform
+        +string url
+        +string message
+        +DateTime createdAt
+    }
+
+    class MvpPlayer {
+        +string id
+        +string userId
+        +Json privacySettings
+    }
+
+    class TournamentFeedback {
+        +string id
+        +string tournamentId
+        +string playerId
+        +int rating
+        +string comments
+        +DateTime submittedAt
+    }
+
+    class TournamentPlayer {
+        +string tournamentId
+        +string deviceId
+    }
+
+    class NpsSummary {
+        +int responses
+        +int promoters
+        +int passives
+        +int detractors
+        +float nps
+    }
+
+    class RetentionMetrics {
+        +int newUsers7d
+        +int retained7d
+        +float retentionRate
+        +int weeklyActive
+        +int feedWeeklyActive
+        +float feedEngagementRate
+    }
+
+    SharingService ..> CommunityFeedResult : returns
+    SharingService ..> FeedCursorUtil : uses
+    SharingService ..> Share : queries
+    SharingService ..> ShareReport : creates
+    CommunityService ..> NpsResponse : creates/aggregates
+    CommunityService ..> RetentionMetrics : computes
+    TournamentAnalyticsRoute ..> TournamentFeedback : writes (fix: MvpPlayer.id)
+    TournamentAnalyticsRoute ..> TournamentPlayer : resolves participant
+    FeedEvents ..> FeedShare : emits
+
+    CommunityFeedResult "1" *-- "0..*" FeedShare : shares
+    FeedShare --> MvpPlayer : sharer
+    Share --> MvpPlayer : sharer
+    ShareReport --> Share : share
+    TournamentFeedback --> MvpPlayer : player (FK, fix)
+    TournamentFeedback --> TournamentPlayer : participation
+
+    note for TournamentFeedback "rating Int 1-5 = CSAT (NOT NPS)"
+    note for NpsResponse "score Int 0-10 = NPS"
