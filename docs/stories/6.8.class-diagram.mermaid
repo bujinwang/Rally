@@ -133,8 +133,9 @@ classDiagram
     FeedShare --> MvpPlayer : sharer
     Share --> MvpPlayer : sharer
     ShareReport --> Share : share
-    TournamentFeedback --> MvpPlayer : player (FK, fix)
-    TournamentFeedback --> TournamentPlayer : participation
+    TournamentFeedback --> TournamentPlayer : player (FK repointed: was MvpPlayer)
 
     note for TournamentFeedback "rating Int 1-5 = CSAT (NOT NPS)"
+    note for TournamentFeedback "D5: playerId FK repointed MvpPlayer.id -> TournamentPlayer.id"
+    note for TournamentPlayer "deviceId = primary match key; userId NULL-by-design (6.7 D8)"
     note for NpsResponse "score Int 0-10 = NPS"

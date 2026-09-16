@@ -68,12 +68,14 @@ sequenceDiagram
     R->>R: Joi: rating int 1..5  %% was commented out (G5)
     R->>ID: resolveIdentity(req)
     ID-->>R: { source, userId?, deviceId? }
-    R->>DB: tournamentPlayer.findFirst({ tournamentId, deviceId|userId })
+    R->>DB: tournamentPlayer.findFirst({ tournamentId, deviceId })  %% deviceId primary
+    note over R,DB: no row -> retry with (tournamentId, userId); still none -> 403
     alt not a participant
-        R-->>UI: 403 { success:false, error }
+        R-->>UI: 403 { success:false, error:'Must participate in tournament' }
     else participant
-        DB-->>R: participant (resolve real MvpPlayer.id)  %% fixes FK (was User.id)
-        R->>DB: tournamentFeedback.create({ tournamentId, playerId:MvpPlayer.id, rating, comments })
+        DB-->>R: TournamentPlayer row (use TournamentPlayer.id)
+        R->>DB: tournamentFeedback.create({ tournamentId, playerId:TournamentPlayer.id, rating, comments })
+        note over R,DB: D5 FK repointed: player_id -> tournament_players(id)
         DB-->>R: feedback
         R->>R: TournamentAnalyticsService.calculateParticipationMetrics(id)
         R-->>UI: { success:true, data: feedback }   %% was { message, feedback }
