@@ -1,48 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { sharingService } from '../services/sharingService';
 
-export interface PrivacyCheckOptions {
-  contentType: 'session' | 'match' | 'achievement';
-  entityId: string;
-  sharerId: string;
-}
-
-/**
- * Middleware to check privacy settings before allowing sharing
- */
-export const checkPrivacyMiddleware = (options: PrivacyCheckOptions) => {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { contentType, entityId, sharerId } = options;
-
-      // Get sharer's privacy settings
-      const privacySettings = await sharingService.getPrivacySettings(sharerId);
-
-      // Check if sharing is allowed for this content type
-      const privacyKey = `${contentType}_share` as keyof typeof privacySettings;
-      const privacySetting = privacySettings[privacyKey] || 'public';
-
-      if (privacySetting === 'private') {
-        return res.status(403).json({
-          success: false,
-          message: 'Sharing is disabled for this content type due to privacy settings'
-        });
-      }
-
-      // Add privacy info to request for further processing
-      (req as any).privacySetting = privacySetting;
-      (req as any).privacySettings = privacySettings;
-
-      next();
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Failed to check privacy settings'
-      });
-    }
-  };
-};
-
 /**
  * Middleware to validate share permissions based on content ownership
  */

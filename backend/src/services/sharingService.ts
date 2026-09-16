@@ -32,6 +32,24 @@ const PRIVACY_KEY_DEFAULT: Record<PrivacyKey, PrivacyValue> = {
   achievements_share: 'public',
 };
 
+/** A share type — derived from the canonical `ShareData` shape. */
+type ShareType = ShareData['type'];
+
+/**
+ * The share type → governing privacy key. The ONE place this mapping lives.
+ *
+ * Both write-side guards must use this. The old hand-rolled `` `${type}_share` ``
+ * produced `match_share` / `achievement_share`, which are NOT the real keys
+ * (`stats_share` / `achievements_share`), so those lookups returned `undefined`
+ * and silently fell back to allowed — a guard that never blocked `match` or
+ * `achievement` shares.
+ */
+const PRIVACY_KEY_FOR_TYPE: Record<ShareType, PrivacyKey> = {
+  session: 'session_share',
+  match: 'stats_share',
+  achievement: 'achievements_share',
+};
+
 /**
  * Build the "the sharer's governing privacy key is effectively `public`"
  * relation filter for one share type.
@@ -132,11 +150,16 @@ export class SharingService {
       throw new Error('Sharer not found');
     }
 
-    // Check privacy settings for the share type
-    const privacyKey = `${data.type}_share` as keyof typeof sharer.privacySettings;
-    const privacySetting = sharer.privacySettings?.[privacyKey] || 'public';
+    // Check privacy settings for the share type.
+    // The governing key comes from the shared mapping (NOT `${type}_share`,
+    // which was wrong for `match`/`achievement`), and an absent value falls back
+    // to the shared per-key default rather than a re-inlined 'public'.
+    const privacyKey = PRIVACY_KEY_FOR_TYPE[data.type];
+    const settings = sharer.privacySettings as Record<string, unknown> | null;
+    const storedValue = settings ? settings[privacyKey] : undefined;
+    const privacySetting = (storedValue as string | undefined) || PRIVACY_KEY_DEFAULT[privacyKey];
 
-    if (privacySetting === 'private' as any) {
+    if (privacySetting === 'private') {
       throw new Error('Sharing is disabled for this content type');
     }
 
