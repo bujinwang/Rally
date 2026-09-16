@@ -34,6 +34,47 @@ const updatePrivacySchema = Joi.object({
   achievements_share: Joi.string().valid('public', 'friends', 'private').optional(),
 });
 
+// Story 6.8 (T01) — bounded feed query. `limit` is capped at 50 (default 20) so
+// the endpoint can no longer be asked to materialise an unbounded page; `cursor`
+// is an optional opaque keyset token (ignored by offset callers).
+const feedQuerySchema = Joi.object({
+  limit: Joi.number().integer().min(1).max(50).default(20),
+  offset: Joi.number().integer().min(0).default(0),
+  cursor: Joi.string().max(1024).optional(),
+  userId: Joi.string().max(200).optional(),
+  deviceId: Joi.string().optional(),
+});
+
+/**
+ * Validate (and coerce) `req.query` against a Joi schema, applying defaults.
+ *
+ * Express 5 exposes `req.query` as a getter, so the validated object is attached
+ * to `req.validatedQuery` rather than reassigned onto `req.query`.
+ */
+function validateFeedQuery(schema: Joi.Schema) {
+  return (req: Request, res: any, next: any) => {
+    const { error, value } = schema.validate(req.query, {
+      abortEarly: false,
+      convert: true,
+    });
+
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid query parameters',
+          details: error.details.map((detail: any) => detail.message),
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    (req as any).validatedQuery = value;
+    next();
+  };
+}
+
 /**
  * @route POST /api/sharing/share
  * @desc Share an entity (session, match, achievement)
@@ -78,13 +119,16 @@ router.post('/share',
  * @desc Get community feed with recent shares and sessions
  * @access Public
  */
-router.get('/feed', async (req, res) => {
+router.get('/feed', validateFeedQuery(feedQuerySchema), async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit as string) || 20;
-    const offset = parseInt(req.query.offset as string) || 0;
-    const userId = req.query.userId as string;
+    const { limit, offset, cursor, userId } = (req as any).validatedQuery as {
+      limit: number;
+      offset: number;
+      cursor?: string;
+      userId?: string;
+    };
 
-    const feed = await sharingService.getCommunityFeed(userId, limit, offset);
+    const feed = await sharingService.getCommunityFeed(userId, limit, offset, cursor);
 
     res.json({
       success: true,
