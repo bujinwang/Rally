@@ -25,7 +25,7 @@ export interface Tournament {
   entryFee: number;
   prizePool: number;
   currency: string;
-  status: 'DRAFT' | 'REGISTRATION_OPEN' | 'REGISTRATION_CLOSED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  status: TournamentStatus;
   organizerName: string;
   organizerEmail?: string;
   organizerPhone?: string;
@@ -92,14 +92,38 @@ export interface TournamentMatch {
   status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'WALKOVER';
 }
 
+/**
+ * Mirrors the backend's `TournamentStatus` enum (`prisma/schema.prisma:1188-1195`).
+ */
+export type TournamentStatus =
+  | 'DRAFT'
+  | 'REGISTRATION_OPEN'
+  | 'REGISTRATION_CLOSED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+/**
+ * `GET /tournaments/:id/stats` — produced by `getTournamentStats`
+ * (`backend/src/services/tournamentService.ts:381-405`).
+ *
+ * Story 6.11 follow-up. This used to declare `totalGames`, `totalSets`,
+ * `currentRound` and `tournamentProgress` — **none of which the backend has ever
+ * sent** — while omitting `maxPlayers`, `completionRate` and `status`, which it
+ * always sends. The screen read `tournamentProgress` and rendered
+ * `Math.round(undefined)`, i.e. the literal string **"NaN%"** in the Progress
+ * tile. The declared shape now matches the producer field for field.
+ *
+ * Note `completionRate` is already a **percentage** (0–100), not a ratio:
+ * `(completedMatches / totalMatches) * 100`. It is what the Progress tile means.
+ */
 export interface TournamentStats {
   totalPlayers: number;
+  maxPlayers: number;
   totalMatches: number;
   completedMatches: number;
-  totalGames: number;
-  totalSets: number;
-  currentRound: number;
-  tournamentProgress: number;
+  completionRate: number;
+  status: TournamentStatus;
 }
 
 export interface TournamentCreationData {
