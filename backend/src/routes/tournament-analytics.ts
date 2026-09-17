@@ -112,13 +112,34 @@ router.get(
 );
 
 // GET /api/tournaments/analytics/trends - Get trends across tournaments
+//
+// Story 6.11 follow-up. This route became reachable for the first time when the
+// router was mounted (Story 6.11), and it still spoke the *old* contract: a bare
+// `{ trends, filters, timestamp }` on success and `{ error: '...' }` on failure.
+// It now uses the standard envelope like its sibling above, so the frontend's
+// error handling (`error.code`) can read it. No consumer existed — `grep` for
+// `analytics/trends` across the frontend returns zero hits — so this is not a
+// breaking change.
+//
+// `limit` is parsed, not coerced. `Number(req.query.limit)` yielded `NaN` for
+// `?limit=abc`, which Prisma rejects — a 500 from a malformed query string.
+const DEFAULT_TRENDS_LIMIT = 10;
+const MAX_TRENDS_LIMIT = 100;
+
+function parseTrendsLimit(raw: unknown): number {
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 1) return DEFAULT_TRENDS_LIMIT;
+  return Math.min(Math.floor(parsed), MAX_TRENDS_LIMIT);
+}
+
 router.get(
   '/analytics/trends',
   authenticateToken,
   requireRole(['ORGANIZER', 'ADMIN']),
   async (req, res) => {
     try {
-      const { format, limit = 10 } = req.query;
+      const { format } = req.query;
+      const limit = parseTrendsLimit(req.query.limit);
 
       // Query tournaments accessible to the user.
       //
@@ -137,20 +158,27 @@ router.get(
         },
         select: { id: true },
         orderBy: { startDate: 'desc' },
-        take: Number(limit),
+        take: limit,
       });
       const tournamentIds = tournaments.map(t => t.id);
 
       const trends = await TournamentAnalyticsService.compareTournamentFormats(tournamentIds);
 
       res.json({
-        trends,
-        filters: { format: format as string, limit: Number(limit) },
+        success: true,
+        data: {
+          trends,
+          filters: { format: (format as string) ?? null, limit },
+        },
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
       console.error('Error fetching tournament trends:', error);
-      res.status(500).json({ error: 'Failed to fetch tournament trends' });
+      res.status(500).json({
+        success: false,
+        error: { code: 'TRENDS_FAILED', message: 'Failed to fetch tournament trends' },
+        timestamp: new Date().toISOString(),
+      });
     }
   }
 );
