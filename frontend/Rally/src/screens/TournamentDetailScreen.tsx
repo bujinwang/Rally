@@ -530,7 +530,7 @@ const TournamentDetailScreen: React.FC = () => {
 
             <View style={styles.statItem}>
               <Text style={[styles.statValue, { color: '#ffc107' }]}>
-                {Math.round(stats.tournamentProgress)}%
+                {Math.round(stats.completionRate)}%
               </Text>
               <Text style={[styles.statLabel, { color: '#666' }]}>
                 Progress
