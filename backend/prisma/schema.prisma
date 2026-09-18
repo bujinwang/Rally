@@ -724,6 +724,9 @@ model User {
   // Story 6.9 (F1, Option C): account-keyed push tokens (additive).
   pushTokens PushToken[]
 
+  // Story 6.9 (F1, Option C): account-keyed notification preferences (additive).
+  notificationPreferences NotificationPreferences?
+
   // Social Features Relations
   sentFriendRequests     FriendRequest[] @relation("FriendRequestSender")
   receivedFriendRequests FriendRequest[] @relation("FriendRequestReceiver")
@@ -1667,6 +1670,9 @@ model NotificationPreferences {
   id       String @id @default(cuid())
   playerId String? @unique // Reference to MvpPlayer
   deviceId String? @unique // For device-based preferences
+  // Story 6.9 (F1, Option C): account-keyed preferences (additive, nullable).
+  // `@unique` creates the unique index used for userId lookups.
+  userId   String? @unique
 
   // Notification preferences by category
   matchResults      Boolean @default(true) // Match win/loss notifications
@@ -1691,6 +1697,10 @@ model NotificationPreferences {
 
   // Relations
   player MvpPlayer? @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  // Story 6.9 (F1, Option C): account relation. `onDelete: SetNull` is pinned
+  // explicitly — never rely on Prisma's default for an optional relation — so a
+  // user-keyed preferences row is not deleted with the user.
+  user   User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("notification_preferences")
 }

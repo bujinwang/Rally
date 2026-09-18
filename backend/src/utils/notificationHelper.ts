@@ -8,6 +8,27 @@ interface NotificationPayload {
 }
 
 /**
+ * Story 6.9 (F9): `push_tokens` is keyed to a **user** and/or a **device** (Option
+ * C). `playerId` is legacy and permanently NULL, so any lookup on it returns zero
+ * rows. Token selection therefore matches `userId` OR `deviceId` against the
+ * identity in hand — never `playerId`.
+ *
+ * `isActive: true` is part of every selection: an inactive token must not be used.
+ */
+type TokenIdentityFilter = { userId: string } | { deviceId: string };
+
+/** Build the OR-identity filter for a token lookup from a (userId, deviceId) pair. */
+function tokenIdentityFilters(
+  userId: string | null | undefined,
+  deviceId: string | null | undefined,
+): TokenIdentityFilter[] {
+  const filters: TokenIdentityFilter[] = [];
+  if (userId) filters.push({ userId });
+  if (deviceId) filters.push({ deviceId });
+  return filters;
+}
+
+/**
  * Send push notification to all subscribers of a session.
  *
  * In the MVP context (no Expo push tokens stored), this reads the
@@ -27,6 +48,10 @@ export async function notifySessionSubscribers(
       select: {
         id: true,
         sessionId: true,
+        // Story 6.9 (F9): a player's token identity is its linked account
+        // (`userId`) and/or its device (`deviceId`) — not the MvpPlayer id.
+        userId: true,
+        deviceId: true,
       },
     });
 
@@ -42,10 +67,14 @@ export async function notifySessionSubscribers(
     let delivered = 0;
     for (const player of subscribers) {
       try {
-        // Look up NotificationToken for this player (future: device-level binding)
+        // Story 6.9 (F9): match tokens by the player's account/device identity.
+        const filters = tokenIdentityFilters(player.userId, player.deviceId);
+        if (filters.length === 0) continue; // no resolvable token identity
+
         const tokens = await prisma.pushToken.findMany({
           where: {
-            playerId: player.id,
+            isActive: true,
+            OR: filters,
           },
         });
 
@@ -55,7 +84,8 @@ export async function notifySessionSubscribers(
         for (const token of tokens) {
           // Placeholder — actual implementation would call Expo Push API
           // await sendExpoPushNotification(token.token, payload);
-          console.log(`  → Would push to token ${token.token.substring(0, 12)}...`);
+          // AC 16: never log the push token (credential material).
+          console.log(`  → Would push to ${token.platform} device for session ${sessionId}`);
         }
 
         delivered++;
@@ -74,6 +104,9 @@ export async function notifySessionSubscribers(
 
 /**
  * Send notification to a specific device/user.
+ *
+ * `userId` is a `User.id` (callers: `scheduler.ts`, `friends.ts`, `messaging.ts`),
+ * so the lookup is on `push_tokens.userId` (Story 6.9 F9, Option C).
  */
 export async function notifyDevice(
   userId: string,
@@ -81,14 +114,15 @@ export async function notifyDevice(
 ): Promise<boolean> {
   try {
     const tokens = await prisma.pushToken.findMany({
-      where: { playerId: userId },
+      where: { isActive: true, userId },
     });
 
     if (tokens.length === 0) return false;
 
     for (const token of tokens) {
-      // Placeholder — actual push delivery goes here
-      console.log(`  → Push to token ${token.token.substring(0, 12)}... : ${payload.title}`);
+      // Placeholder — actual push delivery goes here.
+      // AC 16: never log the push token (credential material).
+      console.log(`  → Push to ${token.platform} device: ${payload.title}`);
     }
 
     return true;
@@ -109,12 +143,27 @@ export async function notifyPlayer(
   try {
     const player = await prisma.mvpPlayer.findFirst({
       where: { sessionId, name: playerName },
+      select: {
+        id: true,
+        name: true,
+        // Story 6.9 (F9): token identity is the linked account/device, not the
+        // MvpPlayer id.
+        userId: true,
+        deviceId: true,
+      },
     });
 
     if (!player) return false;
 
+    // Story 6.9 (F9): match tokens by the player's account/device identity.
+    const filters = tokenIdentityFilters(player.userId, player.deviceId);
+    if (filters.length === 0) return false;
+
     const tokens = await prisma.pushToken.findMany({
-      where: { playerId: player.id },
+      where: {
+        isActive: true,
+        OR: filters,
+      },
     });
 
     if (tokens.length === 0) return false;
