@@ -1,13 +1,18 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../config/database';
 import { body, validationResult } from 'express-validator';
+import { resolveIdentity } from '../middleware/permissions';
+import { optionalAuth } from '../middleware/auth';
 
 const router = Router();
 
 // Validation schemas
 const registerTokenValidation = [
   body('pushToken').isString().notEmpty().withMessage('Push token is required'),
-  body('deviceId').isString().notEmpty().withMessage('Device ID is required'),
+  // Story 6.9 (F1, Option C): `deviceId` is no longer required at the validator —
+  // an account (JWT) caller may register with no device id. The handler still
+  // requires at least one identity (userId or deviceId) and returns 400 otherwise.
+  body('deviceId').optional().isString().notEmpty().withMessage('Device ID must be a non-empty string'),
   body('platform').isIn(['ios', 'android', 'web']).withMessage('Invalid platform'),
   body('playerName').optional().isString(),
 ];
@@ -34,7 +39,10 @@ const preferencesValidation = [
  * Register device push token
  * POST /notifications/register
  */
-router.post('/register', registerTokenValidation, async (req: Request, res: Response) => {
+// `optionalAuth` populates `req.user` for a valid Bearer token so
+// `resolveIdentity` can see an account identity; a present-but-invalid token 401s
+// (never a silent downgrade to anonymous). Device-only callers are unaffected.
+router.post('/register', optionalAuth, registerTokenValidation, async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -49,37 +57,56 @@ router.post('/register', registerTokenValidation, async (req: Request, res: Resp
       });
     }
 
-    const { pushToken, deviceId, platform, playerName } = req.body;
+    const { pushToken, platform } = req.body;
 
-// Check if token already exists
-     const existingToken = await prisma.pushToken.findFirst({
-       where: { deviceId },
-     });
+    // Story 6.9 (F1, Option C): resolve identity from a JWT (account) or a device
+    // id via the only sanctioned resolver. Never read `req.user.name` (it does not
+    // exist). At least one identity is required — the DB CHECK would otherwise
+    // surface as a 500, which is the wrong contract, so reject with 400 here.
+    const identity = resolveIdentity(req);
+    if (!identity.userId && !identity.deviceId) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'A user or device identity is required to register a push token',
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
 
-     let tokenRecord;
+    // Edge case: `where: { deviceId: null }` matches EVERY null-deviceId row, so an
+    // account-only caller must look up by `userId` — never by a null deviceId — or
+    // it could grab and overwrite an unrelated row.
+    const existingToken = identity.deviceId
+      ? await prisma.pushToken.findFirst({ where: { deviceId: identity.deviceId } })
+      : await prisma.pushToken.findFirst({ where: { userId: identity.userId as string } });
 
-     if (existingToken) {
-       // Update existing token
-       tokenRecord = await prisma.pushToken.update({
-         where: { id: existingToken.id },
-         data: {
-           token: pushToken,
-           platform,
-           updatedAt: new Date(),
-         },
-       });
-     } else {
-       // Create new token record
-       tokenRecord = await prisma.pushToken.create({
-         data: {
-           token: pushToken,
-           playerId: deviceId,
-           deviceId,
-           platform,
-           isActive: true,
-         },
-       });
-     }
+    let tokenRecord;
+
+    if (existingToken) {
+      // Update existing token
+      tokenRecord = await prisma.pushToken.update({
+        where: { id: existingToken.id },
+        data: {
+          token: pushToken,
+          platform,
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      // Create new token record. `playerId` is legacy and intentionally NOT written
+      // (that was F1); identity is bound to the resolved userId/deviceId.
+      tokenRecord = await prisma.pushToken.create({
+        data: {
+          token: pushToken,
+          userId: identity.userId ?? null,
+          deviceId: identity.deviceId ?? null,
+          platform,
+          isActive: true,
+        },
+      });
+    }
 
     res.json({
       success: true,

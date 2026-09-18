@@ -83,10 +83,14 @@ export class NotificationService {
    * Send notification to a specific device (mock implementation)
    */
   private static async sendToDevice(token: any, notificationData: NotificationData): Promise<void> {
-    // In a real implementation, this would integrate with FCM/APNs
-    // For now, we'll just log the notification
-    console.log(`Sending push notification to ${token.platform} device:`, {
-      token: token.token,
+    // In a real implementation, this would integrate with FCM/APNs.
+    // For now we only log a REDACTED token — the full push token is sensitive
+    // data (AC 16: notification payloads must contain no sensitive data), so it
+    // must never be written to logs.
+    const raw = token?.token ?? '';
+    const masked = raw.length > 4 ? `${raw.slice(0, 4)}…(${raw.length} chars)` : '(empty)';
+    console.log(`Sending push notification to ${token?.platform ?? 'unknown'} device:`, {
+      token: masked,
       title: notificationData.title,
       body: notificationData.body,
       data: notificationData.data,
