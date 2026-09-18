@@ -721,6 +721,9 @@ model User {
   ownedMvpSessions MvpSession[]   @relation("MvpSessionOwner")
   mvpPlayers       MvpPlayer[]    @relation("MvpPlayerUser")
 
+  // Story 6.9 (F1, Option C): account-keyed push tokens (additive).
+  pushTokens PushToken[]
+
   // Social Features Relations
   sentFriendRequests     FriendRequest[] @relation("FriendRequestSender")
   receivedFriendRequests FriendRequest[] @relation("FriendRequestReceiver")
@@ -1694,12 +1697,20 @@ model NotificationPreferences {
 
 model PushToken {
   id       String @id @default(cuid())
-  playerId String // Reference to MvpPlayer
+  // Story 6.9 (F1, Option C): a push token is a durable device/account handle,
+  // not a session-scoped `MvpPlayer`. `playerId` is retained only as legacy and is
+  // now nullable and no longer written; identity lives in `userId`/`deviceId`.
+  playerId String? // Legacy — no longer populated (was a required FK to MvpPlayer)
 
   // Device information
   token    String  @unique // FCM/APNs token
   platform String // ios, android
   deviceId String? // Device identifier
+
+  // Story 6.9 (F1, Option C): account identity (additive, nullable). At least one
+  // of `userId` / `deviceId` must be present — enforced by a DB CHECK constraint in
+  // migration `20260917000000_story_6_9_push_token_identity`.
+  userId String?
 
   // Token status
   isActive Boolean  @default(true)
@@ -1710,12 +1721,16 @@ model PushToken {
   updatedAt DateTime @updatedAt
 
   // Relations
-  player MvpPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  // `onDelete: SetNull` is pinned explicitly (NOT left to Prisma's default): a
+  // device/account-keyed token must NOT vanish when its player/user row is deleted.
+  player MvpPlayer? @relation(fields: [playerId], references: [id], onDelete: SetNull)
+  user   User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
   sessionSubscriptions SessionSubscription[] @relation("DeviceTokens")
 
   // Performance indexes
   @@unique([deviceId, isActive])
   @@index([playerId])
+  @@index([userId])
   @@index([token])
   @@index([isActive])
   @@index([platform])
