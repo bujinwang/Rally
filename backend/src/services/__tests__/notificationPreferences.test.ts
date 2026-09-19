@@ -10,6 +10,9 @@ import {
   isNotificationEnabled,
   isInQuietHours,
   parseTimeString,
+  isTypeEnabled,
+  isAllowedForGuest,
+  NOTIFICATION_TYPE_PREFERENCE,
 } from '../notificationPreferences';
 import { NotificationType, NotificationPreferences } from '../../types/notifications';
 
@@ -83,6 +86,108 @@ describe('isNotificationEnabled', () => {
       sessionReminders: false,
     });
     expect(isNotificationEnabled(NotificationType.SYSTEM_ANNOUNCEMENT, allOff)).toBe(true);
+  });
+});
+
+describe('NOTIFICATION_TYPE_PREFERENCE (single source of truth)', () => {
+  it('maps every type observed at a live call site to a preference column', () => {
+    // These strings are the ones actually passed to notifySessionSubscribers /
+    // notifyDevice / notifyPlayer (grep of routes, services and socket handlers).
+    const liveTypes = [
+      'FRIEND_REQUEST',
+      'FRIEND_ACCEPTED',
+      'NEW_MESSAGE',
+      'SESSION_REMINDER',
+      'MATCH_REMINDER',
+      'SCORE_RECORDED',
+      'PAIRING_GENERATED',
+      'PLAYER_JOINED',
+      'GAME_COMPLETED',
+    ];
+    for (const type of liveTypes) {
+      expect(NOTIFICATION_TYPE_PREFERENCE[type]).toBeDefined();
+    }
+  });
+
+  it('routes each type to the expected column', () => {
+    expect(NOTIFICATION_TYPE_PREFERENCE.SESSION_REMINDER).toBe('sessionReminders');
+    expect(NOTIFICATION_TYPE_PREFERENCE.SCORE_RECORDED).toBe('matchResults');
+    expect(NOTIFICATION_TYPE_PREFERENCE.MATCH_REMINDER).toBe('matchResults');
+    expect(NOTIFICATION_TYPE_PREFERENCE.FRIEND_REQUEST).toBe('friendRequests');
+    expect(NOTIFICATION_TYPE_PREFERENCE.NEW_MESSAGE).toBe('socialMessages');
+    expect(NOTIFICATION_TYPE_PREFERENCE.CHALLENGE_RECEIVED).toBe('challenges');
+    expect(NOTIFICATION_TYPE_PREFERENCE.ACHIEVEMENT_UNLOCK).toBe('achievements');
+    expect(NOTIFICATION_TYPE_PREFERENCE.TOURNAMENT_UPDATE).toBe('tournamentUpdates');
+  });
+});
+
+describe('isTypeEnabled', () => {
+  it('honours the mapped preference column', () => {
+    expect(isTypeEnabled('SESSION_REMINDER', prefs({ sessionReminders: false }))).toBe(false);
+    expect(isTypeEnabled('SESSION_REMINDER', prefs({ sessionReminders: true }))).toBe(true);
+    expect(isTypeEnabled('NEW_MESSAGE', prefs({ socialMessages: false }))).toBe(false);
+    expect(isTypeEnabled('NEW_MESSAGE', prefs({ socialMessages: true }))).toBe(true);
+  });
+
+  it('is not suppressed for an unmapped type (no column to honour)', () => {
+    expect(isTypeEnabled('SOME_FUTURE_TYPE', prefs())).toBe(true);
+  });
+
+  it('always delivers SYSTEM_ANNOUNCEMENT', () => {
+    const allOff = prefs({
+      matchResults: false,
+      achievements: false,
+      friendRequests: false,
+      challenges: false,
+      tournamentUpdates: false,
+      socialMessages: false,
+      sessionReminders: false,
+    });
+    expect(isTypeEnabled('SYSTEM_ANNOUNCEMENT', allOff)).toBe(true);
+  });
+});
+
+describe('isAllowedForGuest (AC 5 — deny-by-default allow-list)', () => {
+  it('allows exactly the eight guest types', () => {
+    const allowed = [
+      'SESSION_REMINDER',
+      'SESSION_STARTING',
+      'SESSION_UPDATED',
+      'PLAYER_JOINED',
+      'PAIRING_GENERATED',
+      'GAME_READY',
+      'NEXT_UP',
+      'SCORE_RECORDED',
+    ];
+    for (const type of allowed) {
+      expect(isAllowedForGuest(type)).toBe(true);
+    }
+  });
+
+  it('denies social, challenge, achievement, match-result and tournament types', () => {
+    const denied = [
+      'FRIEND_REQUEST',
+      'FRIEND_ACCEPTED',
+      'CHALLENGE_RECEIVED',
+      'CHALLENGE_RESPONSE',
+      'SOCIAL_MESSAGE',
+      'NEW_MESSAGE',
+      'ACHIEVEMENT_UNLOCK',
+      'MATCH_RESULT',
+      'TOURNAMENT_UPDATE',
+    ];
+    for (const type of denied) {
+      expect(isAllowedForGuest(type)).toBe(false);
+    }
+  });
+
+  it('denies SYSTEM_ANNOUNCEMENT by default', () => {
+    expect(isAllowedForGuest('SYSTEM_ANNOUNCEMENT')).toBe(false);
+  });
+
+  it('denies an unknown/unmapped type (fails closed)', () => {
+    expect(isAllowedForGuest('TOTALLY_NEW_TYPE')).toBe(false);
+    expect(isAllowedForGuest('')).toBe(false);
   });
 });
 

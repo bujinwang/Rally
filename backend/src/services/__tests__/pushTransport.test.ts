@@ -156,9 +156,19 @@ describe('ExpoPushTransport (Story 6.9 T3)', () => {
     const results = await transport.send([msg('bad-token')]);
 
     expect(results).toEqual([
-      { token: 'bad-token', ok: false, error: INVALID_TOKEN_ERROR },
+      { token: 'bad-token', ok: false, error: INVALID_TOKEN_ERROR, skipped: true },
     ]);
     expect(expo.sentChunks).toHaveLength(0);
+  });
+
+  it('marks a skipped token with `skipped` and NEVER with `deviceNotRegistered`', async () => {
+    // A skipped token is not a delivery failure and must not be mistaken for a
+    // dead device — otherwise the caller would deactivate a valid token.
+    const [result] = await transport.send([msg('not-an-expo-token')]);
+
+    expect(result.ok).toBe(false);
+    expect(result.skipped).toBe(true);
+    expect(result.deviceNotRegistered).toBeUndefined();
   });
 
   // ── per-token error isolation ──────────────────────────────────────────────
