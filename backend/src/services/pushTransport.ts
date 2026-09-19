@@ -44,6 +44,13 @@ export interface PushTicketResult {
   error?: string;
   /** True when Expo reported `DeviceNotRegistered` — the caller should deactivate the token. */
   deviceNotRegistered?: boolean;
+  /**
+   * True when the token was **not sent at all** (e.g. it is not a valid Expo push
+   * token). A skipped token is NOT a delivery failure: the caller must never treat
+   * it as a dead device. When `skipped` is true, `ok` is false and
+   * `deviceNotRegistered` is never set — the two are mutually exclusive.
+   */
+  skipped?: boolean;
 }
 
 export interface PushTransport {
@@ -85,7 +92,9 @@ export class ExpoPushTransport implements PushTransport {
     const deliverable: Array<{ inputIndex: number; token: string; message: ExpoPushMessage }> = [];
     messages.forEach((message, inputIndex) => {
       if (!Expo.isExpoPushToken(message.to)) {
-        results[inputIndex] = { token: message.to, ok: false, error: INVALID_TOKEN_ERROR };
+        // `skipped: true` distinguishes "never sent" from "delivery failed" — the
+        // caller must not deactivate a token merely because it was skipped.
+        results[inputIndex] = { token: message.to, ok: false, error: INVALID_TOKEN_ERROR, skipped: true };
         return;
       }
       deliverable.push({

@@ -1,10 +1,30 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../config/database';
 import { body, validationResult } from 'express-validator';
-import { resolveIdentity } from '../middleware/permissions';
+import { resolveIdentity, ResolvedIdentity } from '../middleware/permissions';
 import { optionalAuth } from '../middleware/auth';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  toNotificationPreferences,
+} from '../services/notificationPreferences';
+import type { NotificationPreferences } from '../types/notifications';
 
 const router = Router();
+
+// The preference columns a client may set through PUT /notifications/preferences.
+const PREFERENCE_BOOLEAN_FIELDS = [
+  'pushEnabled',
+  'matchResults',
+  'achievements',
+  'friendRequests',
+  'challenges',
+  'tournamentUpdates',
+  'socialMessages',
+  'sessionReminders',
+  'emailEnabled',
+] as const;
+
+const PREFERENCE_TIME_FIELDS = ['quietHoursStart', 'quietHoursEnd'] as const;
 
 // Validation schemas
 const registerTokenValidation = [
@@ -34,6 +54,67 @@ const preferencesValidation = [
   body('quietHoursEnd').optional().isString(),
   body('notificationTypes').optional().isObject(),
 ];
+
+// Story 6.9 (AC 3): the columns a client may update via PUT /notifications/preferences.
+// Only the live schema columns are accepted — unknown fields are ignored by the
+// handler, never persisted.
+const preferencesUpdateValidation = [
+  body('pushEnabled').optional().isBoolean(),
+  body('matchResults').optional().isBoolean(),
+  body('achievements').optional().isBoolean(),
+  body('friendRequests').optional().isBoolean(),
+  body('challenges').optional().isBoolean(),
+  body('tournamentUpdates').optional().isBoolean(),
+  body('socialMessages').optional().isBoolean(),
+  body('sessionReminders').optional().isBoolean(),
+  body('emailEnabled').optional().isBoolean(),
+  body('quietHoursStart').optional().isString(),
+  body('quietHoursEnd').optional().isString(),
+];
+
+/** The identity a preferences row is keyed by (account first, then device). */
+type PreferenceIdentity = Pick<ResolvedIdentity, 'userId' | 'deviceId'>;
+
+/**
+ * Load the caller's effective preferences: an account-keyed row, else a
+ * device-keyed row, else the schema defaults. Always returns a full object so
+ * the client never has to merge defaults itself.
+ */
+async function loadEffectivePreferences(
+  identity: PreferenceIdentity,
+): Promise<NotificationPreferences> {
+  let row = null;
+
+  if (identity.userId) {
+    row = await prisma.notificationPreferences.findUnique({ where: { userId: identity.userId } });
+  }
+  if (!row && identity.deviceId) {
+    row = await prisma.notificationPreferences.findUnique({ where: { deviceId: identity.deviceId } });
+  }
+
+  return row ? toNotificationPreferences(row) : { ...DEFAULT_NOTIFICATION_PREFERENCES };
+}
+
+/**
+ * Extract only the known preference columns from a request body. Unknown keys are
+ * dropped (never persisted), and an empty-string quiet-hour bound clears it.
+ */
+function pickPreferenceFields(raw: Record<string, unknown>): Record<string, boolean | string | null> {
+  const update: Record<string, boolean | string | null> = {};
+
+  for (const field of PREFERENCE_BOOLEAN_FIELDS) {
+    if (typeof raw[field] === 'boolean') update[field] = raw[field] as boolean;
+  }
+
+  for (const field of PREFERENCE_TIME_FIELDS) {
+    if (typeof raw[field] === 'string') {
+      const value = (raw[field] as string).trim();
+      update[field] = value === '' ? null : value;
+    }
+  }
+
+  return update;
+}
 
 /**
  * Register device push token
@@ -156,6 +237,110 @@ router.delete('/register/:deviceId', async (req: Request, res: Response) => {
         code: 'INTERNAL_ERROR',
         message: 'Failed to unregister push token',
       },
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+/**
+ * Get the caller's notification preferences (AC 3).
+ * GET /notifications/preferences
+ *
+ * Registered BEFORE the `/:shareCode/...` routes: `/preferences` is a static
+ * segment and must never be captured by a parameterised path.
+ */
+router.get('/preferences', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const identity = resolveIdentity(req);
+    if (!identity.userId && !identity.deviceId) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'A user or device identity is required to read preferences',
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const preferences = await loadEffectivePreferences(identity);
+
+    res.json({
+      success: true,
+      data: preferences,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Get preferences error:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to get notification preferences' },
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+/**
+ * Update the caller's notification preferences (AC 3).
+ * PUT /notifications/preferences
+ *
+ * Upserts by the caller's identity (account-keyed row when authenticated, else a
+ * device-keyed row) and returns the saved, effective preferences.
+ */
+router.put('/preferences', optionalAuth, preferencesUpdateValidation, async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid input data',
+          details: errors.array(),
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const identity = resolveIdentity(req);
+    if (!identity.userId && !identity.deviceId) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'A user or device identity is required to update preferences',
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const update = pickPreferenceFields(req.body as Record<string, unknown>);
+
+    // Account identity wins: key the row on `userId` when authenticated, else on
+    // `deviceId`. Both columns are unique, so `upsert` is race-safe.
+    const saved = identity.userId
+      ? await prisma.notificationPreferences.upsert({
+          where: { userId: identity.userId },
+          create: { userId: identity.userId, ...update },
+          update,
+        })
+      : await prisma.notificationPreferences.upsert({
+          where: { deviceId: identity.deviceId as string },
+          create: { deviceId: identity.deviceId as string, ...update },
+          update,
+        });
+
+    res.json({
+      success: true,
+      data: toNotificationPreferences(saved),
+      message: 'Notification preferences updated successfully',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Update preferences error:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to update notification preferences' },
       timestamp: new Date().toISOString(),
     });
   }
