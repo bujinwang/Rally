@@ -246,8 +246,14 @@ router.delete('/register/:deviceId', async (req: Request, res: Response) => {
  * Get the caller's notification preferences (AC 3).
  * GET /notifications/preferences
  *
- * Registered BEFORE the `/:shareCode/...` routes: `/preferences` is a static
- * segment and must never be captured by a parameterised path.
+ * Route ordering here is stylistic, NOT load-bearing. `/register` and
+ * `/preferences` are single-segment static paths, while the `/:shareCode/...`
+ * routes (below, from `/:shareCode/subscribe`) are two-segment, so the segment
+ * counts differ and neither form can shadow the other in any registration order.
+ *
+ * The one same-shape pair is `DELETE /register/:deviceId` (above) and
+ * `DELETE /:shareCode/unsubscribe` (below): both two-segment, so they could
+ * collide only if a `shareCode` were literally `register`.
  */
 router.get('/preferences', optionalAuth, async (req: Request, res: Response) => {
   try {
