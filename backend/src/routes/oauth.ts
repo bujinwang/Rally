@@ -97,59 +97,35 @@ router.get('/:provider/callback', async (req: Request, res: Response) => {
 
 /**
  * POST /api/v1/oauth/:provider/mobile
- * Handle mobile OAuth — accepts provider token from mobile SDK, creates/links user
- * For when the mobile app handles OAuth natively with Google/WeChat SDKs
+ *
+ * DISABLED — returns 501 Not Implemented.
+ *
+ * This route previously trusted a body-supplied `providerId` and minted access
+ * and refresh JWTs via `OAuthService.findOrCreateOAuthUser` without ever
+ * verifying the provider credential (the `accessToken` was never exchanged or
+ * validated server-side). Since `providerId` is an identifier (a Google `sub`
+ * or WeChat `openid`), not a secret, any caller who knew a victim's `provider`
+ * and `providerId` could receive that user's full session — an authentication
+ * bypass. It also overwrote the victim's stored `accessToken`/`providerData`.
+ *
+ * The route had no reachable client: `handleMobileOAuth`
+ * (`frontend/Rally/src/components/SocialLoginButtons.tsx`) is never called, and
+ * no provider SDK is installed, so disabling it breaks nothing in production.
+ *
+ * A correct mobile login flow must verify the provider token server-side (call
+ * the provider's token/userinfo endpoint, or verify an ID-token signature and
+ * audience) and derive `providerId` from the verified response. It should be
+ * authored fresh against that contract — do not resurrect this handler.
  */
-router.post('/:provider/mobile', async (req: Request, res: Response) => {
-  try {
-    const { provider } = req.params;
-    const { providerId, name, email, avatarUrl, accessToken } = req.body;
-
-    if (!['google', 'wechat'].includes(provider)) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'VALIDATION_ERROR', message: 'Invalid provider' },
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    if (!providerId) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'VALIDATION_ERROR', message: 'providerId is required' },
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    const profile = {
-      provider: provider as 'google' | 'wechat',
-      providerId,
-      name: name || `${provider} User`,
-      email: email || undefined,
-      avatarUrl: avatarUrl || undefined,
-      rawProfile: { accessToken },
-    };
-
-    const result = await OAuthService.findOrCreateOAuthUser(profile);
-
-    res.json({
-      success: true,
-      data: {
-        user: result.user,
-        tokens: result.jwtTokens,
-        isNewUser: result.isNewUser,
-      },
-      message: result.isNewUser ? 'Account created' : 'Logged in',
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error('Mobile OAuth error:', error);
-    res.status(500).json({
-      success: false,
-      error: { code: 'INTERNAL_ERROR', message: 'Mobile OAuth login failed' },
-      timestamp: new Date().toISOString(),
-    });
-  }
+router.post('/:provider/mobile', (_req: Request, res: Response) => {
+  return res.status(501).json({
+    success: false,
+    error: {
+      code: 'NOT_IMPLEMENTED',
+      message: 'Mobile OAuth login is not available.',
+    },
+    timestamp: new Date().toISOString(),
+  });
 });
 
 export default router;
