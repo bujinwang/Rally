@@ -13,7 +13,7 @@ Implemented in `backend/src/routes/oauth.ts` on top of
 |--------|------|---------|
 | `GET` | `/oauth/:provider/url` | Returns the provider authorization URL. |
 | `GET` | `/oauth/:provider/callback?code=...` | Web flow: exchanges the code, finds/creates the user, returns JWT tokens. |
-| `POST` | `/oauth/:provider/mobile` | Native flow: accepts the provider token/profile from the mobile SDK, returns JWT tokens. |
+| `POST` | `/oauth/:provider/mobile` | **Disabled (501).** The native flow trusted a body-supplied `providerId` and minted JWTs without verifying the provider credential — an authentication bypass. It had no reachable client and no provider SDK installed. Returns `501 NOT_IMPLEMENTED` until a server-side token-verification flow is implemented. |
 
 Flow:
 
