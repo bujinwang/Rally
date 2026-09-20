@@ -7,9 +7,9 @@
  * The push gate reads `notification_preferences` via
  * `GET`/`PUT /notifications/preferences` (`backend/src/routes/notifications.ts:258,296`).
  * The reachable UI used to write `user_settings` instead (the wrong store), and
- * the only pre-existing preferences client (`services/notificationApi.ts`) was
- * orphaned and contract-wrong (it read `result.preferences` while the route
- * returns `{ success, data, timestamp }`). This module is the one correct client.
+ * the only pre-existing preferences client was orphaned and contract-wrong (it
+ * read `result.preferences` while the route returns `{ success, data, timestamp }`).
+ * This module is the one correct client.
  *
  * ## Contract
  *
