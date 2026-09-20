@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { achievementService } from '../services/achievementService';
 import { validate } from '../utils/validation';
 import Joi from 'joi';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
@@ -156,9 +157,9 @@ router.get('/player/:playerId/rewards', async (req, res) => {
 /**
  * @route POST /api/achievements/player/:playerId/rewards/:rewardId/claim
  * @desc Claim a reward
- * @access Private (requires player authentication)
+ * @access Private (requires authentication)
  */
-router.post('/player/:playerId/rewards/:rewardId/claim', async (req, res) => {
+router.post('/player/:playerId/rewards/:rewardId/claim', authenticateToken, async (req, res) => {
   try {
     const { playerId, rewardId } = req.params;
 
@@ -187,9 +188,9 @@ router.post('/player/:playerId/rewards/:rewardId/claim', async (req, res) => {
 /**
  * @route POST /api/achievements/trigger
  * @desc Check and update achievements based on trigger
- * @access Private (requires player authentication)
+ * @access Private (requires authentication)
  */
-router.post('/trigger', validate(achievementTriggerSchema), async (req, res) => {
+router.post('/trigger', authenticateToken, validate(achievementTriggerSchema), async (req, res) => {
   try {
     const { playerId, trigger } = req.body;
 
@@ -212,9 +213,9 @@ router.post('/trigger', validate(achievementTriggerSchema), async (req, res) => 
 /**
  * @route POST /api/achievements
  * @desc Create a new achievement (admin only)
- * @access Private (admin only)
+ * @access Private (admin only, requires authentication)
  */
-router.post('/', validate(createAchievementSchema), async (req, res) => {
+router.post('/', authenticateToken, validate(createAchievementSchema), async (req, res) => {
   try {
     const achievement = await achievementService.createAchievement(req.body);
 
@@ -235,9 +236,9 @@ router.post('/', validate(createAchievementSchema), async (req, res) => {
 /**
  * @route POST /api/achievements/badges
  * @desc Create a new badge (admin only)
- * @access Private (admin only)
+ * @access Private (admin only, requires authentication)
  */
-router.post('/badges', validate(createBadgeSchema), async (req, res) => {
+router.post('/badges', authenticateToken, validate(createBadgeSchema), async (req, res) => {
   try {
     const badge = await achievementService.createBadge(req.body);
 

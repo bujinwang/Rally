@@ -4,6 +4,7 @@ import { MvpSessionService } from '../services/mvpSessionService';
 import { moderateLimiter } from '../middleware/rateLimiter';
 import { cachingMiddleware, cacheInvalidationMiddleware } from '../middleware/caching';
 import { TTL } from '../services/cache/cacheKeys';
+import { publicRoute } from './mount';
 
 const router = Router();
 
@@ -11,8 +12,9 @@ const router = Router();
  * GET /api/sessions/discovery
  * Discover sessions based on filters
  * Rate limited: 60 requests per 15 minutes per IP
+ * @access Public
  */
-router.get('/', moderateLimiter, cachingMiddleware({ domain: 'discovery', ttl: TTL.discovery }), async (req: Request, res: Response) => {
+router.get('/', publicRoute(), moderateLimiter, cachingMiddleware({ domain: 'discovery', ttl: TTL.discovery }), async (req: Request, res: Response) => {
   try {
     const {
       latitude,
@@ -116,8 +118,9 @@ router.get('/', moderateLimiter, cachingMiddleware({ domain: 'discovery', ttl: T
 /**
  * GET /api/sessions/discovery/recommended/:deviceId
  * Get personalized session recommendations for a device
+ * @access Public
  */
-router.get('/recommended/:deviceId', async (req: Request, res: Response) => {
+router.get('/recommended/:deviceId', publicRoute(), async (req: Request, res: Response) => {
   try {
     const { deviceId } = req.params;
     const { latitude, longitude, limit } = req.query;
@@ -154,8 +157,9 @@ router.get('/recommended/:deviceId', async (req: Request, res: Response) => {
  * Get sessions near a coordinate, sorted by proximity
  * Rate limited: 60 requests per 15 minutes per IP
  * NOTE: registered before '/:sessionId' so it is not captured as a session id
+ * @access Public
  */
-router.get('/nearby', moderateLimiter, cachingMiddleware({ domain: 'nearby', ttl: TTL.nearby }), async (req: Request, res: Response) => {
+router.get('/nearby', publicRoute(), moderateLimiter, cachingMiddleware({ domain: 'nearby', ttl: TTL.nearby }), async (req: Request, res: Response) => {
   try {
     const { latitude, longitude, radius, limit } = req.query;
 
@@ -199,8 +203,9 @@ router.get('/nearby', moderateLimiter, cachingMiddleware({ domain: 'nearby', ttl
 /**
  * GET /api/sessions/discovery/:sessionId
  * Get detailed session information for discovery
+ * @access Public
  */
-router.get('/:sessionId', cachingMiddleware({ domain: 'session', ttl: TTL.session }), async (req: Request, res: Response) => {
+router.get('/:sessionId', publicRoute(), cachingMiddleware({ domain: 'session', ttl: TTL.session }), async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
     const { latitude, longitude } = req.query;
@@ -247,8 +252,9 @@ router.get('/:sessionId', cachingMiddleware({ domain: 'session', ttl: TTL.sessio
 /**
  * POST /api/sessions/discovery/:sessionId/join
  * Join a session discovered through the discovery system
+ * @access Public (share-code-gated)
  */
-router.post('/:sessionId/join', cacheInvalidationMiddleware(['session', 'discovery']), async (req: Request, res: Response) => {
+router.post('/:sessionId/join', publicRoute(), cacheInvalidationMiddleware(['session', 'discovery']), async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
     const { playerName, deviceId } = req.body;
@@ -330,8 +336,9 @@ router.post('/:sessionId/join', cacheInvalidationMiddleware(['session', 'discove
 /**
  * GET /api/sessions/discovery/stats
  * Get discovery statistics (for analytics)
+ * @access Public
  */
-router.get('/stats/summary', cachingMiddleware({ domain: 'stats', ttl: TTL.stats }), async (req: Request, res: Response) => {
+router.get('/stats/summary', publicRoute(), cachingMiddleware({ domain: 'stats', ttl: TTL.stats }), async (req: Request, res: Response) => {
   try {
     // This would typically aggregate discovery usage statistics
     // For now, return basic stats

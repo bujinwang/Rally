@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../config/database';
 import { body, validationResult } from 'express-validator';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
@@ -93,8 +94,9 @@ router.post('/', createTemplateValidation, async (req: Request, res: Response) =
 /**
  * Delete a template
  * DELETE /session-templates/:id
+ * @access Private (requires authentication)
  */
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 

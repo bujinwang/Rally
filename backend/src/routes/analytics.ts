@@ -5,6 +5,7 @@ import { validate, analyticsExportSchema, analyticsQuerySchema } from '../utils/
 import { createRateLimiters } from '../middleware/rateLimit';
 import { cachingMiddleware, cacheInvalidationMiddleware } from '../middleware/caching';
 import { TTL } from '../services/cache/cacheKeys';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
@@ -268,9 +269,9 @@ router.get('/system', cachingMiddleware({ domain: 'stats', ttl: TTL.stats }), as
 /**
  * @route POST /api/analytics/refresh/player/:playerId
  * @desc Refresh player analytics
- * @access Public (for MVP)
+ * @access Private (requires authentication)
  */
-router.post('/refresh/player/:playerId', cacheInvalidationMiddleware(['stats', 'analytics']), async (req, res) => {
+router.post('/refresh/player/:playerId', authenticateToken, cacheInvalidationMiddleware(['stats', 'analytics']), async (req, res) => {
   try {
     const { playerId } = req.params;
 
@@ -293,9 +294,9 @@ router.post('/refresh/player/:playerId', cacheInvalidationMiddleware(['stats', '
 /**
  * @route POST /api/analytics/refresh/session/:sessionId
  * @desc Refresh session analytics
- * @access Public (for MVP)
+ * @access Private (requires authentication)
  */
-router.post('/refresh/session/:sessionId', cacheInvalidationMiddleware(['stats', 'analytics']), async (req, res) => {
+router.post('/refresh/session/:sessionId', authenticateToken, cacheInvalidationMiddleware(['stats', 'analytics']), async (req, res) => {
   try {
     const { sessionId } = req.params;
 
@@ -318,9 +319,9 @@ router.post('/refresh/session/:sessionId', cacheInvalidationMiddleware(['stats',
 /**
  * @route POST /api/analytics/refresh/tournament/:tournamentId
  * @desc Refresh tournament analytics
- * @access Public (for MVP)
+ * @access Private (requires authentication)
  */
-router.post('/refresh/tournament/:tournamentId', cacheInvalidationMiddleware(['stats', 'analytics']), async (req, res) => {
+router.post('/refresh/tournament/:tournamentId', authenticateToken, cacheInvalidationMiddleware(['stats', 'analytics']), async (req, res) => {
   try {
     const { tournamentId } = req.params;
 
@@ -343,9 +344,9 @@ router.post('/refresh/tournament/:tournamentId', cacheInvalidationMiddleware(['s
 /**
  * @route POST /api/analytics/refresh/system
  * @desc Refresh system analytics
- * @access Public (for MVP)
+ * @access Private (requires authentication)
  */
-router.post('/refresh/system', cacheInvalidationMiddleware(['stats', 'analytics']), async (req, res) => {
+router.post('/refresh/system', authenticateToken, cacheInvalidationMiddleware(['stats', 'analytics']), async (req, res) => {
   try {
     const date = req.body.date ? new Date(req.body.date) : new Date();
 
@@ -561,9 +562,10 @@ router.get('/peak-usage', async (req, res) => {
 /**
  * @route POST /api/analytics/export
  * @desc Export analytics data
- * @access Public (for MVP)
+ * @access Private (requires authentication)
  */
 router.post('/export',
+  authenticateToken,
   exportRateLimit, // Stricter rate limiting for export operations
   validate(analyticsExportSchema),
   async (req, res) => {
@@ -598,9 +600,9 @@ router.post('/export',
 /**
  * @route POST /api/analytics/track-event
  * @desc Track analytics event
- * @access Public (for MVP)
+ * @access Private (requires authentication)
  */
-router.post('/track-event', async (req, res) => {
+router.post('/track-event', authenticateToken, async (req, res) => {
   try {
     const { type, entityId, userId, data } = req.body;
 
