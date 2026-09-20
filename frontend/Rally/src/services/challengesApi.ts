@@ -9,9 +9,13 @@ import {
   ChallengeStats,
   ChallengeType
 } from '../types/social';
+// Canonical base URL (host + `/api/v1`). The previous hardcoded value pointed
+// at the FRONTEND dev server (port 3000) with the wrong `/api` prefix
+// (Story 6.9, T14/F13).
+import { API_BASE_URL } from '../config/api';
 
 class ChallengesApiService {
-  private baseUrl = 'http://localhost:3000/api/challenges';
+  private baseUrl = `${API_BASE_URL}/challenges`;
 
   /**
    * Create a new challenge

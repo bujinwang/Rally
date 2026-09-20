@@ -13,8 +13,10 @@ import {
   CreateAchievementData,
   CreateBadgeData
 } from '../types/achievement';
-
-const API_BASE_URL = 'http://localhost:3000/api';
+// Canonical base URL (host + `/api/v1`). The previous hardcoded value pointed
+// at the FRONTEND dev server (port 3000) with the wrong `/api` prefix, so every
+// AchievementScreen call failed (Story 6.9, T14/F13).
+import { API_BASE_URL } from '../config/api';
 
 class AchievementApiService {
   private async request<T>(
