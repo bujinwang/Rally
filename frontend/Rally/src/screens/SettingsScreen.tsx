@@ -40,6 +40,10 @@ export default function SettingsScreen() {
   // push gate reads (Story 6.9 AC 3). These are a *different* store and endpoint.
   const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
   const [loading, setLoading] = useState(true);
+  // Per-store load failures, tracked independently so one store's outage never
+  // blanks the other section.
+  const [settingsError, setSettingsError] = useState(false);
+  const [prefsError, setPrefsError] = useState(false);
   const [savingPrivacy, setSavingPrivacy] = useState(false);
   const [savingNotifications, setSavingNotifications] = useState(false);
 
@@ -48,22 +52,36 @@ export default function SettingsScreen() {
   }, [userId]);
 
   const loadSettings = async () => {
-    try {
-      setLoading(true);
-      // Load both stores; privacy from user_settings, notifications from the
-      // authoritative notification_preferences store.
-      const [privacyData, notificationData] = await Promise.all([
-        userApi.getUserSettings(userId),
-        notificationPreferencesApi.getPreferences(),
-      ]);
-      setSettings(privacyData);
-      setPrefs(notificationData);
-    } catch (error) {
-      console.error('Error loading settings:', error);
-      Alert.alert('Error', t.settings.loadFailed);
-    } finally {
-      setLoading(false);
+    setLoading(true);
+    setSettingsError(false);
+    setPrefsError(false);
+
+    // The two sections read *independent* stores — `user_settings` for privacy
+    // vs `notification_preferences` for notifications — over independent
+    // endpoints, so a failure in one must not hide the other. `allSettled`
+    // (rather than `all`) keeps a notification-prefs outage from blanking the
+    // privacy settings, and vice-versa; each section reports its own failure
+    // inline below.
+    const [privacyResult, notificationResult] = await Promise.allSettled([
+      userApi.getUserSettings(userId),
+      notificationPreferencesApi.getPreferences(),
+    ]);
+
+    if (privacyResult.status === 'fulfilled') {
+      setSettings(privacyResult.value);
+    } else {
+      console.error('Error loading privacy settings:', privacyResult.reason);
+      setSettingsError(true);
     }
+
+    if (notificationResult.status === 'fulfilled') {
+      setPrefs(notificationResult.value);
+    } else {
+      console.error('Error loading notification preferences:', notificationResult.reason);
+      setPrefsError(true);
+    }
+
+    setLoading(false);
   };
 
   const updateSetting = (category: 'privacySettings' | 'notificationSettings', key: string, value: any) => {
@@ -129,11 +147,14 @@ export default function SettingsScreen() {
     );
   }
 
-  if (!settings || !prefs) {
+  // Only when *both* stores failed is there nothing at all to show. A single
+  // store's failure still renders the other section, with an inline error in
+  // place of the failed one.
+  if (settingsError && prefsError) {
     return (
       <View style={styles.centerContainer}>
         <Ionicons name="alert-circle-outline" size={64} color="#999" />
-        <Text style={styles.errorText}>Failed to load settings</Text>
+        <Text style={styles.errorText}>{t.settings.loadFailed}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={loadSettings}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
@@ -143,86 +164,90 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Privacy Settings */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Privacy Settings</Text>
-        
-        <View style={styles.settingItem}>
-          <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Profile Visibility</Text>
-            <Text style={styles.settingDescription}>
-              {settings.privacySettings.profileVisibility === 'public' 
-                ? 'Anyone can view your profile' 
-                : settings.privacySettings.profileVisibility === 'friends'
-                ? 'Only friends can view your profile'
-                : 'Only you can view your profile'}
-            </Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.pickerButton}
-            onPress={() => {
-              const options = ['public', 'friends', 'private'];
-              const current = settings.privacySettings.profileVisibility;
-              const currentIndex = options.indexOf(current);
-              const nextIndex = (currentIndex + 1) % options.length;
-              updateSetting('privacySettings', 'profileVisibility', options[nextIndex]);
-            }}
-          >
-            <Text style={styles.pickerButtonText}>
-              {settings.privacySettings.profileVisibility}
-            </Text>
-            <Ionicons name="chevron-forward" size={20} color="#007AFF" />
-          </TouchableOpacity>
-        </View>
+      {/* Privacy Settings — reads/writes `user_settings` (an independent store). */}
+      {settings ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Privacy Settings</Text>
 
-        <View style={styles.settingItem}>
-          <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Show Email</Text>
-            <Text style={styles.settingDescription}>Display email on profile</Text>
+          <View style={styles.settingItem}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Profile Visibility</Text>
+              <Text style={styles.settingDescription}>
+                {settings.privacySettings.profileVisibility === 'public'
+                  ? 'Anyone can view your profile'
+                  : settings.privacySettings.profileVisibility === 'friends'
+                  ? 'Only friends can view your profile'
+                  : 'Only you can view your profile'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.pickerButton}
+              onPress={() => {
+                const options = ['public', 'friends', 'private'];
+                const current = settings.privacySettings.profileVisibility;
+                const currentIndex = options.indexOf(current);
+                const nextIndex = (currentIndex + 1) % options.length;
+                updateSetting('privacySettings', 'profileVisibility', options[nextIndex]);
+              }}
+            >
+              <Text style={styles.pickerButtonText}>
+                {settings.privacySettings.profileVisibility}
+              </Text>
+              <Ionicons name="chevron-forward" size={20} color="#007AFF" />
+            </TouchableOpacity>
           </View>
-          <Switch
-            value={settings.privacySettings.showEmail}
-            onValueChange={(value) => updateSetting('privacySettings', 'showEmail', value)}
-            trackColor={{ false: '#ccc', true: '#007AFF' }}
-          />
-        </View>
 
-        <View style={styles.settingItem}>
-          <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Show Phone</Text>
-            <Text style={styles.settingDescription}>Display phone on profile</Text>
+          <View style={styles.settingItem}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Show Email</Text>
+              <Text style={styles.settingDescription}>Display email on profile</Text>
+            </View>
+            <Switch
+              value={settings.privacySettings.showEmail}
+              onValueChange={(value) => updateSetting('privacySettings', 'showEmail', value)}
+              trackColor={{ false: '#ccc', true: '#007AFF' }}
+            />
           </View>
-          <Switch
-            value={settings.privacySettings.showPhone}
-            onValueChange={(value) => updateSetting('privacySettings', 'showPhone', value)}
-            trackColor={{ false: '#ccc', true: '#007AFF' }}
-          />
-        </View>
 
-        <View style={styles.settingItem}>
-          <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Show Statistics</Text>
-            <Text style={styles.settingDescription}>Display game stats on profile</Text>
+          <View style={styles.settingItem}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Show Phone</Text>
+              <Text style={styles.settingDescription}>Display phone on profile</Text>
+            </View>
+            <Switch
+              value={settings.privacySettings.showPhone}
+              onValueChange={(value) => updateSetting('privacySettings', 'showPhone', value)}
+              trackColor={{ false: '#ccc', true: '#007AFF' }}
+            />
           </View>
-          <Switch
-            value={settings.privacySettings.showStats}
-            onValueChange={(value) => updateSetting('privacySettings', 'showStats', value)}
-            trackColor={{ false: '#ccc', true: '#007AFF' }}
-          />
-        </View>
 
-        <View style={styles.settingItem}>
-          <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Show Location</Text>
-            <Text style={styles.settingDescription}>Display location on profile</Text>
+          <View style={styles.settingItem}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Show Statistics</Text>
+              <Text style={styles.settingDescription}>Display game stats on profile</Text>
+            </View>
+            <Switch
+              value={settings.privacySettings.showStats}
+              onValueChange={(value) => updateSetting('privacySettings', 'showStats', value)}
+              trackColor={{ false: '#ccc', true: '#007AFF' }}
+            />
           </View>
-          <Switch
-            value={settings.privacySettings.showLocation}
-            onValueChange={(value) => updateSetting('privacySettings', 'showLocation', value)}
-            trackColor={{ false: '#ccc', true: '#007AFF' }}
-          />
+
+          <View style={styles.settingItem}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Show Location</Text>
+              <Text style={styles.settingDescription}>Display location on profile</Text>
+            </View>
+            <Switch
+              value={settings.privacySettings.showLocation}
+              onValueChange={(value) => updateSetting('privacySettings', 'showLocation', value)}
+              trackColor={{ false: '#ccc', true: '#007AFF' }}
+            />
+          </View>
         </View>
-      </View>
+      ) : (
+        <SectionLoadError message={t.settings.loadFailed} onRetry={loadSettings} />
+      )}
 
       {/* Language */}
       <View style={styles.section}>
@@ -243,71 +268,101 @@ export default function SettingsScreen() {
 
       {/* Notification Settings — reads/writes notification_preferences, the
           store the push gate honours (Story 6.9 AC 3). */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t.settings.notificationSettings}</Text>
+      {prefs ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t.settings.notificationSettings}</Text>
 
-        {/* Master push toggle */}
-        <View style={styles.settingItem}>
-          <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>{t.settings[PUSH_ENABLED_ENTRY.labelKey]}</Text>
-            <Text style={styles.settingDescription}>
-              {t.settings[PUSH_ENABLED_ENTRY.descriptionKey]}
-            </Text>
-          </View>
-          <Switch
-            value={prefs[PUSH_ENABLED_KEY]}
-            onValueChange={(value) => updatePref(PUSH_ENABLED_KEY, value)}
-            trackColor={{ false: '#ccc', true: '#007AFF' }}
-          />
-        </View>
-
-        {NOTIFICATION_PREFERENCE_ENTRIES.map((entry) => (
-          <View key={entry.id} style={styles.settingItem}>
+          {/* Master push toggle */}
+          <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>{t.settings[entry.labelKey]}</Text>
-              <Text style={styles.settingDescription}>{t.settings[entry.descriptionKey]}</Text>
+              <Text style={styles.settingLabel}>{t.settings[PUSH_ENABLED_ENTRY.labelKey]}</Text>
+              <Text style={styles.settingDescription}>
+                {t.settings[PUSH_ENABLED_ENTRY.descriptionKey]}
+              </Text>
             </View>
             <Switch
-              value={prefs[entry.preferenceKey]}
-              onValueChange={(value) => updatePref(entry.preferenceKey, value)}
+              value={prefs[PUSH_ENABLED_KEY]}
+              onValueChange={(value) => updatePref(PUSH_ENABLED_KEY, value)}
               trackColor={{ false: '#ccc', true: '#007AFF' }}
             />
           </View>
-        ))}
-      </View>
+
+          {NOTIFICATION_PREFERENCE_ENTRIES.map((entry) => (
+            <View key={entry.id} style={styles.settingItem}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>{t.settings[entry.labelKey]}</Text>
+                <Text style={styles.settingDescription}>{t.settings[entry.descriptionKey]}</Text>
+              </View>
+              <Switch
+                value={prefs[entry.preferenceKey]}
+                onValueChange={(value) => updatePref(entry.preferenceKey, value)}
+                trackColor={{ false: '#ccc', true: '#007AFF' }}
+              />
+            </View>
+          ))}
+        </View>
+      ) : (
+        <SectionLoadError message={t.settings.loadFailed} onRetry={loadSettings} />
+      )}
 
       {/* Save Buttons — privacy and notifications are separate stores, so they
-          save separately and each reports only what it actually saved. */}
-      <TouchableOpacity
-        style={[styles.saveButton, savingNotifications && styles.saveButtonDisabled]}
-        onPress={handleSaveNotifications}
-        disabled={savingNotifications}
-      >
-        {savingNotifications ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <>
-            <Ionicons name="notifications-outline" size={24} color="#fff" />
-            <Text style={styles.saveButtonText}>{t.settings.saveNotifications}</Text>
-          </>
-        )}
-      </TouchableOpacity>
+          save separately and each reports only what it actually saved. A button
+          is only rendered when its store loaded, so it can never claim to save
+          a section that failed to load. */}
+      {prefs && (
+        <TouchableOpacity
+          style={[styles.saveButton, savingNotifications && styles.saveButtonDisabled]}
+          onPress={handleSaveNotifications}
+          disabled={savingNotifications}
+        >
+          {savingNotifications ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="notifications-outline" size={24} color="#fff" />
+              <Text style={styles.saveButtonText}>{t.settings.saveNotifications}</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      )}
 
-      <TouchableOpacity
-        style={[styles.saveButton, savingPrivacy && styles.saveButtonDisabled]}
-        onPress={handleSavePrivacy}
-        disabled={savingPrivacy}
-      >
-        {savingPrivacy ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <>
-            <Ionicons name="lock-closed-outline" size={24} color="#fff" />
-            <Text style={styles.saveButtonText}>{t.settings.savePrivacy}</Text>
-          </>
-        )}
-      </TouchableOpacity>
+      {settings && (
+        <TouchableOpacity
+          style={[styles.saveButton, savingPrivacy && styles.saveButtonDisabled]}
+          onPress={handleSavePrivacy}
+          disabled={savingPrivacy}
+        >
+          {savingPrivacy ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="lock-closed-outline" size={24} color="#fff" />
+              <Text style={styles.saveButtonText}>{t.settings.savePrivacy}</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      )}
     </ScrollView>
+  );
+}
+
+/**
+ * Inline placeholder shown in place of a settings section whose store failed to
+ * load. It keeps the two independent sections decoupled: a notification-prefs
+ * outage shows here without hiding the privacy settings, and vice-versa.
+ */
+function SectionLoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <View style={styles.section}>
+      <View style={styles.settingItem}>
+        <View style={styles.settingInfo}>
+          <Text style={styles.settingDescription}>{message}</Text>
+        </View>
+        <TouchableOpacity style={styles.pickerButton} onPress={onRetry}>
+          <Text style={styles.pickerButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
