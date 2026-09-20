@@ -29,7 +29,17 @@ jest.mock('../../config/api', () => ({
 import http from 'http';
 import type { AddressInfo } from 'net';
 
-/** Byte-exact `GET`/`PUT /notifications/preferences` payload (route :274,:339). */
+/**
+ * Byte-exact `GET`/`PUT /notifications/preferences` payload (route :274,:339):
+ * exactly the nine boolean columns the route returns.
+ *
+ * The two quiet-hour bounds are deliberately ABSENT. `toNotificationPreferences`
+ * (`backend/src/services/notificationPreferences.ts`) maps a null column to
+ * `undefined`, and `JSON.stringify` drops undefined keys — so the real server
+ * omits them when unset and never sends `null`. A stub that carried
+ * `quietHoursStart/End: null` would return keys the server never does, silently
+ * weakening this harness's byte-exact guarantee.
+ */
 const DEFAULT_PREFS = {
   pushEnabled: true,
   matchResults: true,
@@ -40,8 +50,6 @@ const DEFAULT_PREFS = {
   socialMessages: true,
   sessionReminders: true,
   emailEnabled: false,
-  quietHoursStart: null as string | null,
-  quietHoursEnd: null as string | null,
 };
 
 let server: http.Server;
@@ -127,5 +135,50 @@ describe('notificationPreferencesApi consumer (Story 6.9 AC 3)', () => {
 
     expect(lastRequest?.body).toEqual({ socialMessages: true });
     expect(Object.prototype.hasOwnProperty.call(lastRequest?.body, 'messages')).toBe(false);
+  });
+
+  it('unwraps a GET body carrying exactly the nine columns the real route sends', async () => {
+    const prefs = await notificationPreferencesApi.getPreferences();
+
+    // Pins the harness's byte-exact shape: the server sends nine booleans and
+    // omits the quiet-hour bounds entirely (never `null`).
+    expect(Object.keys(prefs).sort()).toEqual(
+      [
+        'achievements',
+        'challenges',
+        'emailEnabled',
+        'friendRequests',
+        'matchResults',
+        'pushEnabled',
+        'sessionReminders',
+        'socialMessages',
+        'tournamentUpdates',
+      ].sort(),
+    );
+    expect(Object.prototype.hasOwnProperty.call(prefs, 'quietHoursStart')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(prefs, 'quietHoursEnd')).toBe(false);
+  });
+
+  it('never emits a null-valued key (D2 regression — the route rejects null with 400)', async () => {
+    // The route validates quiet-hour bounds with `optional().isString()`, which
+    // rejects `null` (400 VALIDATION_ERROR). The client must therefore drop
+    // null-valued keys rather than forward them.
+    await notificationPreferencesApi.updatePreferences({
+      socialMessages: true,
+      quietHoursStart: null,
+      quietHoursEnd: null,
+    } as any);
+
+    expect(lastRequest?.body).toEqual({ socialMessages: true });
+    expect(Object.prototype.hasOwnProperty.call(lastRequest?.body, 'quietHoursStart')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(lastRequest?.body, 'quietHoursEnd')).toBe(false);
+  });
+
+  it('keeps an empty-string quiet-hour bound (the documented clear path)', async () => {
+    // The route maps `''` → null, so an empty string is the sanctioned way to
+    // clear a bound and must be forwarded (unlike `null`, which is dropped).
+    await notificationPreferencesApi.updatePreferences({ quietHoursStart: '' } as any);
+
+    expect(lastRequest?.body).toEqual({ quietHoursStart: '' });
   });
 });

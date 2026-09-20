@@ -19,7 +19,10 @@
  * - Both responses are `{ success, data, timestamp }`; we **unwrap `data`**.
  * - `updatePreferences` sends only columns the server accepts
  *   (`notificationPreferenceMapping.ACCEPTED_PREFERENCE_KEYS`), because the
- *   route's `pickPreferenceFields` (`:102-117`) silently drops unknown keys.
+ *   route's `pickPreferenceFields` (`:102-117`) silently drops unknown keys. It
+ *   also drops `undefined`/`null` values: the route rejects `null` quiet-hour
+ *   bounds with a 400, and the sanctioned way to clear one is an empty string
+ *   (the route maps `''` → null).
  *
  * Shape mirrors `services/userApi.ts` (`getAuthHeaders()` + `fetch`, throwing
  * `error.error?.message`).
@@ -33,8 +36,17 @@ import {
 
 /**
  * The caller's notification preferences, as returned by the backend. Mirrors
- * the `notification_preferences` columns the route exposes (all boolean columns
- * plus the two quiet-hour string bounds, which may be `null`).
+ * the `notification_preferences` columns the route exposes: nine boolean
+ * columns, plus the two quiet-hour string bounds.
+ *
+ * The quiet-hour bounds are **optional** (`string | undefined`), not
+ * `string | null`. `toNotificationPreferences`
+ * (`backend/src/services/notificationPreferences.ts`) maps a null column to
+ * `undefined`, and `JSON.stringify` drops undefined keys — so the server simply
+ * *omits* them when unset and never sends `null`. Declaring them `null` would
+ * assert a contract the server does not honour (the same class of error as the
+ * original F12 defect). To *clear* a bound a client sends an empty string; the
+ * route maps `''` → null (see `pickAcceptedFields`).
  */
 export interface NotificationPreferences {
   pushEnabled: boolean;
@@ -46,8 +58,8 @@ export interface NotificationPreferences {
   socialMessages: boolean;
   sessionReminders: boolean;
   emailEnabled: boolean;
-  quietHoursStart: string | null;
-  quietHoursEnd: string | null;
+  quietHoursStart?: string;
+  quietHoursEnd?: string;
 }
 
 /** A partial update — only accepted keys are ever sent. */
@@ -55,7 +67,16 @@ export type NotificationPreferencesPatch = Partial<NotificationPreferences>;
 
 /**
  * Keep only the keys the backend accepts, and only those explicitly present
- * (so a partial PUT never clears a column the caller did not mention).
+ * with a non-null value:
+ *  - unknown keys are dropped (the route's `pickPreferenceFields` drops them
+ *    silently, so a client should not rely on the server to ignore them);
+ *  - `undefined` keys are dropped (a partial PUT never clears a column the
+ *    caller did not mention);
+ *  - `null` keys are dropped too: the route validates quiet-hour bounds with
+ *    `optional().isString()`, which **rejects null** with a 400
+ *    VALIDATION_ERROR. To clear a bound, send an empty string instead — the
+ *    route maps `''` → null (`notifications.ts:109-114`), so empty strings are
+ *    forwarded, not dropped.
  */
 function pickAcceptedFields(
   patch: NotificationPreferencesPatch,
@@ -63,9 +84,10 @@ function pickAcceptedFields(
   const raw = patch as Record<string, unknown>;
   const out: Record<string, unknown> = {};
   for (const key of ACCEPTED_PREFERENCE_KEYS) {
-    if (Object.prototype.hasOwnProperty.call(raw, key) && raw[key] !== undefined) {
-      out[key] = raw[key];
-    }
+    if (!Object.prototype.hasOwnProperty.call(raw, key)) continue;
+    const value = raw[key];
+    if (value === undefined || value === null) continue;
+    out[key] = value;
   }
   return out as NotificationPreferencesPatch;
 }
