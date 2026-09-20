@@ -11,6 +11,16 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { userApi, UserSettings } from '../services/userApi';
+import {
+  notificationPreferencesApi,
+  NotificationPreferences,
+} from '../services/notificationPreferencesApi';
+import {
+  NOTIFICATION_PREFERENCE_ENTRIES,
+  PUSH_ENABLED_ENTRY,
+  PUSH_ENABLED_KEY,
+  NotificationPreferenceKey,
+} from '../services/notificationPreferenceMapping';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '../i18n/LanguageContext';
 
@@ -24,9 +34,14 @@ export default function SettingsScreen() {
   const { userId } = route.params as RouteParams;
 
   const { t, locale, setLocale, availableLocales } = useTranslation();
+  // Privacy lives in `user_settings` (read by routes/users.ts:80-84).
   const [settings, setSettings] = useState<UserSettings | null>(null);
+  // Notification consent lives in `notification_preferences` — the store the
+  // push gate reads (Story 6.9 AC 3). These are a *different* store and endpoint.
+  const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
+  const [savingNotifications, setSavingNotifications] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -35,11 +50,17 @@ export default function SettingsScreen() {
   const loadSettings = async () => {
     try {
       setLoading(true);
-      const data = await userApi.getUserSettings(userId);
-      setSettings(data);
+      // Load both stores; privacy from user_settings, notifications from the
+      // authoritative notification_preferences store.
+      const [privacyData, notificationData] = await Promise.all([
+        userApi.getUserSettings(userId),
+        notificationPreferencesApi.getPreferences(),
+      ]);
+      setSettings(privacyData);
+      setPrefs(notificationData);
     } catch (error) {
       console.error('Error loading settings:', error);
-      Alert.alert('Error', 'Failed to load settings');
+      Alert.alert('Error', t.settings.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -57,18 +78,45 @@ export default function SettingsScreen() {
     });
   };
 
-  const handleSave = async () => {
+  /** Update one notification preference (local state only until saved). */
+  const updatePref = (key: NotificationPreferenceKey, value: boolean) => {
+    setPrefs((prev) => (prev ? { ...prev, [key]: value } : prev));
+  };
+
+  /**
+   * Save the privacy section to `user_settings`.
+   * Notification consent is saved separately (below) because it lives in a
+   * different store/endpoint — a single button could not honestly save both.
+   */
+  const handleSavePrivacy = async () => {
     if (!settings) return;
 
     try {
-      setSaving(true);
-      await userApi.updateSettings(userId, settings);
-      Alert.alert('Success', 'Settings saved successfully');
+      setSavingPrivacy(true);
+      await userApi.updateSettings(userId, { privacySettings: settings.privacySettings });
+      Alert.alert('Success', t.settings.savedSuccessfully);
     } catch (error) {
-      console.error('Error saving settings:', error);
-      Alert.alert('Error', 'Failed to save settings');
+      console.error('Error saving privacy settings:', error);
+      Alert.alert('Error', t.settings.saveFailed);
     } finally {
-      setSaving(false);
+      setSavingPrivacy(false);
+    }
+  };
+
+  /** Save the notification section to the authoritative preferences store. */
+  const handleSaveNotifications = async () => {
+    if (!prefs) return;
+
+    try {
+      setSavingNotifications(true);
+      const saved = await notificationPreferencesApi.updatePreferences(prefs);
+      setPrefs(saved);
+      Alert.alert('Success', t.settings.savedSuccessfully);
+    } catch (error) {
+      console.error('Error saving notification preferences:', error);
+      Alert.alert('Error', t.settings.saveFailed);
+    } finally {
+      setSavingNotifications(false);
     }
   };
 
@@ -81,7 +129,7 @@ export default function SettingsScreen() {
     );
   }
 
-  if (!settings) {
+  if (!settings || !prefs) {
     return (
       <View style={styles.centerContainer}>
         <Ionicons name="alert-circle-outline" size={64} color="#999" />
@@ -193,83 +241,69 @@ export default function SettingsScreen() {
         ))}
       </View>
 
-      {/* Notification Settings */}
+      {/* Notification Settings — reads/writes notification_preferences, the
+          store the push gate honours (Story 6.9 AC 3). */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Notification Settings</Text>
-        
+        <Text style={styles.sectionTitle}>{t.settings.notificationSettings}</Text>
+
+        {/* Master push toggle */}
         <View style={styles.settingItem}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Friend Requests</Text>
-            <Text style={styles.settingDescription}>Notify when someone sends a friend request</Text>
+            <Text style={styles.settingLabel}>{t.settings[PUSH_ENABLED_ENTRY.labelKey]}</Text>
+            <Text style={styles.settingDescription}>
+              {t.settings[PUSH_ENABLED_ENTRY.descriptionKey]}
+            </Text>
           </View>
           <Switch
-            value={settings.notificationSettings.friendRequests}
-            onValueChange={(value) => updateSetting('notificationSettings', 'friendRequests', value)}
+            value={prefs[PUSH_ENABLED_KEY]}
+            onValueChange={(value) => updatePref(PUSH_ENABLED_KEY, value)}
             trackColor={{ false: '#ccc', true: '#007AFF' }}
           />
         </View>
 
-        <View style={styles.settingItem}>
-          <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Messages</Text>
-            <Text style={styles.settingDescription}>Notify when you receive a message</Text>
+        {NOTIFICATION_PREFERENCE_ENTRIES.map((entry) => (
+          <View key={entry.id} style={styles.settingItem}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>{t.settings[entry.labelKey]}</Text>
+              <Text style={styles.settingDescription}>{t.settings[entry.descriptionKey]}</Text>
+            </View>
+            <Switch
+              value={prefs[entry.preferenceKey]}
+              onValueChange={(value) => updatePref(entry.preferenceKey, value)}
+              trackColor={{ false: '#ccc', true: '#007AFF' }}
+            />
           </View>
-          <Switch
-            value={settings.notificationSettings.messages}
-            onValueChange={(value) => updateSetting('notificationSettings', 'messages', value)}
-            trackColor={{ false: '#ccc', true: '#007AFF' }}
-          />
-        </View>
-
-        <View style={styles.settingItem}>
-          <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Session Invites</Text>
-            <Text style={styles.settingDescription}>Notify when invited to a session</Text>
-          </View>
-          <Switch
-            value={settings.notificationSettings.sessionInvites}
-            onValueChange={(value) => updateSetting('notificationSettings', 'sessionInvites', value)}
-            trackColor={{ false: '#ccc', true: '#007AFF' }}
-          />
-        </View>
-
-        <View style={styles.settingItem}>
-          <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Match Results</Text>
-            <Text style={styles.settingDescription}>Notify when match results are recorded</Text>
-          </View>
-          <Switch
-            value={settings.notificationSettings.matchResults}
-            onValueChange={(value) => updateSetting('notificationSettings', 'matchResults', value)}
-            trackColor={{ false: '#ccc', true: '#007AFF' }}
-          />
-        </View>
-
-        <View style={styles.settingItem}>
-          <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Achievements</Text>
-            <Text style={styles.settingDescription}>Notify when you unlock achievements</Text>
-          </View>
-          <Switch
-            value={settings.notificationSettings.achievements}
-            onValueChange={(value) => updateSetting('notificationSettings', 'achievements', value)}
-            trackColor={{ false: '#ccc', true: '#007AFF' }}
-          />
-        </View>
+        ))}
       </View>
 
-      {/* Save Button */}
-      <TouchableOpacity 
-        style={[styles.saveButton, saving && styles.saveButtonDisabled]} 
-        onPress={handleSave}
-        disabled={saving}
+      {/* Save Buttons — privacy and notifications are separate stores, so they
+          save separately and each reports only what it actually saved. */}
+      <TouchableOpacity
+        style={[styles.saveButton, savingNotifications && styles.saveButtonDisabled]}
+        onPress={handleSaveNotifications}
+        disabled={savingNotifications}
       >
-        {saving ? (
+        {savingNotifications ? (
           <ActivityIndicator color="#fff" />
         ) : (
           <>
-            <Ionicons name="checkmark-circle" size={24} color="#fff" />
-            <Text style={styles.saveButtonText}>Save Settings</Text>
+            <Ionicons name="notifications-outline" size={24} color="#fff" />
+            <Text style={styles.saveButtonText}>{t.settings.saveNotifications}</Text>
+          </>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.saveButton, savingPrivacy && styles.saveButtonDisabled]}
+        onPress={handleSavePrivacy}
+        disabled={savingPrivacy}
+      >
+        {savingPrivacy ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <>
+            <Ionicons name="lock-closed-outline" size={24} color="#fff" />
+            <Text style={styles.saveButtonText}>{t.settings.savePrivacy}</Text>
           </>
         )}
       </TouchableOpacity>
