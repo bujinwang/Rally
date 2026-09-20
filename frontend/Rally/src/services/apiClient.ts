@@ -1,5 +1,9 @@
 // Minimal API client stub
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+// Base URL comes from the canonical `config/api` module so there is a single
+// source of truth (Story 6.9, T14/F13).
+import { API_BASE_URL } from '../config/api';
+
+const API_BASE = API_BASE_URL;
 
 export const apiClient = {
   get: async (url: string, options?: any) => {

@@ -3,7 +3,11 @@ import { AppState, AppStateStatus, Platform } from 'react-native';
 import { notificationService, NotificationType } from '../services/NotificationService';
 import { InAppNotificationData } from '../components/InAppNotification';
 import { io, Socket } from 'socket.io-client';
-import { API_BASE_URL } from '../config';
+// Canonical base URL (host + `/api/v1`, honours EXPO_PUBLIC_API_URL). The old
+// `'../config'` import resolved to a conflicting, host-only `API_BASE_URL`
+// (Story 6.9, T14/F13).
+import { API_BASE_URL } from '../config/api';
+import { notificationRegisterUrl, socketUrl } from '../services/apiUrls';
 
 interface UseNotificationManagerProps {
   shareCode?: string;
@@ -65,7 +69,7 @@ export function useNotificationManager({
 
   const registerPushToken = async (pushToken: string, deviceId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/notifications/register`, {
+      const response = await fetch(notificationRegisterUrl(API_BASE_URL), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -94,7 +98,11 @@ export function useNotificationManager({
 
     console.log('📡 Connecting to Socket.io...');
 
-    socketRef.current = io(API_BASE_URL, {
+    // Connect to the socket ORIGIN, not the REST base: the server registers no
+    // namespace, so `io('http://host/api/v1')` would look for a namespace named
+    // `/api/v1` and never connect. `socketUrl` strips the `/api/v1` suffix
+    // (mirroring `services/socketService.ts`).
+    socketRef.current = io(socketUrl(API_BASE_URL), {
       transports: ['websocket'],
       reconnection: true,
       reconnectionDelay: 1000,

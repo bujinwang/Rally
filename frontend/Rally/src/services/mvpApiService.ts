@@ -63,8 +63,10 @@ export interface ApiResponse<T> {
 
 class MvpApiService extends ApiService {
   constructor() {
-    // Your backend server URL - update this based on your setup
-    super(process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api/v1');
+    // Use the `ApiService` default base (`config/api.API_BASE_URL`, which
+    // already includes `/api/v1`). The previous duplicated literal skipped the
+    // production relative-URL fallback (Story 6.9, T14/F13).
+    super();
   }
 
   // Create a new MVP session

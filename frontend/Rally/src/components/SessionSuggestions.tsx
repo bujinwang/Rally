@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import sessionApi from '../services/sessionApi';
 import { API_BASE_URL } from '../config/api';
+import { sessionSuggestionsUrl } from '../services/apiUrls';
 
 interface Suggestion {
   id: string;
@@ -53,7 +54,10 @@ export default function SessionSuggestions({ deviceId, style }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/session-suggestions/${deviceId}`);
+      // The handler is mounted at `/session-suggestions/suggestions/:deviceId`
+      // (routes/index.ts:70 + routes/sessionSuggestions.ts:12) — the
+      // `suggestions` segment was previously missing, so this 404'd.
+      const res = await fetch(sessionSuggestionsUrl(API_BASE_URL, deviceId));
       const data = await res.json();
       if (data.success) {
         setSuggestions(data.data.suggestions);
