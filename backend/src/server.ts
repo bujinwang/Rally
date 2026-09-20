@@ -25,6 +25,7 @@ import { getAggregatedHealth } from './services/healthAggregator';
 import metricsRouter from './routes/metrics';
 import { attachAdapter, detachAdapter } from './socket/adapter';
 import { setIo } from './socket/ioRegistry';
+import { publicRouter, requireAuth } from './routes/mount';
 
 // Load environment variables
 dotenv.config();
@@ -125,9 +126,9 @@ console.log('✅ API routes configured at /api/v1');
 
 // Web session routes (for direct HTML access)
 console.log('🌐 Setting up web session routes...');
-app.use('/join', webSessionRoutes);
-app.use(shareCardRoutes);
-app.use(adminRoutes);
+app.use('/join', publicRouter(webSessionRoutes)); // share-code-gated
+app.use(publicRouter(shareCardRoutes)); // share-code-gated
+app.use('/admin', requireAuth(adminRoutes)); // already correctly guarded
 console.log('✅ Web session routes configured at /join');
 
 // Serve Expo web build (SPA)
@@ -138,7 +139,8 @@ const webBuildPath =
 
 // Metrics exposition endpoint (Story 6.3, AC 1 / AC 11)
 // Mounted before the SPA catch-all so /metrics is not intercepted by index.html
-app.use('/metrics', metricsRouter);
+// Self-guards via bearer token — publicRouter only because it self-guards
+app.use('/metrics', publicRouter(metricsRouter));
 
 // Only serve web build if the directory exists (may not in API-only deploys)
 const fs = require('fs');

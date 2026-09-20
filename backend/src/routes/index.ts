@@ -1,4 +1,9 @@
 import { Router } from 'express';
+import {
+  requireAuth,
+  optionalIdentity,
+  publicRouter,
+} from './mount';
 
 // Import route modules
 import authRoutes from './auth';
@@ -59,80 +64,70 @@ router.get('/', (req, res) => {
 // API routes
 console.log('📍 Registering routes:');
 console.log('  - /auth');
-router.use('/auth', authRoutes);
+router.use('/auth', authRoutes); // auth self-guards its routes
 console.log('  - /users');
-router.use('/users', userRoutes);
+router.use('/users', requireAuth(userRoutes));
 console.log('  - /mvp-sessions');
-router.use('/mvp-sessions', mvpSessionRoutes);
+router.use('/mvp-sessions', requireAuth(mvpSessionRoutes));
 console.log('  - /session-templates');
-router.use('/session-templates', sessionTemplateRoutes);
+router.use('/session-templates', optionalIdentity(sessionTemplateRoutes));
 console.log('  - /session-suggestions');
-router.use('/session-suggestions', sessionSuggestionRoutes);
+router.use('/session-suggestions', optionalIdentity(sessionSuggestionRoutes));
 console.log('  - /player-status');
-router.use('/player-status', playerStatusRoutes);
+router.use('/player-status', requireAuth(playerStatusRoutes));
 console.log('  - /scoring');
-router.use('/scoring', scoringRoutes);
+router.use('/scoring', requireAuth(scoringRoutes));
 console.log('  - /notifications');
-router.use('/notifications', notificationRoutes);
+router.use('/notifications', requireAuth(notificationRoutes));
 console.log('  - /pairings');
-router.use('/pairings', pairingRoutes);
+router.use('/pairings', requireAuth(pairingRoutes));
 console.log('  - /sessions/discovery');
-router.use('/sessions/discovery', discoveryRoutes);
+router.use('/sessions/discovery', optionalIdentity(discoveryRoutes));
 console.log('  - /sessions/config');
-router.use('/sessions/config', sessionConfigRoutes);
+router.use('/sessions/config', requireAuth(sessionConfigRoutes));
 console.log('  - /tournaments');
-// Story 6.11: mounted before `tournamentRoutes`. This router's `/:id/analytics`
-// has no counterpart in `tournaments.ts` (verified), so ordering is not load
-// bearing — but the more specific router goes first so the intent is explicit.
-router.use('/tournaments', tournamentAnalyticsRoutes);
-router.use('/tournaments', tournamentRoutes);
+router.use('/tournaments', tournamentAnalyticsRoutes); // has its own auth inside
+router.use('/tournaments', tournamentRoutes); // has its own auth inside
 console.log('  - /session-history');
-router.use('/session-history', sessionHistoryRoutes);
+router.use('/session-history', requireAuth(sessionHistoryRoutes));
 console.log('  - /search');
-router.use('/search', searchRoutes);
+router.use('/search', publicRouter(searchRoutes));
 console.log('  - /matches');
-router.use('/matches', matchesRoutes);
+router.use('/matches', optionalIdentity(matchesRoutes));
 console.log('  - /statistics');
-router.use('/statistics', statisticsRoutes);
+router.use('/statistics', publicRouter(statisticsRoutes));
 console.log('  - /rankings');
-router.use('/rankings', rankingsRoutes);
+router.use('/rankings', optionalIdentity(rankingsRoutes));
 console.log('  - /achievements');
-router.use('/achievements', achievementsRoutes);
+router.use('/achievements', optionalIdentity(achievementsRoutes));
 console.log('  - /analytics');
-router.use('/analytics', analyticsRoutes);
+router.use('/analytics', publicRouter(analyticsRoutes));
 console.log('  - /friends');
-router.use('/friends', friendsRoutes);
+router.use('/friends', requireAuth(friendsRoutes));
 console.log('  - /messaging');
-router.use('/messaging', messagingRoutes);
+router.use('/messaging', requireAuth(messagingRoutes));
 console.log('  - /challenges');
-router.use('/challenges', challengesRoutes);
+router.use('/challenges', optionalIdentity(challengesRoutes));
 console.log('  - /match-scheduling');
-router.use('/match-scheduling', matchSchedulingRoutes);
+router.use('/match-scheduling', requireAuth(matchSchedulingRoutes));
 console.log('  - /session-insights');
-router.use('/session-insights', sessionInsightsRoutes);
+router.use('/session-insights', optionalIdentity(sessionInsightsRoutes));
 console.log('  - /session-costs');
-router.use('/session-costs', sessionCostRoutes);
+router.use('/session-costs', requireAuth(sessionCostRoutes));
 console.log('  - /clubs');
-router.use('/clubs', clubRoutes);
-// Equipment routes — inventory, reservations, check-out/return, maintenance
+router.use('/clubs', requireAuth(clubRoutes));
 console.log('  - /golf');
-router.use('/golf', golfRoutes);
+router.use('/golf', requireAuth(golfRoutes));
 console.log('  - /equipment');
-router.use('/equipment', equipmentRoutes);
-// Court booking routes disabled (not part of MVP)
-// console.log('  - /court-bookings');
-// router.use('/court-bookings', courtBookingRoutes);
-// Payment routes disabled (not part of MVP)
-// console.log('  - /payments');
-// router.use('/payments', paymentRoutes);
+router.use('/equipment', requireAuth(equipmentRoutes));
 console.log('  - /sharing');
-router.use('/sharing', sharingRoutes);
+router.use('/sharing', optionalIdentity(sharingRoutes));
 console.log('  - /community');
-router.use('/community', communityRoutes);
+router.use('/community', requireAuth(communityRoutes));
 console.log('  - /oauth');
-router.use('/oauth', oauthRoutes);
+router.use('/oauth', publicRouter(oauthRoutes));
 console.log('  - /predictions');
-router.use('/predictions', predictionRoutes);
+router.use('/predictions', requireAuth(predictionRoutes));
 console.log('✅ All routes registered successfully');
 
 export const setupRoutes = (): Router => {

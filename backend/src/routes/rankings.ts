@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as rankingService from '../services/rankingService';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
@@ -82,9 +83,9 @@ router.get('/global', async (req, res) => {
 /**
  * @route POST /api/rankings/update/:matchId
  * @desc Update rankings after a match (internal use)
- * @access Private
+ * @access Private (requires authentication)
  */
-router.post('/update/:matchId', async (req, res) => {
+router.post('/update/:matchId', authenticateToken, async (req, res) => {
   try {
     const { matchId } = req.params;
 
@@ -107,9 +108,9 @@ router.post('/update/:matchId', async (req, res) => {
 /**
  * @route POST /api/rankings/decay
  * @desc Apply weekly decay to inactive players (admin/cron job)
- * @access Private
+ * @access Private (requires authentication)
  */
-router.post('/decay', async (req, res) => {
+router.post('/decay', authenticateToken, async (req, res) => {
   try {
     await rankingService.applyWeeklyDecay();
 
@@ -129,9 +130,9 @@ router.post('/decay', async (req, res) => {
 /**
  * @route POST /api/rankings/initialize/:playerId
  * @desc Initialize ranking for a new player
- * @access Private
+ * @access Private (requires authentication)
  */
-router.post('/initialize/:playerId', async (req, res) => {
+router.post('/initialize/:playerId', authenticateToken, async (req, res) => {
   try {
     const { playerId } = req.params;
 
