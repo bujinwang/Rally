@@ -44,10 +44,16 @@ jest.mock('../config/database', () => ({
 }));
 
 // Mock permission middleware — pass-through so organizer routes are reachable.
-jest.mock('../middleware/permissions', () => ({
-  requireOrganizer: () => (_req: any, _res: any, next: any) => next(),
-  requireOrganizerOrSelf: () => (_req: any, _res: any, next: any) => next(),
-}));
+// `resolveIdentity` (Story 6.9 Phase 0 — server-computed viewer signals) is kept
+// REAL so the session GETs derive the viewer from the request as in production.
+jest.mock('../middleware/permissions', () => {
+  const actual = jest.requireActual('../middleware/permissions');
+  return {
+    ...actual,
+    requireOrganizer: () => (_req: any, _res: any, next: any) => next(),
+    requireOrganizerOrSelf: () => (_req: any, _res: any, next: any) => next(),
+  };
+});
 
 // Mock rate limiters — pass-through (avoids cacheService work per request).
 jest.mock('../middleware/rateLimit', () => {

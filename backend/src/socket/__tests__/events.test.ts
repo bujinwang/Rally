@@ -92,7 +92,11 @@ describe('Session + tournament emitters (Story 6.4, AC 4)', () => {
       const [only] = emitted;
       expect(only.room).toBe(sessionRoom('ABC123'));
       expect(only.event).toBe('mvp-session-updated');
-      expect(only.payload.session).toEqual(SESSION);
+      // Story 6.9 Phase 0 — the broadcast carries the persisted session PLUS the
+      // additive public `organizerPlayerId` surrogate, and NO account identity.
+      expect(only.payload.session).toEqual({ ...SESSION, organizerPlayerId: null });
+      expect(only.payload.session).not.toHaveProperty('userId');
+      expect(only.payload.session).not.toHaveProperty('ownerUserId');
 
       // Regression guard: the legacy kebab room must NEVER receive the
       // snapshot (a joining client is in both rooms, so mirroring there
