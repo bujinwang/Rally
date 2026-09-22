@@ -4,7 +4,6 @@ import {
   CreateScheduledMatchData,
   UpdateScheduledMatchData,
   MatchScheduleConflict,
-  MatchReminder,
   CalendarEvent
 } from '../types/matchScheduling';
 
@@ -79,10 +78,6 @@ export class MatchSchedulingService {
           session: { select: { id: true, name: true } }
         }
       });
-
-      // Schedule reminders (15 minutes before match)
-      const validPlayerIds = playerIds.filter((id): id is string => id !== undefined);
-      await this.scheduleReminders(scheduledMatch.id, validPlayerIds, data.scheduledAt);
 
       return scheduledMatch as ScheduledMatch;
     } catch (error) {
@@ -214,9 +209,6 @@ export class MatchSchedulingService {
         }
       });
 
-      // Cancel reminders
-      await this.cancelReminders(matchId);
-
       return updatedMatch as ScheduledMatch;
     } catch (error) {
       console.error('Error cancelling scheduled match:', error);
@@ -314,72 +306,6 @@ export class MatchSchedulingService {
     }
 
     return conflicts;
-  }
-
-  /**
-   * Schedule reminders for a match
-   */
-  private static async scheduleReminders(matchId: string, playerIds: string[], matchTime: Date): Promise<void> {
-    const reminderTime = new Date(matchTime.getTime() - 15 * 60000); // 15 minutes before
-
-    for (const playerId of playerIds) {
-      await prisma.matchReminder.create({
-        data: {
-          matchId,
-          userId: playerId,
-          reminderType: 'PUSH', // Default to push notifications
-          scheduledFor: reminderTime,
-          sent: false
-        }
-      });
-    }
-  }
-
-  /**
-   * Cancel reminders for a match
-   */
-  private static async cancelReminders(matchId: string): Promise<void> {
-    await prisma.matchReminder.updateMany({
-      where: { matchId, sent: false },
-      data: { sent: true } // Mark as sent to prevent sending
-    });
-  }
-
-  /**
-   * Get upcoming matches that need reminders sent
-   */
-  static async getUpcomingReminders(): Promise<MatchReminder[]> {
-    const now = new Date();
-    const fifteenMinutesFromNow = new Date(now.getTime() + 15 * 60000);
-
-    const reminders = await prisma.matchReminder.findMany({
-      where: {
-        scheduledFor: { lte: fifteenMinutesFromNow },
-        sent: false
-      },
-      include: {
-        match: {
-          include: {
-            session: { select: { id: true, name: true } }
-          }
-        }
-      }
-    });
-
-    return reminders as MatchReminder[];
-  }
-
-  /**
-   * Mark reminder as sent
-   */
-  static async markReminderSent(reminderId: string): Promise<void> {
-    await prisma.matchReminder.update({
-      where: { id: reminderId },
-      data: {
-        sent: true,
-        sentAt: new Date()
-      }
-    });
   }
 
   /**

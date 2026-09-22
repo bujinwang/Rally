@@ -12,14 +12,6 @@ jest.mock('../../config/database', () => ({
 
 jest.mock('../../utils/notificationHelper', () => ({
   notifySessionSubscribers: jest.fn(),
-  notifyDevice: jest.fn(),
-}));
-
-jest.mock('../matchSchedulingService', () => ({
-  MatchSchedulingService: {
-    getUpcomingReminders: jest.fn(),
-    markReminderSent: jest.fn(),
-  },
 }));
 
 // Story 6.6 — the 24 h retrain job's two collaborators (named imports only).
@@ -32,8 +24,7 @@ jest.mock('../metricsRegistry', () => ({
 }));
 
 import { prisma } from '../../config/database';
-import { notifySessionSubscribers, notifyDevice } from '../../utils/notificationHelper';
-import { MatchSchedulingService } from '../matchSchedulingService';
+import { notifySessionSubscribers } from '../../utils/notificationHelper';
 import { trainingPipeline } from '../ml/trainingPipeline';
 import { predictionRetrainTotal } from '../metricsRegistry';
 
@@ -45,9 +36,6 @@ const playerFindMany = prisma.mvpPlayer.findMany as jest.Mock;
 const playerUpdateMany = prisma.mvpPlayer.updateMany as jest.Mock;
 
 const notifySubscribers = notifySessionSubscribers as jest.Mock;
-const notifyDev = notifyDevice as jest.Mock;
-const getUpcomingReminders = MatchSchedulingService.getUpcomingReminders as jest.Mock;
-const markReminderSent = MatchSchedulingService.markReminderSent as jest.Mock;
 const runAll = trainingPipeline.runAll as jest.Mock;
 const retrainInc = predictionRetrainTotal.inc as jest.Mock;
 
@@ -77,7 +65,7 @@ describe('Scheduler', () => {
       // one interval per job and track each one for `stop()` to clear. This stays
       // valid when a job is added/removed (e.g. Story 6.6's 24 h model retrain).
       const jobCount = intervalSpy.mock.calls.length;
-      expect(jobCount).toBeGreaterThanOrEqual(5); // 4 base jobs + model retrain
+      expect(jobCount).toBeGreaterThanOrEqual(4); // 3 base jobs + model retrain
       expect(timeoutSpy).toHaveBeenCalledTimes(1); // single deferred startup run
       expect(srv.intervals).toHaveLength(jobCount);
 
@@ -234,57 +222,6 @@ describe('Scheduler', () => {
       sessionFindMany.mockRejectedValue(new Error('db down'));
 
       await expect(srv.autoCompleteSessions()).resolves.toBeUndefined();
-      expect(errorSpy).toHaveBeenCalled();
-    });
-  });
-
-  // ── Match reminders ─────────────────────────────────────────
-  describe('sendMatchReminders', () => {
-    it('notifies each player and marks the reminder sent', async () => {
-      getUpcomingReminders.mockResolvedValue([
-        {
-          id: 'r1',
-          userId: 'u1',
-          matchId: 'm1',
-          match: { id: 'm1', title: 'Semi-final', sessionId: 's1' },
-        },
-      ]);
-      notifyDev.mockResolvedValue(true);
-      markReminderSent.mockResolvedValue(undefined);
-
-      await srv.sendMatchReminders();
-
-      expect(notifyDev).toHaveBeenCalledWith(
-        'u1',
-        expect.objectContaining({ type: 'MATCH_REMINDER', data: { matchId: 'm1', sessionId: 's1' } }),
-      );
-      expect(markReminderSent).toHaveBeenCalledWith('r1');
-    });
-
-    it('skips reminders whose match is missing', async () => {
-      getUpcomingReminders.mockResolvedValue([{ id: 'r2', userId: 'u1', matchId: 'm2', match: null }]);
-
-      await srv.sendMatchReminders();
-
-      expect(notifyDev).not.toHaveBeenCalled();
-      expect(markReminderSent).not.toHaveBeenCalled();
-    });
-
-    it('does not mark sent when delivery fails', async () => {
-      getUpcomingReminders.mockResolvedValue([
-        { id: 'r3', userId: 'u1', matchId: 'm1', match: { id: 'm1', title: 'Final', sessionId: 's1' } },
-      ]);
-      notifyDev.mockResolvedValue(false);
-
-      await srv.sendMatchReminders();
-
-      expect(markReminderSent).not.toHaveBeenCalled();
-    });
-
-    it('swallows errors from the scheduling service', async () => {
-      getUpcomingReminders.mockRejectedValue(new Error('db down'));
-
-      await expect(srv.sendMatchReminders()).resolves.toBeUndefined();
       expect(errorSpy).toHaveBeenCalled();
     });
   });

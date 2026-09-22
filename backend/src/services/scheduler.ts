@@ -1,6 +1,5 @@
 import { prisma } from '../config/database';
-import { notifySessionSubscribers, notifyDevice } from '../utils/notificationHelper';
-import { MatchSchedulingService } from './matchSchedulingService';
+import { notifySessionSubscribers } from '../utils/notificationHelper';
 import { trainingPipeline } from './ml/trainingPipeline';
 import { predictionRetrainTotal } from './metricsRegistry';
 
@@ -11,7 +10,6 @@ import { predictionRetrainTotal } from './metricsRegistry';
  * Jobs:
  *   every 60s  — session start reminders (1h before)
  *   every 30s  — auto-expire player rest periods
- *   every 30s  — send pending match reminders
  *   every 5min — auto-complete past sessions with no activity
  *   every 24h  — retrain the predictive models (Story 6.6)
  */
@@ -36,9 +34,6 @@ class Scheduler {
     // Rest expiration: every 30 seconds
     register(setInterval(() => this.expireRestPeriods(), 30_000));
 
-    // Match reminders: every 30 seconds
-    register(setInterval(() => this.sendMatchReminders(), 30_000));
-
     // Auto-complete past sessions: every 5 minutes
     register(setInterval(() => this.autoCompleteSessions(), 5 * 60_000));
 
@@ -49,7 +44,6 @@ class Scheduler {
     const startupTimer = setTimeout(() => {
       this.sendSessionReminders();
       this.expireRestPeriods();
-      this.sendMatchReminders();
       // Deferred predictive retrain — skips types with insufficient data.
       //
       // Suppressed under `NODE_ENV=test`: the whole test suite imports
@@ -57,7 +51,7 @@ class Scheduler {
       // 10 s timer would fire *after* Jest tears the environment down,
       // producing "Cannot log after tests are done" / "import after teardown"
       // noise. Mirrors the test-gating already used by `cachingMiddleware`.
-      // (The 24 h interval above stays registered, so the "5 jobs" contract and
+      // (The 24 h interval above stays registered, so the "4 jobs" contract and
       // its test are unaffected; a real process never has NODE_ENV=test.)
       if (process.env.NODE_ENV !== 'test') {
         this.retrainModels();
@@ -65,7 +59,7 @@ class Scheduler {
     }, 10_000);
     if (typeof startupTimer.unref === 'function') startupTimer.unref();
 
-    console.log('⏰ Scheduler started — 5 jobs active');
+    console.log('⏰ Scheduler started — 4 jobs active');
   }
 
   /** Stop all jobs (for graceful shutdown) */
@@ -223,43 +217,6 @@ class Scheduler {
       }
     } catch (error) {
       console.error('Scheduler: auto-complete error:', error);
-    }
-  }
-
-  // ── Match Reminders ────────────────────────────────────────────
-
-  /**
-   * Find pending match reminders that are due and send push notifications
-   * to each player's device.
-   */
-  private async sendMatchReminders(): Promise<void> {
-    try {
-      const reminders = await MatchSchedulingService.getUpcomingReminders();
-
-      for (const reminder of reminders) {
-        const match = (reminder as any).match;
-        if (!match) continue;
-
-        const sent = await notifyDevice(reminder.userId, {
-          title: '🏸 Match Starting Soon!',
-          body: `${match.title || 'Your match'} begins in 15 minutes`,
-          type: 'MATCH_REMINDER',
-          data: {
-            matchId: reminder.matchId,
-            sessionId: match.sessionId,
-          },
-        });
-
-        if (sent) {
-          await MatchSchedulingService.markReminderSent(reminder.id);
-        }
-      }
-
-      if (reminders.length > 0) {
-        console.log(`📢 Sent ${reminders.length} match reminder(s)`);
-      }
-    } catch (error) {
-      console.error('Scheduler: match reminders error:', error);
     }
   }
 
