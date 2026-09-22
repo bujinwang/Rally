@@ -642,9 +642,20 @@ describe('PUT /api/sessions/:shareCode - Update session', () => {
     await request(app).put('/api/sessions/NOPE').send({ courtCount: 3 }).expect(404);
   });
 
-  it('returns 403 when a different owner device updates', async () => {
+  it('no longer gates on the ownerDeviceId body field (inline check removed)', async () => {
+    // The route-level `session.ownerDeviceId !== ownerDeviceId` check was removed.
+    // Authorization is now solely the mounted `requireOrganizer` middleware
+    // (mocked pass-through in this file — exercised with the REAL middleware in
+    // mvpSessions-inline-guards.test.ts). A body mismatch is therefore inert at
+    // the route layer and the request proceeds.
     (prisma.mvpSession.findUnique as jest.Mock).mockResolvedValue(baseSession());
-    await request(app).put('/api/sessions/ABC123').send({ ownerDeviceId: 'other' }).expect(403);
+    (prisma.mvpSession.update as jest.Mock).mockResolvedValue(baseSession({ maxPlayers: 21 }));
+
+    const res = await request(app)
+      .put('/api/sessions/ABC123')
+      .send({ ownerDeviceId: 'other', maxPlayers: 21 });
+
+    expect(res.status).toBe(200);
   });
 });
 
@@ -666,9 +677,22 @@ describe('PUT /api/sessions/terminate/:shareCode', () => {
     expect(response.body.data.session.status).toBe('CANCELLED');
   });
 
-  it('returns 403 for a non-owner', async () => {
+  it('no longer gates on the ownerDeviceId body field (inline check removed)', async () => {
+    // See the note in the `PUT /:shareCode` block: the inline owner check was
+    // removed, so a body mismatch no longer 403s at the route layer.
     (prisma.mvpSession.findUnique as jest.Mock).mockResolvedValue(baseSession());
-    await request(app).put('/api/sessions/terminate/ABC123').send({ ownerDeviceId: 'other' }).expect(403);
+    (prisma.mvpSession.update as jest.Mock).mockResolvedValue({
+      id: 'session-123',
+      shareCode: 'ABC123',
+      status: 'CANCELLED',
+      updatedAt: new Date(),
+    });
+
+    const res = await request(app)
+      .put('/api/sessions/terminate/ABC123')
+      .send({ ownerDeviceId: 'other' });
+
+    expect(res.status).toBe(200);
   });
 
   it('returns 404 when missing', async () => {
@@ -865,9 +889,17 @@ describe('PUT /api/sessions/:shareCode/courts', () => {
     expect(response.body.data.session.courtCount).toBe(3);
   });
 
-  it('returns 403 for a non-owner', async () => {
+  it('no longer gates on the ownerDeviceId body field (inline check removed)', async () => {
+    // See the note in the `PUT /:shareCode` block: the inline owner check was
+    // removed, so a body mismatch no longer 403s at the route layer.
     (prisma.mvpSession.findUnique as jest.Mock).mockResolvedValue(baseSession());
-    await request(app).put('/api/sessions/ABC123/courts').send({ ownerDeviceId: 'other' }).expect(403);
+    (prisma.mvpSession.update as jest.Mock).mockResolvedValue(baseSession({ courtCount: 2 }));
+
+    const res = await request(app)
+      .put('/api/sessions/ABC123/courts')
+      .send({ ownerDeviceId: 'other' });
+
+    expect(res.status).toBe(200);
   });
 
   it('returns 404 when missing', async () => {
