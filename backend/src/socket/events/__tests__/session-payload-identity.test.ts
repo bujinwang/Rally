@@ -538,6 +538,11 @@ describe('HTTP session snapshot guard (runtime, poisoned fixture)', () => {
       isOrganizer: true,
       playerId: 'p1',
     });
+    // Story 6.9 Phase 0 Step B — presence flag the client uses instead of
+    // reading the raw owner id. It must be a BOOLEAN, never an id: this is the
+    // guard that stops `ownerClaimed` regressing into an id shipment.
+    expect(typeof res.body.data.session.ownerClaimed).toBe('boolean');
+    expect(res.body.data.session.ownerClaimed).toBe(true);
     const [firstPlayer] = res.body.data.session.players;
     expect(firstPlayer.isYou).toBe(true);
     expect(res.body.data.session.players[1].isYou).toBe(false);
@@ -555,6 +560,9 @@ describe('HTTP session snapshot guard (runtime, poisoned fixture)', () => {
       isOrganizer: false,
       playerId: 'p2',
     });
+    // Step B presence flag — boolean, never an id (see GET /:shareCode).
+    expect(typeof res.body.data.session.ownerClaimed).toBe('boolean');
+    expect(res.body.data.session.ownerClaimed).toBe(true);
     expect(res.body.data.session.players[1].isYou).toBe(true);
     expect(res.body.data.session.players[0].isYou).toBe(false);
   });

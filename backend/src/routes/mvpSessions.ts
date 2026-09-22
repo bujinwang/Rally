@@ -327,6 +327,12 @@ router.get('/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.sessio
     const viewerPlayerId =
       session.players.find((player) => Boolean(viewerDeviceId) && player.deviceId === viewerDeviceId)?.id ??
       null;
+    // Story 6.9 Phase 0 Step B — whether the session records an owner identity
+    // at all. The client needs this to detect an unclaimed (legacy) session
+    // WITHOUT reading the raw `ownerDeviceId`; `viewer.isOrganizer` cannot
+    // express "ownership unclaimed" (it is `false` for every caller then).
+    // A boolean about PRESENCE leaks no id (design §4.2: flags, not ids).
+    const ownerClaimed = Boolean(session.ownerUserId || session.ownerDeviceId);
 
     const formattedSession = {
       id: session.id,
@@ -342,6 +348,7 @@ router.get('/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.sessio
       ownerName: session.ownerName,
       sport: session.sport || 'badminton',
       ownerDeviceId: session.ownerDeviceId,
+      ownerClaimed,
       viewer: {
         isOrganizer: viewerIsOrganizer,
         playerId: viewerPlayerId,
@@ -700,6 +707,9 @@ router.get('/join/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.s
           (Boolean(viewerDeviceId) && player.deviceId === viewerDeviceId) ||
           (Boolean(viewerUserId) && player.userId === viewerUserId),
       )?.id ?? null;
+    // Story 6.9 Phase 0 Step B — see GET `/:shareCode`. Boolean presence flag,
+    // never the raw owner id.
+    const ownerClaimed = Boolean(session.ownerUserId || session.ownerDeviceId);
 
     res.json({
       success: true,
@@ -716,6 +726,7 @@ router.get('/join/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.s
           ownerName: session.ownerName,
       sport: session.sport || 'badminton',
           ownerDeviceId: session.ownerDeviceId,
+          ownerClaimed,
           viewer: {
             isOrganizer: viewerIsOrganizer,
             playerId: viewerPlayerId,
