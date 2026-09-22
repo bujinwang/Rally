@@ -168,26 +168,24 @@ const CLAIMS_INTERNAL_GUARDS: Array<{ router: express.Router; claim: string }> =
 ];
 
 /**
- * KNOWN_GAPS — state-changing routes that are currently reachable WITHOUT a
- * verified identity: mounted `publicRouter`, no auth middleware on the route and
- * no allowlist entry. These are real holes, not declarations of intent — the
- * `tournaments.ts` handler docstring for `PUT /:id` says so itself
- * ("@access Public (should be restricted to organizers)").
+ * KNOWN_GAPS — state-changing routes reachable WITHOUT a verified identity:
+ * mounted `publicRouter`, no auth middleware on the route and no allowlist entry.
+ *
+ * EMPTY (Story 6.9 Phase 2 follow-up). The four tournament routes that were
+ * pinned here are resolved:
+ *   - `PUT /:id`, `DELETE /:id`, `DELETE /:tournamentId/players/:playerId` now
+ *     carry `optionalAuth, requireTournamentOrganizer()` (the param is passed
+ *     explicitly for the player route, whose id param is `tournamentId`);
+ *   - `POST /:id/register` is player self-registration — public by design in an
+ *     MVP with no player accounts — and is declared in PUBLIC_ALLOWLIST.
  *
  * This list is EXACT: a new unguarded state-changing route fails the suite, and
  * an entry that becomes guarded fails as stale (delete it when you fix the route).
- * Fixing them = adding `optionalAuth, requireTournamentOrganizer()` to the route
- * (the pattern 4 sibling routes already use), or moving the route to
- * PUBLIC_ALLOWLIST with a written justification for public mutation.
+ * Fixing a route = adding `optionalAuth, requireTournamentOrganizer()` (the
+ * pattern the sibling mutation routes use), or moving it to PUBLIC_ALLOWLIST with
+ * a written justification for public mutation.
  */
-const KNOWN_GAPS: string[] = [
-  'PUT /api/v1/tournaments/:id',
-  'DELETE /api/v1/tournaments/:id',
-  'DELETE /api/v1/tournaments/:tournamentId/players/:playerId',
-  // Public player self-registration (name/email/deviceId, no account) — plausibly
-  // intended public, but it mutates state, so it needs an explicit decision.
-  'POST /api/v1/tournaments/:id/register',
-];
+const KNOWN_GAPS: string[] = [];
 
 type Kind = 'requireAuth' | 'optionalIdentity' | 'public' | undefined;
 
