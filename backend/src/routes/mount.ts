@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticateToken, optionalAuth } from '../middleware/auth';
+import { authenticateToken, optionalAuth, requiredAuth } from '../middleware/auth';
 import { resolveIdentity } from '../middleware/permissions';
 
 /**
@@ -8,7 +8,48 @@ import { resolveIdentity } from '../middleware/permissions';
  * The default is now: authenticate at the mount point.
  * Genuinely public routes MUST opt out explicitly via one of these wrappers
  * and be listed in PUBLIC_ALLOWLIST.
+ *
+ * Classification is STRUCTURAL, never name-based:
+ *  - a wrapper records the router it wrapped in `MOUNT_EVIDENCE` (a WeakMap), so
+ *    the coverage test can ask production what it actually did at mount time;
+ *  - middleware identity is compared by reference against the real
+ *    `authenticateToken` / `optionalAuth` exports, so a middleware that merely
+ *    *looks* like an auth guard by name cannot satisfy the test;
+ *  - `publicRoute()` registers its returned function in a WeakSet, so the marker
+ *    is unforgeable by naming.
  */
+
+/** How a router was mounted. Recorded by the wrappers themselves. */
+export type MountKind = 'requireAuth' | 'optionalIdentity' | 'public';
+
+/**
+ * Evidence registry: which mount wrapper was actually applied to a router.
+ * Populated as a side effect of `routes/index.ts` / `server.ts` executing their
+ * real mounts at import, so the coverage test reads production behaviour rather
+ * than a list re-typed in the test.
+ */
+const MOUNT_EVIDENCE = new WeakMap<Router, MountKind>();
+
+/** The mount wrapper production applied to `router`, or undefined if unwrapped. */
+export function mountEvidenceOf(router: Router): MountKind | undefined {
+  return MOUNT_EVIDENCE.get(router);
+}
+
+/** Functions returned by `publicRoute()`. Membership is the marker. */
+const PUBLIC_ROUTE_MARKERS = new WeakSet<Function>();
+
+/**
+ * Routers created BY a wrapper (`requireAuth`/`optionalIdentity`), as opposed to
+ * the router that was wrapped. A router that merely *contains* other routers
+ * (e.g. the aggregation router in routes/index.ts) is NOT a wrapper, so callers
+ * must never guess "the inner router" by looking for a nested router.
+ */
+const WRAPPER_ROUTERS = new WeakSet<Router>();
+
+/** True only for routers returned by `requireAuth()` / `optionalIdentity()`. */
+export function isWrapperRouter(router: Router): boolean {
+  return WRAPPER_ROUTERS.has(router);
+}
 
 /**
  * Default wrapper — REQUIRES authentication (JWT).
@@ -19,6 +60,10 @@ export function requireAuth(router: Router): Router {
   const wrapped = Router();
   wrapped.use(authenticateToken);
   wrapped.use(router);
+  WRAPPER_ROUTERS.add(wrapped);
+  // Record both the inner router and the wrapper: whichever the caller walks.
+  MOUNT_EVIDENCE.set(router, 'requireAuth');
+  MOUNT_EVIDENCE.set(wrapped, 'requireAuth');
   return wrapped;
 }
 
@@ -45,6 +90,9 @@ export function optionalIdentity(router: Router): Router {
     next();
   });
   wrapped.use(router);
+  WRAPPER_ROUTERS.add(wrapped);
+  MOUNT_EVIDENCE.set(router, 'optionalIdentity');
+  MOUNT_EVIDENCE.set(wrapped, 'optionalIdentity');
   return wrapped;
 }
 
@@ -55,6 +103,7 @@ export function optionalIdentity(router: Router): Router {
  * wrapped via the internal `publicRoute` marker — see below).
  */
 export function publicRouter(router: Router): Router {
+  MOUNT_EVIDENCE.set(router, 'public');
   return router;
 }
 
@@ -67,6 +116,7 @@ export function publicRoute() {
   function publicRoute(_req: any, _res: any, next: any) {
     next();
   }
+  PUBLIC_ROUTE_MARKERS.add(publicRoute);
   return publicRoute;
 }
 
@@ -87,17 +137,20 @@ export function publicRoute() {
  */
 export const PUBLIC_ALLOWLIST: ReadonlySet<string> = new Set([
   // ── Wholly public routers / endpoints ──────────────────────────────────
-  // API root (routes/index.ts:50) — extracted as /api/v1/
-  'GET /api/v1/',
-  // Health endpoints (server.ts) — mounted directly on app, not extracted by test
-  // 'GET /health', 'GET /api/v1/health', 'GET /api/v1/health/cache',
-  // Auth routes (already self-guarded via their own logic)
+  // Health checks + app root (server.ts, mounted bare on the app)
+  'GET /health',
+  'GET /api/v1/health',
+  'GET /api/v1/health/cache',
+  'GET /',
+  // Auth routes (wrapped with publicRouter in index.ts)
   'POST /api/v1/auth/register',
   'POST /api/v1/auth/login',
   'POST /api/v1/auth/refresh',
-  // OAuth routes (pre-auth login)
+  // OAuth routes (pre-auth login, wrapped with publicRouter)
   'GET /api/v1/oauth/:provider/url',
   'GET /api/v1/oauth/:provider/callback',
+  // OAuth mobile handshake — pre-auth by definition (see the OAuth bypass P0 fix)
+  'POST /api/v1/oauth/:provider/mobile',
   // Web session (mounted at /join in server.ts:128) — share-code-gated
   'GET /join/:shareCode',
   'GET /join/:shareCode/player-status',
@@ -110,12 +163,12 @@ export const PUBLIC_ALLOWLIST: ReadonlySet<string> = new Set([
   'GET /metrics/',
 
   // ── Public routes in mixed routers ─────────────────────────────────────
-  // rankings.ts — GETs are public leaderboards
+  // rankings.ts — GETs are public leaderboards (router is optionalIdentity)
   'GET /api/v1/rankings/player/:playerId/history',
   'GET /api/v1/rankings/session/:sessionId',
   'GET /api/v1/rankings/global',
 
-  // statistics.ts — all GETs public
+  // statistics.ts — all GETs public (router is publicRouter)
   'GET /api/v1/statistics/player/:playerId',
   'GET /api/v1/statistics/leaderboard',
   'GET /api/v1/statistics/session/:sessionId',
@@ -127,6 +180,7 @@ export const PUBLIC_ALLOWLIST: ReadonlySet<string> = new Set([
   'GET /api/v1/statistics/head-to-head',
 
   // analytics.ts — GETs public (writes are inner-wrapped with requireAuth)
+  // Router is publicRouter, but writes need explicit requireAuth inside
   'GET /api/v1/analytics/player/:playerId',
   'GET /api/v1/analytics/leaderboard',
   'GET /api/v1/analytics/player/:playerId/trends',
@@ -139,54 +193,94 @@ export const PUBLIC_ALLOWLIST: ReadonlySet<string> = new Set([
   'GET /api/v1/analytics/participation',
   'GET /api/v1/analytics/session-types',
   'GET /api/v1/analytics/peak-usage',
+  // analytics writes (explicitly requireAuth inside router)
+  'POST /api/v1/analytics/refresh/player/:playerId',
+  'POST /api/v1/analytics/refresh/session/:sessionId',
+  'POST /api/v1/analytics/refresh/tournament/:tournamentId',
+  'POST /api/v1/analytics/refresh/system',
+  'POST /api/v1/analytics/track-event',
+  'POST /api/v1/analytics/export',
 
   // discovery.ts — reads public; POST /:sessionId/join is share-code-gated
-  'GET /api/v1/sessions/discovery',
+  // Router is optionalIdentity, but routes have publicRoute() marker
+  'GET /api/v1/sessions/discovery/',
   'GET /api/v1/sessions/discovery/recommended/:deviceId',
   'GET /api/v1/sessions/discovery/nearby',
   'GET /api/v1/sessions/discovery/:sessionId',
   'GET /api/v1/sessions/discovery/stats/summary',
   'POST /api/v1/sessions/discovery/:sessionId/join',
 
-  // search.ts — all GETs public
-  'GET /api/v1/search',
+  // search.ts — all GETs public (router is publicRouter)
+  'GET /api/v1/search/',
   'GET /api/v1/search/suggestions',
 
-  // sharing.ts — feed and preview are public
+  // sharing.ts — feed and preview are public (router is optionalIdentity)
   'GET /api/v1/sharing/feed',
   'GET /api/v1/sharing/preview/:type/:entityId',
 
-  // achievements.ts — root GET is public
-  'GET /api/v1/achievements',
+  // achievements.ts — root GET is public (router is optionalIdentity)
+  'GET /api/v1/achievements/',
 
-  // sessionInsights.ts — all GETs public (tentative, per design)
+  // sessionInsights.ts — all GETs public (tentative, per design; router is optionalIdentity)
   'GET /api/v1/session-insights/session/:sessionId',
   'GET /api/v1/session-insights/player/:sessionId/:playerName',
   'GET /api/v1/session-insights/balanced-teams/:sessionId',
 
-  // sessionSuggestions.ts — GETs public (tentative, per design)
+  // sessionSuggestions.ts — GETs public (tentative, per design; router is optionalIdentity)
   'GET /api/v1/session-suggestions/suggestions/:deviceId',
+
+  // mvpSessions.ts — share-code-gated public routes (router is publicRouter)
+  'GET /api/v1/mvp-sessions/',
+  'GET /api/v1/mvp-sessions/:shareCode/recap',
+  'GET /api/v1/mvp-sessions/:shareCode',
+  'GET /api/v1/mvp-sessions/join/:shareCode',
+  'POST /api/v1/mvp-sessions/join/:shareCode',
+  'GET /api/v1/mvp-sessions/my-sessions/:deviceId',
+  'GET /api/v1/mvp-sessions/:shareCode/rotation',
+  // Additional share-code-gated reads: each handler resolves the session by
+  // `:shareCode` and 404s when it does not exist (the share code is the secret).
+  'GET /api/v1/mvp-sessions/:shareCode/matches/:matchId',
+  'GET /api/v1/mvp-sessions/:shareCode/players/:playerName/stats',
+  'GET /api/v1/mvp-sessions/:shareCode/players/me/:deviceId',
+  'GET /api/v1/mvp-sessions/:shareCode/check-in-summary',
+  'GET /api/v1/mvp-sessions/:shareCode/leaderboard',
+  'GET /api/v1/mvp-sessions/:shareCode/rest-status',
+  'GET /api/v1/mvp-sessions/:shareCode/statistics',
+  'GET /api/v1/mvp-sessions/player-stats/:playerName',
+
+  // tournaments.ts — public reads (browsing tournaments is public by design).
+  // NOTE: the organizer-guarded routes in this router are guarded INSIDE
+  // (optionalAuth + requireTournamentOrganizer()); see the self-guard test.
+  'GET /api/v1/tournaments/',
+  'GET /api/v1/tournaments/:id',
+  'GET /api/v1/tournaments/:id/bracket',
+  'GET /api/v1/tournaments/:id/standings',
+  'GET /api/v1/tournaments/:id/stats',
+
+  // predictions.ts — public read of one prediction type (admin routes self-guard)
+  'GET /api/v1/predictions/:type',
 ]);
 
 /**
- * Type guard to check if a middleware function is `authenticateToken`/`requiredAuth`.
+ * Type guard: is this middleware the real authentication guard?
+ *
+ * Compared by REFERENCE against the real exports — `requiredAuth` is an alias of
+ * `authenticateToken`. A look-alike middleware named `authenticateToken` no
+ * longer satisfies this check (the earlier name-string comparison could be
+ * satisfied by any function with that name).
  */
-function isRequireAuthMiddleware(fn: any): boolean {
-  return fn.name === 'authenticateToken' || fn.name === 'requiredAuth';
+export function isRequireAuthMiddleware(fn: any): boolean {
+  return fn === authenticateToken || fn === requiredAuth;
 }
 
-/**
- * Type guard to check if a middleware function is `optionalAuth`.
- */
-function isOptionalAuthMiddleware(fn: any): boolean {
-  return fn.name === 'optionalAuth';
+/** Type guard: is this middleware the real optional-identity middleware? */
+export function isOptionalAuthMiddleware(fn: any): boolean {
+  return fn === optionalAuth;
 }
 
-/**
- * Type guard to check if a middleware function is the `publicRoute` marker.
- */
-function isPublicRouteMarker(fn: any): boolean {
-  return fn.name === 'publicRoute';
+/** Type guard: was this middleware produced by `publicRoute()`? (WeakSet membership) */
+export function isPublicRouteMarker(fn: any): boolean {
+  return typeof fn === 'function' && PUBLIC_ROUTE_MARKERS.has(fn as Function);
 }
 
 /**

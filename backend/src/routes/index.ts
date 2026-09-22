@@ -64,11 +64,11 @@ router.get('/', (req, res) => {
 // API routes
 console.log('📍 Registering routes:');
 console.log('  - /auth');
-router.use('/auth', authRoutes); // auth self-guards its routes
+router.use('/auth', publicRouter(authRoutes)); // auth routes are public (pre-login)
 console.log('  - /users');
 router.use('/users', requireAuth(userRoutes));
 console.log('  - /mvp-sessions');
-router.use('/mvp-sessions', requireAuth(mvpSessionRoutes));
+router.use('/mvp-sessions', publicRouter(mvpSessionRoutes)); // has internal auth (optionalAuth, requireOrganizer)
 console.log('  - /session-templates');
 router.use('/session-templates', optionalIdentity(sessionTemplateRoutes));
 console.log('  - /session-suggestions');
@@ -86,8 +86,8 @@ router.use('/sessions/discovery', optionalIdentity(discoveryRoutes));
 console.log('  - /sessions/config');
 router.use('/sessions/config', requireAuth(sessionConfigRoutes));
 console.log('  - /tournaments');
-router.use('/tournaments', tournamentAnalyticsRoutes); // has its own auth inside
-router.use('/tournaments', tournamentRoutes); // has its own auth inside
+router.use('/tournaments', publicRouter(tournamentAnalyticsRoutes)); // has its own auth inside
+router.use('/tournaments', publicRouter(tournamentRoutes)); // has its own auth inside
 console.log('  - /session-history');
 router.use('/session-history', requireAuth(sessionHistoryRoutes));
 console.log('  - /search');
@@ -127,7 +127,7 @@ router.use('/community', requireAuth(communityRoutes));
 console.log('  - /oauth');
 router.use('/oauth', publicRouter(oauthRoutes));
 console.log('  - /predictions');
-router.use('/predictions', requireAuth(predictionRoutes));
+router.use('/predictions', publicRouter(predictionRoutes)); // has internal auth on admin routes
 console.log('✅ All routes registered successfully');
 
 export const setupRoutes = (): Router => {
