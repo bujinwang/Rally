@@ -9,6 +9,7 @@ import {
   tournamentRoom,
 } from '../socket/ioRegistry';
 import { emitSessionSnapshot } from '../socket/events/sessionEvents';
+import { socketSessionPayload } from '../socket/events/sessionPayload';
 import { loadBracket } from '../socket/events/tournamentAnalytics';
 
 /**
@@ -438,7 +439,7 @@ export const setupSocket = (io: SocketServer): void => {
         if (session) {
           // Broadcast to session room using shareCode (Story 6.4: colon namespacing)
           io.to(`session:${shareCode}`).to(`session-${shareCode}`).emit('mvp-session-updated', {
-            session,
+            session: socketSessionPayload(session),
             timestamp: new Date().toISOString()
           });
         }
@@ -495,7 +496,7 @@ export const setupSocket = (io: SocketServer): void => {
         if (updatedSession) {
           // Broadcast to session room (Story 6.4: colon namespacing + legacy)
           io.to(`session:${shareCode}`).to(`session-${shareCode}`).emit('mvp-session-updated', {
-            session: updatedSession,
+            session: socketSessionPayload(updatedSession),
             timestamp: new Date().toISOString()
           });
         }

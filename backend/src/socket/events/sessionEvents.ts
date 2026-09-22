@@ -13,14 +13,24 @@
 
 import { prisma } from '../../config/database';
 import { emitToRoom, getIoOrNull, sessionRoom } from '../ioRegistry';
+import { socketSessionPayload, stripUserIdentity } from './sessionPayload';
 
 export { sessionRoom };
 
+/**
+ * Player projection for session broadcasts.
+ *
+ * Story 6.9 Phase 0 (design §4.2): `userId` was REMOVED here. Account identity
+ * was being broadcast to every participant in the session room, and nothing on
+ * the client reads `userId` off a session snapshot (only the separate
+ * messaging/presence channel does), so dropping it is free — no client change.
+ * `deviceId` stays: the client still compares it to derive organizer status
+ * (the client-coupled step is deferred; see `sessionPayload.ts`).
+ */
 const PLAYER_SELECT = {
   id: true,
   name: true,
   deviceId: true,
-  userId: true,
   role: true,
   status: true,
   gamesPlayed: true,
@@ -57,7 +67,9 @@ export async function emitSessionSnapshot(shareCode: string): Promise<boolean> {
   if (!session) return false;
 
   const payload = {
-    session,
+    // Account identity is stripped and the public `organizerPlayerId` surrogate
+    // added (design §4.2/§4.4) — a broadcast cannot carry a per-recipient flag.
+    session: socketSessionPayload(session as unknown as Record<string, unknown>),
     timestamp: new Date().toISOString(),
   };
 
@@ -155,7 +167,8 @@ export async function emitPlayerJoined(
 
   emitToRoom(sessionRoom(shareCode), 'session:player-joined', {
     shareCode,
-    player,
+    // Account identity must not reach the room (design §4.2).
+    player: stripUserIdentity(player),
   });
 }
 

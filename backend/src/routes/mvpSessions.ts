@@ -4,7 +4,7 @@ import { body, param, validationResult } from 'express-validator';
 import { generateOptimalRotation, getRotationExplanation } from '../utils/rotationAlgorithm';
 import { updatePlayerGameStatistics, updatePlayerMatchStatistics, getPlayerStatistics, getSessionStatistics, getSessionLeaderboard } from '../utils/statisticsService';
 import { io } from '../server';
-import { requireOrganizer, requireOrganizerOrSelf } from '../middleware/permissions';
+import { requireOrganizer, requireOrganizerOrSelf, resolveIdentity } from '../middleware/permissions';
 import { optionalAuth } from '../middleware/auth';
 import { PasswordUtils } from '../utils/password';
 import { createRateLimiters } from '../middleware/rateLimit';
@@ -23,6 +23,9 @@ import {
   emitPlayerStatusChanged as emitPlayerStatusChangedAuthoritative,
   invalidateSessionCache,
 } from '../socket/events/sessionEvents';
+// Story 6.9 Phase 0 — account-identity stripping + the public `organizerPlayerId`
+// surrogate for every session broadcast (device-token design §4.2/§4.4).
+import { socketSessionPayload } from '../socket/events/sessionPayload';
 
 const rateLimiters = createRateLimiters();
 
@@ -310,6 +313,21 @@ router.get('/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.sessio
       });
     }
 
+    // Story 6.9 Phase 0 — server-computed organizer signals (design §4.2). The
+    // viewer's status is derived here so the client no longer has to compare
+    // leaked ids. `ownerDeviceId` / `players[].deviceId` stay for now (the
+    // client-coupled removal is a separate step); `userId` is not emitted.
+    const identity = resolveIdentity(req);
+    const viewerDeviceId = identity.deviceId;
+    const viewerUserId = identity.userId;
+    const viewerIsOrganizer = Boolean(
+      (viewerUserId && session.ownerUserId && viewerUserId === session.ownerUserId) ||
+        (viewerDeviceId && session.ownerDeviceId && viewerDeviceId === session.ownerDeviceId),
+    );
+    const viewerPlayerId =
+      session.players.find((player) => Boolean(viewerDeviceId) && player.deviceId === viewerDeviceId)?.id ??
+      null;
+
     const formattedSession = {
       id: session.id,
       name: session.name,
@@ -324,6 +342,10 @@ router.get('/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.sessio
       ownerName: session.ownerName,
       sport: session.sport || 'badminton',
       ownerDeviceId: session.ownerDeviceId,
+      viewer: {
+        isOrganizer: viewerIsOrganizer,
+        playerId: viewerPlayerId,
+      },
       status: session.status,
       playerCount: session.players?.length || 0,
       players: session.players.map(player => ({
@@ -348,7 +370,9 @@ router.get('/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.sessio
         restGamesRemaining: player.restGamesRemaining,
         restRequestedAt: player.restRequestedAt,
         restRequestedBy: player.restRequestedBy,
-        partnershipStats: player.partnershipStats
+        partnershipStats: player.partnershipStats,
+        // Story 6.9 Phase 0 — replaces the per-player id comparison on the client.
+        isYou: Boolean(viewerDeviceId && player.deviceId === viewerDeviceId)
       })) || [],
       games: session.games || [],
       matches: session.matches || [],
@@ -662,6 +686,21 @@ router.get('/join/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.s
       });
     }
 
+    // Story 6.9 Phase 0 — server-computed organizer signals (design §4.2).
+    const identity = resolveIdentity(req);
+    const viewerDeviceId = identity.deviceId;
+    const viewerUserId = identity.userId;
+    const viewerIsOrganizer = Boolean(
+      (viewerUserId && session.ownerUserId && viewerUserId === session.ownerUserId) ||
+        (viewerDeviceId && session.ownerDeviceId && viewerDeviceId === session.ownerDeviceId),
+    );
+    const viewerPlayerId =
+      session.players.find(
+        (player) =>
+          (Boolean(viewerDeviceId) && player.deviceId === viewerDeviceId) ||
+          (Boolean(viewerUserId) && player.userId === viewerUserId),
+      )?.id ?? null;
+
     res.json({
       success: true,
       data: {
@@ -677,6 +716,10 @@ router.get('/join/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.s
           ownerName: session.ownerName,
       sport: session.sport || 'badminton',
           ownerDeviceId: session.ownerDeviceId,
+          viewer: {
+            isOrganizer: viewerIsOrganizer,
+            playerId: viewerPlayerId,
+          },
           playerCount: session.players.length,
           players: session.players.map(player => ({
             id: player.id,
@@ -700,7 +743,12 @@ router.get('/join/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.s
             restRequestedAt: player.restRequestedAt,
             restRequestedBy: player.restRequestedBy,
             partnershipStats: player.partnershipStats,
-            joinedAt: player.joinedAt
+            joinedAt: player.joinedAt,
+            // Story 6.9 Phase 0 — replaces the per-player id comparison on the client.
+            isYou: Boolean(
+              (viewerDeviceId && player.deviceId === viewerDeviceId) ||
+                (viewerUserId && player.userId === viewerUserId),
+            )
           })),
           games: session.games || [],
           matches: session.matches || [],
@@ -837,7 +885,7 @@ router.post('/join/:shareCode', joinSessionValidation, cacheInvalidationMiddlewa
         // Import io from server dynamically to avoid circular dependency
         const { io } = await import('../server');
         io.to(`session-${shareCode}`).emit('mvp-session-updated', {
-          session: updatedSession,
+          session: socketSessionPayload(updatedSession),
           timestamp: new Date().toISOString()
         });
         console.log(`📡 Socket.IO: Emitted session update for ${shareCode} - player "${name}" joined`);
@@ -1317,7 +1365,7 @@ router.put('/:shareCode', optionalAuth, rateLimiters.sensitive, requireOrganizer
         
         if (freshSession) {
           io.to(`session-${shareCode}`).emit('mvp-session-updated', {
-            session: {
+            session: socketSessionPayload({
               id: freshSession.id,
               name: freshSession.name,
               scheduledAt: freshSession.scheduledAt,
@@ -1343,7 +1391,7 @@ router.put('/:shareCode', optionalAuth, rateLimiters.sensitive, requireOrganizer
               games: freshSession.games || [],
               matches: freshSession.matches || [],
               createdAt: freshSession.createdAt
-            },
+            }),
             timestamp: new Date().toISOString()
           });
           console.log(`📡 Socket.IO: Emitted fresh session update for ${shareCode} with courtCount=${freshSession.courtCount}`);
@@ -1929,7 +1977,7 @@ router.put('/:shareCode/games/:gameId/score', optionalAuth, requireOrganizer('mo
 
       if (updatedSession) {
         io.to(`session-${shareCode}`).emit('mvp-session-updated', {
-          session: updatedSession,
+          session: socketSessionPayload(updatedSession),
           timestamp: new Date().toISOString()
         });
         const winners = winnerTeam === 1 
@@ -2076,7 +2124,7 @@ router.delete('/:shareCode/games/:gameId', optionalAuth, requireOrganizer('modif
 
       if (updatedSession) {
         sio.to(`session-${shareCode}`).emit('mvp-session-updated', {
-          session: updatedSession,
+          session: socketSessionPayload(updatedSession),
           timestamp: new Date().toISOString()
         });
         console.log(`📡 Socket.IO: Game deleted from ${shareCode} - score was ${prevScore}, winner was team ${prevWinner}`);
@@ -2199,7 +2247,7 @@ router.put('/:shareCode/games/:gameId/teams', optionalAuth, requireOrganizer('mo
 
       if (updatedSession) {
         io.to(`session-${shareCode}`).emit('mvp-session-updated', {
-          session: updatedSession,
+          session: socketSessionPayload(updatedSession),
           gameUpdate: {
             type: 'team_switch',
             gameId: gameId,
@@ -2708,7 +2756,7 @@ router.put('/:shareCode/matches/:matchId/games/:gameId/score', optionalAuth, req
 
       if (updatedSession) {
         io.to(`session-${shareCode}`).emit('mvp-session-updated', {
-          session: updatedSession,
+          session: socketSessionPayload(updatedSession),
           matchUpdate: {
             type: isMatchComplete ? 'match_complete' : 'game_complete',
             matchId: matchId,
@@ -3023,7 +3071,7 @@ router.put('/:shareCode/players/:playerId/status', optionalAuth, requireOrganize
       const io = req.app.get('io');
       if (io) {
         io.to(`session-${shareCode}`).emit('mvp-session-updated', {
-          session: updatedSession,
+          session: socketSessionPayload(updatedSession),
           playerStatusChanged: {
             playerId: playerId,
             playerName: player.name,
@@ -3146,7 +3194,7 @@ router.delete('/:shareCode/players/:playerId', optionalAuth, rateLimiters.sensit
       const io = req.app.get('io');
       if (io) {
         io.to(`session-${shareCode}`).emit('mvp-session-updated', {
-          session: updatedSession,
+          session: socketSessionPayload(updatedSession),
           playerRemoved: {
             playerId: playerId,
             playerName: player.name,
@@ -3376,7 +3424,7 @@ router.put('/:shareCode/players/:playerId/status', optionalAuth, requireOrganize
 
       if (updatedSession) {
         io.to(`session-${updatedSession.shareCode}`).emit('mvp-session-updated', {
-          session: updatedSession,
+          session: socketSessionPayload(updatedSession),
           timestamp: new Date().toISOString()
         });
         console.log(`📡 Socket.IO: Emitted player status update for ${updatedSession.shareCode}`);
@@ -3437,7 +3485,7 @@ router.put('/:shareCode/players/:playerId/check-in', optionalAuth, requireOrgani
       });
       if (updatedSession) {
         sio.to(`session-${shareCode}`).emit('mvp-session-updated', {
-          session: updatedSession, timestamp: new Date().toISOString()
+          session: socketSessionPayload(updatedSession), timestamp: new Date().toISOString()
         });
       }
     } catch (e) { console.warn('Socket emit failed:', e); }
@@ -3496,7 +3544,7 @@ router.put('/:shareCode/players/:playerId/check-out', optionalAuth, requireOrgan
       });
       if (updatedSession) {
         sio.to(`session-${shareCode}`).emit('mvp-session-updated', {
-          session: updatedSession, timestamp: new Date().toISOString()
+          session: socketSessionPayload(updatedSession), timestamp: new Date().toISOString()
         });
       }
     } catch (e) { console.warn('Socket emit failed:', e); }
@@ -3718,7 +3766,7 @@ router.post('/:shareCode/games', optionalAuth, requireOrganizer('generate_pairin
 
       if (updatedSession) {
         io.to(`session-${shareCode}`).emit('mvp-session-updated', {
-          session: updatedSession,
+          session: socketSessionPayload(updatedSession),
           timestamp: new Date().toISOString()
         });
         console.log(`📡 Socket.IO: Emitted game save for ${shareCode}`);
@@ -3787,7 +3835,7 @@ router.put('/:shareCode/courts', optionalAuth, rateLimiters.api, requireOrganize
       const io = req.app.get('io');
       if (io) {
         io.to(`session-${shareCode}`).emit('mvp-session-updated', {
-          session: {
+          session: socketSessionPayload({
             id: updatedSession.id,
             name: updatedSession.name,
             scheduledAt: updatedSession.scheduledAt,
@@ -3813,7 +3861,7 @@ router.put('/:shareCode/courts', optionalAuth, rateLimiters.api, requireOrganize
             games: updatedSession.games || [],
             matches: updatedSession.matches || [],
             createdAt: updatedSession.createdAt
-          },
+          }),
           timestamp: new Date().toISOString()
         });
 
@@ -3979,7 +4027,7 @@ router.put('/:shareCode/players/:playerId/rest', optionalAuth, requireOrganizerO
 
         if (updatedSession) {
           io.to(`session-${shareCode}`).emit('mvp-session-updated', {
-            session: updatedSession,
+            session: socketSessionPayload(updatedSession),
             playerRestChanged: {
               playerId: playerId,
               playerName: player.name,
