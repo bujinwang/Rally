@@ -12,7 +12,6 @@
  */
 
 import { Server as SocketServer } from 'socket.io';
-import { createAdapter } from '@socket.io/redis-adapter';
 import { createClient } from 'redis';
 import { env } from '../config/env';
 
@@ -94,6 +93,12 @@ export async function attachAdapter(
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   try {
+    // Lazily require the Redis adapter so the in-memory path — and this module's
+    // documented fallback — never depend on the package being installed. A
+    // missing package is caught below and degrades to in-memory, instead of
+    // crashing the process at import time (Story 6.4, AC 15).
+    const { createAdapter } = require('@socket.io/redis-adapter') as typeof import('@socket.io/redis-adapter');
+
     pubClient = createClient({
       url: redisUrl,
       disableOfflineQueue: true,
