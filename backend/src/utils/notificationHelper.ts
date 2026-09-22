@@ -291,6 +291,17 @@ export async function notifyDevice(
   payload: NotificationPayload,
 ): Promise<boolean> {
   try {
+    // Prisma DROPS an `undefined` filter rather than matching nothing, so an
+    // undefined `userId` would degrade this to `where: { isActive: true }` and
+    // select EVERY active token — a mass send. Reject instead of querying.
+    // Same defensive posture as middleware/permissions.ts:222-227.
+    if (!userId) {
+      console.error(
+        '[notifyDevice] refusing to send: no userId (Prisma would drop the filter and match every active token)',
+      );
+      return false;
+    }
+
     const tokens = await prisma.pushToken.findMany({
       where: { isActive: true, userId },
       select: TOKEN_SELECT,
