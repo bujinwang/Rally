@@ -1218,23 +1218,6 @@ router.put('/:shareCode', optionalAuth, rateLimiters.sensitive, requireOrganizer
     // Special case: Allow setting ownerDeviceId if it's currently null/undefined
     const canSetOwnerDeviceId = !session.ownerDeviceId && ownerDeviceId;
     
-    // Check if the requester is the owner (if ownerDeviceId is provided and session already has one)
-    if (ownerDeviceId && session.ownerDeviceId && session.ownerDeviceId !== ownerDeviceId) {
-      console.log('🚫 Session update denied:', {
-        providedDeviceId: ownerDeviceId,
-        sessionOwnerDeviceId: session.ownerDeviceId,
-        shareCode
-      });
-      return res.status(403).json({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Only the session owner can update the session'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-    
     // If no ownerDeviceId provided, allow update (for testing purposes)
     if (!ownerDeviceId) {
       console.log('⚠️ Session update without ownership check:', { shareCode });
@@ -1421,7 +1404,6 @@ router.put('/:shareCode', optionalAuth, rateLimiters.sensitive, requireOrganizer
 router.put('/terminate/:shareCode', optionalAuth, rateLimiters.sensitive, requireOrganizer('delete_session'), cacheInvalidationMiddleware(['session', 'discovery', 'stats']), async (req, res) => {
   try {
     const { shareCode } = req.params;
-    const { ownerDeviceId } = req.body;
 
     const session = await prisma.mvpSession.findUnique({
       where: { shareCode }
@@ -1433,18 +1415,6 @@ router.put('/terminate/:shareCode', optionalAuth, rateLimiters.sensitive, requir
         error: {
           code: 'NOT_FOUND',
           message: 'Session not found'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Check if the requester is the owner
-    if (session.ownerDeviceId !== ownerDeviceId) {
-      return res.status(403).json({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Only the session owner can terminate the session'
         },
         timestamp: new Date().toISOString()
       });
@@ -1515,7 +1485,6 @@ router.put('/terminate/:shareCode', optionalAuth, rateLimiters.sensitive, requir
 router.put('/reactivate/:shareCode', optionalAuth, requireOrganizer('edit_session'), cacheInvalidationMiddleware(['session', 'discovery', 'stats']), async (req, res) => {
   try {
     const { shareCode } = req.params;
-    const { ownerDeviceId } = req.body;
 
     const session = await prisma.mvpSession.findUnique({
       where: { shareCode }
@@ -1527,18 +1496,6 @@ router.put('/reactivate/:shareCode', optionalAuth, requireOrganizer('edit_sessio
         error: {
           code: 'NOT_FOUND',
           message: 'Session not found'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Check if the requester is the owner
-    if (session.ownerDeviceId !== ownerDeviceId) {
-      return res.status(403).json({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Only the session owner can reactivate the session'
         },
         timestamp: new Date().toISOString()
       });
@@ -1636,7 +1593,6 @@ router.put('/reactivate/:shareCode', optionalAuth, requireOrganizer('edit_sessio
 router.delete('/:shareCode/players/:playerId', optionalAuth, rateLimiters.sensitive, requireOrganizer('remove_players'), cacheInvalidationMiddleware(['session', 'discovery']), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
-    const { deviceId: ownerDeviceId } = req.body;
 
     const session = await prisma.mvpSession.findUnique({
       where: { shareCode }
@@ -1648,26 +1604,6 @@ router.delete('/:shareCode/players/:playerId', optionalAuth, rateLimiters.sensit
         error: {
           code: 'NOT_FOUND',
           message: 'Session not found'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Check if the requester is the owner
-    console.log('🔍 Remove player ownership check:', {
-      sessionOwnerDeviceId: session.ownerDeviceId,
-      requestOwnerDeviceId: ownerDeviceId,
-      match: session.ownerDeviceId === ownerDeviceId,
-      sessionOwnerDeviceIdType: typeof session.ownerDeviceId,
-      requestOwnerDeviceIdType: typeof ownerDeviceId
-    });
-    
-    if (session.ownerDeviceId !== ownerDeviceId) {
-      return res.status(403).json({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Only the session owner can remove players'
         },
         timestamp: new Date().toISOString()
       });
@@ -1726,7 +1662,7 @@ router.delete('/:shareCode/players/:playerId', optionalAuth, rateLimiters.sensit
 router.post('/:shareCode/add-player', optionalAuth, rateLimiters.api, requireOrganizer('add_players'), cacheInvalidationMiddleware(['session', 'discovery']), async (req, res) => {
   try {
     const { shareCode } = req.params;
-    const { playerName, deviceId: ownerDeviceId } = req.body;
+    const { playerName } = req.body;
 
     const session = await prisma.mvpSession.findUnique({
       where: { shareCode },
@@ -1739,26 +1675,6 @@ router.post('/:shareCode/add-player', optionalAuth, rateLimiters.api, requireOrg
         error: {
           code: 'NOT_FOUND',
           message: 'Session not found'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Check if the requester is the owner
-    console.log('🔍 Add player ownership check:', {
-      sessionOwnerDeviceId: session.ownerDeviceId,
-      requestOwnerDeviceId: ownerDeviceId,
-      match: session.ownerDeviceId === ownerDeviceId,
-      sessionOwnerDeviceIdType: typeof session.ownerDeviceId,
-      requestOwnerDeviceIdType: typeof ownerDeviceId
-    });
-    
-    if (session.ownerDeviceId !== ownerDeviceId) {
-      return res.status(403).json({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Only the session owner can add players'
         },
         timestamp: new Date().toISOString()
       });
@@ -3155,7 +3071,7 @@ router.put('/:shareCode/players/:playerId/status', optionalAuth, requireOrganize
 router.delete('/:shareCode/players/:playerId', optionalAuth, rateLimiters.sensitive, requireOrganizer('remove_players'), cacheInvalidationMiddleware(['session', 'discovery']), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
-    const { organizerDeviceId, reason } = req.body;
+    const { reason } = req.body;
 
     // Find the session
     const session = await prisma.mvpSession.findFirst({
@@ -3172,14 +3088,6 @@ router.delete('/:shareCode/players/:playerId', optionalAuth, rateLimiters.sensit
       return res.status(404).json({
         success: false,
         message: 'Session not found'
-      });
-    }
-
-    // Check if requester is the organizer
-    if (session.ownerDeviceId !== organizerDeviceId) {
-      return res.status(403).json({
-        success: false,
-        message: 'Only the session organizer can remove players'
       });
     }
 
@@ -3371,7 +3279,7 @@ router.get('/:shareCode/players/me/:deviceId', async (req, res) => {
 router.put('/:shareCode/players/:playerId/status', optionalAuth, requireOrganizerOrSelf('update_player_status'), cacheInvalidationMiddleware(['session']), versioning({ entity: 'player', resolveId: (req) => req.params.playerId }), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
-    const { status, deviceId, ownerDeviceId } = req.body;
+    const { status } = req.body;
 
     // Validate status
     if (!['ACTIVE', 'RESTING', 'LEFT'].includes(status)) {
@@ -3436,21 +3344,6 @@ router.put('/:shareCode/players/:playerId/status', optionalAuth, requireOrganize
         error: {
           code: 'PLAYER_IN_ACTIVE_GAME',
           message: 'Cannot leave session while playing in an active game'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Check authorization - either the player themselves or the session owner
-    const isOwner = session.ownerDeviceId === ownerDeviceId;
-    const isPlayerThemselves = player.deviceId === deviceId;
-
-    if (!isOwner && !isPlayerThemselves) {
-      return res.status(403).json({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Only the player themselves or session owner can update player status'
         },
         timestamp: new Date().toISOString()
       });
@@ -3850,7 +3743,7 @@ router.post('/:shareCode/games', optionalAuth, requireOrganizer('generate_pairin
 router.put('/:shareCode/courts', optionalAuth, rateLimiters.api, requireOrganizer('edit_session'), versioning({ entity: 'session', resolveId: (req) => req.params.shareCode }), async (req, res) => {
   try {
     const { shareCode } = req.params;
-    const { courtCount, ownerDeviceId } = req.body;
+    const { courtCount } = req.body;
 
     const session = await prisma.mvpSession.findUnique({
       where: { shareCode }
@@ -3862,18 +3755,6 @@ router.put('/:shareCode/courts', optionalAuth, rateLimiters.api, requireOrganize
         error: {
           code: 'SESSION_NOT_FOUND',
           message: 'Session not found'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Check if the requester is the owner
-    if (session.ownerDeviceId !== ownerDeviceId) {
-      return res.status(403).json({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Only the session owner can update court settings'
         },
         timestamp: new Date().toISOString()
       });
@@ -4006,7 +3887,7 @@ router.put('/:shareCode/courts', optionalAuth, rateLimiters.api, requireOrganize
 router.put('/:shareCode/players/:playerId/rest', optionalAuth, requireOrganizerOrSelf('update_player_status'), cacheInvalidationMiddleware(['session']), async (req, res) => {
   try {
     const { shareCode, playerId } = req.params;
-    const { gamesCount = 1, requestedBy, deviceId, ownerDeviceId } = req.body;
+    const { gamesCount = 1, requestedBy, ownerDeviceId } = req.body;
 
     // Validate games count
     if (gamesCount < 0 || gamesCount > 5) {
@@ -4051,20 +3932,8 @@ router.put('/:shareCode/players/:playerId/rest', optionalAuth, requireOrganizerO
       });
     }
 
-    // Check authorization - either player themselves or session owner
+    // Whether the acting user is the session owner (used for rest attribution)
     const isOwner = session.ownerDeviceId === ownerDeviceId;
-    const isPlayerThemselves = player.deviceId === deviceId;
-
-    if (!isOwner && !isPlayerThemselves) {
-      return res.status(403).json({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Only the player themselves or session owner can manage rest'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
 
     // Check if player is in active game
     const isInActiveGame = session.games.some(game => 
