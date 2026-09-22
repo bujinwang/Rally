@@ -257,6 +257,12 @@ export const PUBLIC_ALLOWLIST: ReadonlySet<string> = new Set([
   'GET /api/v1/tournaments/:id/standings',
   'GET /api/v1/tournaments/:id/stats',
 
+  // tournaments.ts — player self-registration. Public BY DESIGN: the MVP has no
+  // player accounts, so an organizer guard would break the feature. The service
+  // already rejects closed/full/already-registered; residual spam risk is a
+  // rate-limiting concern, not an authorization one.
+  'POST /api/v1/tournaments/:id/register',
+
   // predictions.ts — public read of one prediction type (admin routes self-guard)
   'GET /api/v1/predictions/:type',
 ]);

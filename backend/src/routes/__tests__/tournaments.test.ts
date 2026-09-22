@@ -29,17 +29,44 @@ jest.mock('../../services/tournamentBracketService', () => ({
   },
 }));
 
-// Story 6.7: `POST /:id/start` is now organizer-guarded (a deliberate contract
-// change — it mutates). This file only checks the route/handler contract, so
-// the guard is stubbed to a pass-through here; that also keeps the suite
-// DB-free. The real fail-closed guard is exercised end-to-end in
-// tournaments.bracket.test.ts.
-jest.mock('../../middleware/tournamentPermissions', () => ({
-  requireTournamentOrganizer: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+// Story 6.9 Phase 2 — the organizer guard is now the REAL middleware (it is no
+// longer stubbed to a pass-through here). `PUT /:id`, `DELETE /:id`,
+// `DELETE /:tournamentId/players/:playerId` and `POST /:id/start` carry
+// `optionalAuth, requireTournamentOrganizer()`. The DB is mocked so the suite
+// stays DB-free while still exercising the real guard end to end:
+//   - `prisma.user.findUnique`       backs `optionalAuth`'s JWT verification;
+//   - `prisma.tournament.findUnique` backs `requireTournamentOrganizer()`.
+// The real-Postgres guard proof (grant + deny + the `tournamentId` param trap)
+// lives in tournaments.bracket.test.ts.
+const ORGANIZER_USER_ID = 'route-test-organizer';
+const INTRUDER_USER_ID = 'route-test-intruder';
+
+jest.mock('../../config/database', () => ({
+  connectDB: jest.fn().mockResolvedValue(undefined),
+  prisma: {
+    user: { findUnique: jest.fn() },
+    tournament: { findUnique: jest.fn() },
+  },
 }));
 
 import * as tournamentService from '../../services/tournamentService';
+import { prisma } from '../../config/database';
+import { JWTUtils } from '../../utils/jwt';
 import tournamentsRouter from '../tournaments';
+
+const userFindUnique = prisma.user.findUnique as unknown as jest.Mock;
+const tournamentFindUnique = prisma.tournament.findUnique as unknown as jest.Mock;
+
+const organizerToken = JWTUtils.generateTokens({
+  userId: ORGANIZER_USER_ID,
+  email: 'organizer@example.test',
+  role: 'PLAYER',
+}).accessToken;
+const intruderToken = JWTUtils.generateTokens({
+  userId: INTRUDER_USER_ID,
+  email: 'intruder@example.test',
+  role: 'PLAYER',
+}).accessToken;
 
 const app = express();
 app.use(express.json());
@@ -54,7 +81,26 @@ const validTournament = {
 };
 
 describe('Tournament Routes', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // optionalAuth resolves a JWT to a user row; the guard then matches that
+    // user against the tournament's recorded organizer.
+    userFindUnique.mockImplementation(async (args: { where?: { id?: string } }) => {
+      const id = args?.where?.id;
+      if (id === ORGANIZER_USER_ID) {
+        return { id, email: 'organizer@example.test', role: 'PLAYER' };
+      }
+      if (id === INTRUDER_USER_ID) {
+        return { id, email: 'intruder@example.test', role: 'PLAYER' };
+      }
+      return null;
+    });
+    // Every tournament in this suite is owned by the organizer user.
+    tournamentFindUnique.mockResolvedValue({
+      organizerUserId: ORGANIZER_USER_ID,
+      organizerDeviceId: null,
+    });
+  });
 
   describe('POST /tournaments', () => {
     it('creates tournament', async () => {
@@ -92,50 +138,111 @@ describe('Tournament Routes', () => {
     });
   });
 
+  // Story 6.9 Phase 2 — this route was public; it is now organizer-guarded.
   describe('PUT /tournaments/:id', () => {
-    it('updates tournament', async () => {
+    it('updates tournament for the organizer', async () => {
       (tournamentService.updateTournament as jest.Mock).mockResolvedValue({ id: 't1', name: 'Updated' });
-      const res = await request(app).put('/tournaments/t1').send({ name: 'Updated' }).expect(200);
+      const res = await request(app)
+        .put('/tournaments/t1')
+        .set('Authorization', `Bearer ${organizerToken}`)
+        .send({ name: 'Updated' })
+        .expect(200);
       expect(res.body.data.name).toBe('Updated');
+    });
+
+    it('denies an anonymous caller (was public — Story 6.9 Phase 2)', async () => {
+      const res = await request(app).put('/tournaments/t1').send({ name: 'Updated' }).expect(403);
+      expect(res.body.error.code).toBe('FORBIDDEN');
+      expect(tournamentService.updateTournament).not.toHaveBeenCalled();
+    });
+
+    it('denies a non-organizer', async () => {
+      const res = await request(app)
+        .put('/tournaments/t1')
+        .set('Authorization', `Bearer ${intruderToken}`)
+        .send({ name: 'Updated' })
+        .expect(403);
+      expect(res.body.error.code).toBe('FORBIDDEN');
+      expect(tournamentService.updateTournament).not.toHaveBeenCalled();
     });
   });
 
+  // Story 6.9 Phase 2 — this route was public; it is now organizer-guarded.
   describe('DELETE /tournaments/:id', () => {
-    it('deletes tournament', async () => {
+    it('deletes tournament for the organizer', async () => {
       (tournamentService.deleteTournament as jest.Mock).mockResolvedValue(undefined);
-      const res = await request(app).delete('/tournaments/t1').expect(200);
+      const res = await request(app)
+        .delete('/tournaments/t1')
+        .set('Authorization', `Bearer ${organizerToken}`)
+        .expect(200);
       expect(res.body.success).toBe(true);
     });
 
-    it('returns 404 when not found', async () => {
+    it('returns 404 when not found — for a PROVEN organizer (not a 403)', async () => {
       (tournamentService.deleteTournament as jest.Mock).mockRejectedValue(new Error('Tournament not found'));
-      const res = await request(app).delete('/tournaments/t1').expect(404);
+      const res = await request(app)
+        .delete('/tournaments/t1')
+        .set('Authorization', `Bearer ${organizerToken}`)
+        .expect(404);
       expect(res.body.error).toBe('Tournament not found');
+    });
+
+    it('denies an anonymous caller (was public — Story 6.9 Phase 2)', async () => {
+      const res = await request(app).delete('/tournaments/t1').expect(403);
+      expect(res.body.error.code).toBe('FORBIDDEN');
+      expect(tournamentService.deleteTournament).not.toHaveBeenCalled();
     });
   });
 
   describe('POST /tournaments/:id/register', () => {
-    it('registers player', async () => {
+    // Player self-registration is public BY DESIGN (no player accounts in the
+    // MVP) and is declared in PUBLIC_ALLOWLIST — it is intentionally unguarded.
+    it('registers player without authentication (public by design)', async () => {
       (tournamentService.registerPlayer as jest.Mock).mockResolvedValue({ id: 'p1', playerName: 'Kevin' });
       const res = await request(app).post('/tournaments/t1/register').send({ playerName: 'Kevin' }).expect(201);
       expect(res.body.data.playerName).toBe('Kevin');
     });
   });
 
-  describe('DELETE /tournaments/:id/players/:playerId', () => {
-    it('unregisters player', async () => {
+  // Story 6.9 Phase 2 — this route was public; it is now organizer-guarded.
+  // The tournament id param here is `tournamentId`, so the guard is passed
+  // `{ param: 'tournamentId' }`; a wrong param would 400 for everyone.
+  describe('DELETE /tournaments/:tournamentId/players/:playerId', () => {
+    it('unregisters player for the organizer (param is tournamentId)', async () => {
       (tournamentService.unregisterPlayer as jest.Mock).mockResolvedValue(undefined);
-      const res = await request(app).delete('/tournaments/t1/players/p1').expect(200);
+      const res = await request(app)
+        .delete('/tournaments/t1/players/p1')
+        .set('Authorization', `Bearer ${organizerToken}`)
+        .expect(200);
       expect(res.body.success).toBe(true);
+    });
+
+    it('denies an anonymous caller (was public — Story 6.9 Phase 2)', async () => {
+      const res = await request(app).delete('/tournaments/t1/players/p1').expect(403);
+      expect(res.body.error.code).toBe('FORBIDDEN');
+      expect(tournamentService.unregisterPlayer).not.toHaveBeenCalled();
+    });
+
+    it('denies a non-organizer', async () => {
+      const res = await request(app)
+        .delete('/tournaments/t1/players/p1')
+        .set('Authorization', `Bearer ${intruderToken}`)
+        .expect(403);
+      expect(res.body.error.code).toBe('FORBIDDEN');
+      expect(tournamentService.unregisterPlayer).not.toHaveBeenCalled();
     });
   });
 
   describe('POST /tournaments/:id/start', () => {
-    // The organizer guard is stubbed above; this asserts the handler contract
-    // (status flip + additive `data.bracket`) for an authorized caller.
-    it('starts tournament', async () => {
+    // Story 6.7 T04: organizer-guarded (it mutates — generate + persist). This
+    // asserts the handler contract (status flip + additive `data.bracket`) for a
+    // PROVEN organizer; the real-Postgres guard proof is in the bracket suite.
+    it('starts tournament for the organizer', async () => {
       (tournamentService.startTournament as jest.Mock).mockResolvedValue(undefined);
-      const res = await request(app).post('/tournaments/t1/start').expect(200);
+      const res = await request(app)
+        .post('/tournaments/t1/start')
+        .set('Authorization', `Bearer ${organizerToken}`)
+        .expect(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.bracket).toEqual({ tournamentId: 't1' });
     });

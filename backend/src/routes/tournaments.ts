@@ -214,10 +214,18 @@ router.get(
 /**
  * @route PUT /api/tournaments/:id
  * @desc Update tournament
- * @access Public (should be restricted to organizers)
+ * @access Organizer only
+ *
+ * Story 6.9 Phase 2 — was public, which let any caller rewrite any tournament.
+ * Now guarded exactly like the other mutation endpoints (`/:id/start`, …):
+ * `optionalAuth` populates the identity, `requireTournamentOrganizer()` denies
+ * unless the caller matches the tournament's recorded organizer identity
+ * (fail-closed when the row records none).
  */
 router.put(
   '/:id',
+  optionalAuth,
+  requireTournamentOrganizer(),
   [
     param('id').isString().isLength({ min: 1 }),
     body('name').optional().isString().isLength({ min: 1, max: 100 }),
@@ -274,10 +282,15 @@ router.put(
 /**
  * @route DELETE /api/tournaments/:id
  * @desc Delete tournament
- * @access Public (should be restricted to organizers)
+ * @access Organizer only
+ *
+ * Story 6.9 Phase 2 — was public (an unauthenticated caller could delete any
+ * tournament). Guarded like the other mutation endpoints; see `PUT /:id`.
  */
 router.delete(
   '/:id',
+  optionalAuth,
+  requireTournamentOrganizer(),
   [param('id').isString().isLength({ min: 1 })],
   async (req: Request, res: Response) => {
     try {
@@ -373,10 +386,19 @@ router.post(
 /**
  * @route DELETE /api/tournaments/:tournamentId/players/:playerId
  * @desc Unregister player from tournament
- * @access Public (should be restricted)
+ * @access Organizer only
+ *
+ * Story 6.9 Phase 2 — was public (an unauthenticated caller could unregister any
+ * player from any tournament). Guarded like the other mutation endpoints.
+ *
+ * NOTE: the tournament id param here is `tournamentId`, not `id`, so the guard
+ * MUST be told which param to read — `requireTournamentOrganizer()` defaults to
+ * `param: 'id'`, which would read `undefined` and fail closed for everyone.
  */
 router.delete(
   '/:tournamentId/players/:playerId',
+  optionalAuth,
+  requireTournamentOrganizer({ param: 'tournamentId' }),
   [
     param('tournamentId').isString().isLength({ min: 1 }),
     param('playerId').isString().isLength({ min: 1 }),
