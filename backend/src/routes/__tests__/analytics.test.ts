@@ -9,6 +9,11 @@ jest.mock('../../middleware/rateLimit', () => ({
   }),
 }));
 
+// Mock auth middleware
+jest.mock('../../middleware/auth', () => ({
+  authenticateToken: (_req: any, _res: any, next: any) => next(),
+}));
+
 import analyticsRouter from '../analytics';
 import { AnalyticsService } from '../../services/analyticsService';
 

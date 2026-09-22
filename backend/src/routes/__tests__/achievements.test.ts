@@ -2,6 +2,10 @@
 import request from 'supertest';
 import express from 'express';
 
+jest.mock('../../middleware/auth', () => ({
+  authenticateToken: (_req: any, _res: any, next: any) => next(),
+}));
+
 jest.mock('../../services/achievementService', () => ({
   achievementService: {
     getActiveAchievements: jest.fn(),
