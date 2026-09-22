@@ -398,3 +398,37 @@ describe('notificationHelper — notifyPlayer (session-scoped)', () => {
     expect(fake.tokensSent).toEqual([]);
   });
 });
+
+describe('notificationHelper — notifyDevice mass-send guard (audit §4.2)', () => {
+  /**
+   * Defence-in-depth, NOT a live-bug fix. The signature is `userId: string`, so
+   * TypeScript already rejects a literal `undefined`; this guard defends the
+   * RUNTIME boundary where the type is not enforced — untyped JS callers, an
+   * `as any` cast, or (most realistically) a Joi-`optional()` field or a nullable
+   * Prisma column whose value is `undefined` at runtime. No caller passes a falsy
+   * id today (`messaging.ts`, `friends.ts` ×2, `scheduler.ts` all pass a validated
+   * id).
+   *
+   * Why it matters: Prisma DROPS an `undefined` filter rather than matching
+   * nothing, so `where: { isActive: true, userId: undefined }` silently becomes
+   * `where: { isActive: true }` — every active token on the system — and the
+   * notification is mass-sent. Same hazard guarded at permissions.ts:222-227.
+   */
+  it('refuses a falsy userId and never queries pushToken', async () => {
+    const findManySpy = jest.spyOn(prisma.pushToken, 'findMany');
+
+    try {
+      await expect(
+        notifyDevice(undefined as any, { title: 'T', body: 'B', type: 'FRIEND_REQUEST' }),
+      ).resolves.toBe(false);
+
+      // LOAD-BEARING assertion: proving only the `false` return would still pass
+      // if the guard ran AFTER the query (an empty result also returns false).
+      // Only "the query never ran" proves the mass-send path is unreachable.
+      expect(findManySpy).not.toHaveBeenCalled();
+      expect(fake.tokensSent).toEqual([]);
+    } finally {
+      findManySpy.mockRestore();
+    }
+  });
+});
