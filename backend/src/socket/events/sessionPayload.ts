@@ -22,34 +22,22 @@
  * extending it to those keys is a one-line change.
  */
 
+import { ACCOUNT_IDENTITY_KEYS, stripUserIdentity } from '../../utils/identitySanitizer';
+
 /**
  * Account-identity keys that must never appear in an outgoing session payload.
  *
  * `userId` is the per-player account link; `ownerUserId` is the same class of
  * account identity carried as a scalar on the session row (a full `MvpSession`
  * row includes it), so both are stripped together.
+ *
+ * The implementation now lives in `utils/identitySanitizer.ts` (shared with the
+ * public tournament read surfaces); this alias is kept so the session call sites
+ * and the guard test keep reading a single source of truth.
  */
-export const SESSION_IDENTITY_KEYS = ['userId', 'ownerUserId'] as const;
+export const SESSION_IDENTITY_KEYS = ACCOUNT_IDENTITY_KEYS;
 
-/** Recursively delete account-identity keys, returning a new structure. */
-export function stripUserIdentity<T>(value: T): T {
-  return strip(value) as T;
-}
-
-function strip(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((entry) => strip(entry));
-  }
-  if (value !== null && typeof value === 'object' && !(value instanceof Date)) {
-    const out: Record<string, unknown> = {};
-    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-      if ((SESSION_IDENTITY_KEYS as readonly string[]).includes(key)) continue;
-      out[key] = strip(entry);
-    }
-    return out;
-  }
-  return value;
-}
+export { stripUserIdentity };
 
 /**
  * The PUBLIC surrogate for "who is the organizer" on a broadcast: the organizer

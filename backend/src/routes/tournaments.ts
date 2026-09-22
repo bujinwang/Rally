@@ -4,6 +4,7 @@ import * as tournamentService from '../services/tournamentService';
 import { optionalAuth } from '../middleware/auth';
 import { resolveIdentity } from '../middleware/permissions';
 import { requireTournamentOrganizer } from '../middleware/tournamentPermissions';
+import { stripTournamentIdentity } from '../utils/identitySanitizer';
 import {
   BracketError,
   tournamentBracketService,
@@ -154,9 +155,14 @@ router.get(
 
       const result = await tournamentService.getTournaments(filters);
 
+      // Story 6.9 Phase 2 (takeover-chain fix) — the read must not hand out the
+      // authorization factor. `getTournaments` returns full `Tournament` rows
+      // (incl. `organizerDeviceId`) plus full player rows (incl. `deviceId`); a
+      // curated nested select cannot remove the PARENT scalar, so the identity
+      // keys are stripped from the serialized output (design §4.3 item 1).
       res.json({
         success: true,
-        data: result,
+        data: stripTournamentIdentity(result),
       });
     } catch (error: any) {
       console.error('Error fetching tournaments:', error);
@@ -189,9 +195,13 @@ router.get(
 
       const tournament = await tournamentService.getTournamentById(req.params.id);
 
+      // Story 6.9 Phase 2 (takeover-chain fix) — same boundary strip as the list
+      // route. The detail row ships the parent `organizerDeviceId` scalar and
+      // every `players[].deviceId`; both are the factors the takeover chain
+      // replays against `requireTournamentOrganizer` (design §4.3 item 1).
       res.json({
         success: true,
-        data: tournament,
+        data: stripTournamentIdentity(tournament),
       });
     } catch (error: any) {
       console.error('Error fetching tournament:', error);

@@ -1,13 +1,14 @@
 /**
- * Session payload identity-disclosure GUARD — Story 6.9 Phase 0
- * (device-token design §4.2 / §4.3 item 3 / §8.4).
+ * Identity-disclosure GUARD — Story 6.9 Phase 0 (session surfaces) and Phase 2
+ * (tournament read surfaces) — device-token design §4.2 / §4.3 item 3 / §8.4.
  *
- * THE CONTRACT THIS FILE PINS: no account-identity key may appear in
- *   (a) a session HTTP response body, or
- *   (b) any emitted session socket payload.
+ * THE CONTRACT THIS FILE PINS: no identity key may appear in
+ *   (a) a session HTTP response body,
+ *   (b) any emitted session socket payload, or
+ *   (c) either public tournament read response (`GET /tournaments`, `/:id`).
  *
  * It is written as a *guard*, not a spot-check. It enumerates the surfaces in
- * three independent ways so that a NEW emitter or serializer trips it:
+ * independent ways so that a NEW emitter or serializer trips it:
  *
  *   1. RUNTIME / HTTP  — mounts the real `routes/mvpSessions` router against a
  *      POISONED Prisma fixture (the session row carries `ownerUserId`; every
@@ -17,6 +18,11 @@
  *      with poisoned fixtures through the real `ioRegistry`, capturing BOTH the
  *      live `io.to(room).emit(...)` calls AND the reconnect replay buffer, then
  *      asserts no forbidden key survives in either.
+ *   2b. RUNTIME / HTTP (tournament) — mounts the real `routes/tournaments`
+ *      router with a POISONED service row and asserts both anonymous reads
+ *      carry no organizer/player identity, then replays whatever the read
+ *      yielded against the REAL `requireTournamentOrganizer` gate (end-to-end:
+ *      the takeover chain's read step is dead).
  *   3. STATIC / SOURCE — scans the enumerated session-surface files so a new
  *      emitter or serializer is caught before it ships:
  *        • the set of files that reference the session-snapshot event is
@@ -25,15 +31,20 @@
  *        • every `mvp-session-updated` emit whose payload carries a `session`
  *          key must wrap it in `socketSessionPayload(...)`;
  *        • `routes/mvpSessions.ts` may only name `ownerUserId` as an object key
- *          in the create/claim WRITE (`ownerUserId: userId`).
+ *          in the create/claim WRITE (`ownerUserId: userId`);
+ *        • both tournament read handlers must route through the sanitizer, and
+ *          the sanitizer's key set must cover every forbidden tournament key.
  *
- * STEP B — EXTENDING THIS GUARD TO `deviceId` / `ownerDeviceId` IS A ONE-LINE
- * CHANGE. Add those keys to `FORBIDDEN_IDENTITY_KEYS` below (and, for the
- * static `PLAYER_SELECT` / route-key scans, to `STATIC_FORBIDDEN_KEYS`). The
+ * STEP B — EXTENDING THE SESSION SURFACES TO `deviceId` / `ownerDeviceId` IS A
+ * ONE-LINE CHANGE. Add those keys to `FORBIDDEN_IDENTITY_KEYS` below (and, for
+ * the static `PLAYER_SELECT` / route-key scans, to `STATIC_FORBIDDEN_KEYS`). The
  * recursive walkers, the emit-wrap scan and the discovery scan are all driven
  * off those lists, so no other edit is required. `deviceId` / `ownerDeviceId`
- * are deliberately NOT listed yet: Phase 0 keeps them for the client (the
- * client-coupled removal is a separate, later step — design §4.2).
+ * are deliberately NOT listed for SESSIONS yet: Phase 0 keeps them for the
+ * client (the client-coupled removal is a separate, later step — design §4.2).
+ * The TOURNAMENT surfaces, by contrast, already forbid them (see
+ * `TOURNAMENT_FORBIDDEN_IDENTITY_KEYS`): the takeover chain reads the parent
+ * `organizerDeviceId` anonymously, so the device identity must be gone there.
  */
 
 jest.mock('../../../server', () => ({
@@ -45,7 +56,29 @@ jest.mock('../../../config/database', () => ({
     mvpSession: { findFirst: jest.fn(), findUnique: jest.fn() },
     mvpPlayer: { findUnique: jest.fn() },
     mvpGame: { findUnique: jest.fn() },
+    // Read by the REAL `requireTournamentOrganizer` gate in the end-to-end test.
+    tournament: { findUnique: jest.fn() },
   },
+}));
+
+// The tournament read service is mocked so the guard can hand the serializers a
+// POISONED row (full identity columns); the tournament PERMISSIONS gate is left
+// REAL so the end-to-end replay test exercises the production authorization.
+jest.mock('../../../services/tournamentService', () => ({
+  getTournaments: jest.fn(),
+  getTournamentById: jest.fn(),
+  getTournamentStats: jest.fn(),
+  createTournament: jest.fn(),
+  updateTournament: jest.fn(),
+  deleteTournament: jest.fn(),
+  registerPlayer: jest.fn(),
+  unregisterPlayer: jest.fn(),
+  startTournament: jest.fn(),
+}));
+
+jest.mock('../../../services/tournamentBracketService', () => ({
+  BracketError: class BracketError extends Error {},
+  tournamentBracketService: {},
 }));
 
 jest.mock('../../../middleware/rateLimit', () => {
@@ -113,6 +146,8 @@ import request from 'supertest';
 
 import { prisma } from '../../../config/database';
 import mvpSessionsRouter from '../../../routes/mvpSessions';
+import tournamentsRouter from '../../../routes/tournaments';
+import * as tournamentService from '../../../services/tournamentService';
 import {
   setIo,
   resetIo,
@@ -135,9 +170,28 @@ import {
 /**
  * Account-identity keys that must never appear in an outgoing session payload.
  * Extend this list (and `STATIC_FORBIDDEN_KEYS`) with `deviceId` /
- * `ownerDeviceId` when the client-coupled removal lands.
+ * `ownerDeviceId` when the client-coupled removal lands (Step B).
  */
 const FORBIDDEN_IDENTITY_KEYS = ['userId', 'ownerUserId'] as const;
+
+/**
+ * Identity keys forbidden on the PUBLIC tournament read surfaces
+ * (`GET /tournaments`, `GET /tournaments/:id`).
+ *
+ * This is a SUPERSET of the session set: the tournament takeover chain reads
+ * the parent `organizerDeviceId` (and `players[].deviceId`) anonymously and
+ * replays it against `requireTournamentOrganizer`, so the DEVICE identity must
+ * be gone here even though the session surfaces still carry it for the client
+ * (the client-coupled Step B has not landed yet). Adding a key here is the
+ * one-line extension the guard was built for.
+ */
+const TOURNAMENT_FORBIDDEN_IDENTITY_KEYS = [
+  ...FORBIDDEN_IDENTITY_KEYS,
+  'deviceId',
+  'ownerDeviceId',
+  'organizerUserId',
+  'organizerDeviceId',
+] as const;
 
 /**
  * The subset of the above that must additionally never be *selected* from
@@ -179,25 +233,30 @@ const SRC_ROOT = path.resolve(__dirname, '../../..');
 /** Recursively collect the dotted paths of every forbidden key in `value`. */
 function findForbiddenKeys(
   value: unknown,
+  keys: readonly string[],
   at: string = '$',
   found: string[] = [],
 ): string[] {
   if (Array.isArray(value)) {
-    value.forEach((entry, index) => findForbiddenKeys(entry, `${at}[${index}]`, found));
+    value.forEach((entry, index) => findForbiddenKeys(entry, keys, `${at}[${index}]`, found));
   } else if (value !== null && typeof value === 'object' && !(value instanceof Date)) {
     for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-      if ((FORBIDDEN_IDENTITY_KEYS as readonly string[]).includes(key)) {
+      if (keys.includes(key)) {
         found.push(`${at}.${key}`);
       }
-      findForbiddenKeys(entry, `${at}.${key}`, found);
+      findForbiddenKeys(entry, keys, `${at}.${key}`, found);
     }
   }
   return found;
 }
 
 /** Assert an arbitrary payload carries no forbidden identity key (recursive). */
-function expectNoIdentityKeys(payload: unknown, label: string): void {
-  const leaked = findForbiddenKeys(payload);
+function expectNoIdentityKeys(
+  payload: unknown,
+  label: string,
+  keys: readonly string[] = FORBIDDEN_IDENTITY_KEYS,
+): void {
+  const leaked = findForbiddenKeys(payload, keys);
   if (leaked.length > 0) {
     throw new Error(`${label} leaked account identity at: ${leaked.join(', ')}`);
   }
@@ -603,6 +662,189 @@ describe('Socket session payload guard (runtime, poisoned fixture)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 2b. RUNTIME / HTTP (tournament) — the anonymous read must not hand out the
+//     authorization factor the takeover chain replays.
+// ---------------------------------------------------------------------------
+
+const ORGANIZER_DEVICE_SECRET = 'org-dev-secret';
+const ORGANIZER_USER_SECRET = 'user-org-secret';
+const PLAYER_DEVICE_SECRET = 'player-dev-secret';
+const PLAYER_USER_SECRET = 'user-player-secret';
+
+const POISONED_TOURNAMENT = {
+  id: 't1',
+  name: 'Spring Open',
+  description: 'x',
+  tournamentType: 'SINGLE_ELIMINATION',
+  sportType: 'BADMINTON',
+  maxPlayers: 32,
+  minPlayers: 4,
+  startDate: new Date('2026-03-01T00:00:00.000Z'),
+  endDate: null,
+  registrationDeadline: new Date('2026-02-20T00:00:00.000Z'),
+  venueName: 'Court',
+  venueAddress: 'Addr',
+  latitude: 1,
+  longitude: 2,
+  matchFormat: 'SINGLES',
+  scoringSystem: '21_POINT',
+  bestOfGames: 3,
+  entryFee: 0,
+  prizePool: 0,
+  currency: 'USD',
+  status: 'REGISTRATION_OPEN',
+  organizer: 'Org',
+  organizerEmail: null,
+  organizerPhone: null,
+  organizerUserId: ORGANIZER_USER_SECRET, // must never be emitted
+  organizerDeviceId: ORGANIZER_DEVICE_SECRET, // the takeover-chain factor
+  visibility: 'PUBLIC',
+  accessCode: null,
+  skillLevelMin: null,
+  skillLevelMax: null,
+  ageRestriction: null,
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  players: [
+    {
+      id: 'tp1',
+      tournamentId: 't1',
+      playerName: 'Ann',
+      email: null,
+      phone: null,
+      deviceId: PLAYER_DEVICE_SECRET, // must never be emitted
+      userId: PLAYER_USER_SECRET, // must never be emitted
+      registeredAt: new Date('2026-01-02T00:00:00.000Z'),
+      seed: 1,
+      status: 'REGISTERED',
+      skillLevel: 'BEGINNER',
+      winRate: 0,
+      totalMatches: 0,
+      currentRound: 0,
+      isEliminated: false,
+      finalRank: null,
+    },
+  ],
+  rounds: [
+    {
+      id: 'r1',
+      tournamentId: 't1',
+      roundNumber: 1,
+      roundName: 'Finals',
+      roundType: 'ELIMINATION',
+      matchesRequired: 1,
+      playersAdvancing: 1,
+      startDate: null,
+      endDate: null,
+      status: 'PENDING',
+      matches: [
+        {
+          id: 'm1',
+          tournamentId: 't1',
+          roundId: 'r1',
+          player1Id: 'tp1',
+          player2Id: null,
+          matchNumber: 1,
+          bestOfGames: 3,
+          scoringSystem: '21_POINT',
+          player1GamesWon: 0,
+          player2GamesWon: 0,
+          winnerId: null,
+          status: 'SCHEDULED',
+          // Nested relation player — proves the strip recurses past the parent.
+          player1: {
+            id: 'tp1',
+            playerName: 'Ann',
+            deviceId: PLAYER_DEVICE_SECRET,
+            userId: PLAYER_USER_SECRET,
+          },
+          player2: null,
+        },
+      ],
+    },
+  ],
+};
+
+const tournamentApp = express();
+tournamentApp.use(express.json());
+tournamentApp.use('/api/v1/tournaments', tournamentsRouter);
+
+const getTournamentsMock = tournamentService.getTournaments as unknown as jest.Mock;
+const getTournamentByIdMock = tournamentService.getTournamentById as unknown as jest.Mock;
+const tournamentFindUnique = prisma.tournament.findUnique as unknown as jest.Mock;
+
+describe('Tournament read-surface guard (anonymous, poisoned fixture)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    getTournamentsMock.mockResolvedValue({ tournaments: [POISONED_TOURNAMENT], total: 1 });
+    getTournamentByIdMock.mockResolvedValue(POISONED_TOURNAMENT);
+    // What the REAL gate reads when authorizing a mutation.
+    tournamentFindUnique.mockResolvedValue({
+      organizerUserId: ORGANIZER_USER_SECRET,
+      organizerDeviceId: ORGANIZER_DEVICE_SECRET,
+    });
+  });
+
+  it('GET /tournaments leaks no organizer or player identity', async () => {
+    const res = await request(tournamentApp).get('/api/v1/tournaments');
+
+    expect(res.status).toBe(200);
+    expectNoIdentityKeys(res.body, 'GET /tournaments response', TOURNAMENT_FORBIDDEN_IDENTITY_KEYS);
+
+    // The secret STRINGS must not appear anywhere in the serialized body either
+    // (a value could be echoed under a different key name).
+    const serialized = JSON.stringify(res.body);
+    expect(serialized).not.toContain(ORGANIZER_DEVICE_SECRET);
+    expect(serialized).not.toContain(ORGANIZER_USER_SECRET);
+    expect(serialized).not.toContain(PLAYER_DEVICE_SECRET);
+    expect(serialized).not.toContain(PLAYER_USER_SECRET);
+  });
+
+  it('GET /tournaments/:id leaks no organizer or player identity', async () => {
+    const res = await request(tournamentApp).get('/api/v1/tournaments/t1');
+
+    expect(res.status).toBe(200);
+    expectNoIdentityKeys(
+      res.body,
+      'GET /tournaments/:id response',
+      TOURNAMENT_FORBIDDEN_IDENTITY_KEYS,
+    );
+
+    const serialized = JSON.stringify(res.body);
+    expect(serialized).not.toContain(ORGANIZER_DEVICE_SECRET);
+    expect(serialized).not.toContain(ORGANIZER_USER_SECRET);
+    expect(serialized).not.toContain(PLAYER_DEVICE_SECRET);
+    expect(serialized).not.toContain(PLAYER_USER_SECRET);
+
+    // The non-identity fields the clients actually use must survive.
+    expect(res.body.data.name).toBe('Spring Open');
+    expect(res.body.data.players[0].playerName).toBe('Ann');
+    expect(res.body.data.players[0].id).toBe('tp1');
+  });
+
+  it('END-TO-END: the anonymous read yields no value that satisfies the organizer gate', async () => {
+    // The attacker's ONLY source of the gate factor is the anonymous read.
+    const read = await request(tournamentApp).get('/api/v1/tournaments/t1');
+    const data = (read.body?.data ?? {}) as Record<string, unknown>;
+    const players = (data.players as Array<Record<string, unknown>> | undefined) ?? [];
+    const attackerGuess =
+      (data.organizerDeviceId as string | undefined) ??
+      (players[0]?.deviceId as string | undefined) ??
+      '';
+
+    // Replay EXACTLY what the read handed back against the REAL gate. With the
+    // leak present this value is the organizer device id and the mutation is
+    // authorized (200); with the fix it is empty and the gate denies (403).
+    const mutation = await request(tournamentApp)
+      .put('/api/v1/tournaments/t1')
+      .set('x-device-id', String(attackerGuess))
+      .send({ name: 'pwned' });
+
+    expect(mutation.status).toBe(403);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 3. STATIC / SOURCE — enumerate the surfaces so a new one trips the guard.
 // ---------------------------------------------------------------------------
 
@@ -672,5 +914,23 @@ describe('Static session-surface guard (enumerated from disk)', () => {
     // Sanity: the write pattern is actually present (so the assertion above is
     // not vacuously passing on a file that no longer writes the owner at all).
     expect(matches.length).toBeGreaterThan(0);
+  });
+
+  it('both tournament read handlers route their response through the identity sanitizer', () => {
+    const source = readSource('routes/tournaments.ts');
+    // Each of the two read handlers (`GET /` and `GET /:id`) must strip the
+    // identity keys from the serialized output — a curated nested select cannot
+    // remove the PARENT `organizerDeviceId` scalar.
+    expect(source).toMatch(/data:\s*stripTournamentIdentity\(result\)/);
+    expect(source).toMatch(/data:\s*stripTournamentIdentity\(tournament\)/);
+  });
+
+  it('the tournament sanitizer covers every device + account identity key', () => {
+    // Pin the contract of the sanitizer's key set so a key cannot be silently
+    // dropped from the strip list (which would re-open the takeover chain).
+    const source = readSource('utils/identitySanitizer.ts');
+    for (const key of TOURNAMENT_FORBIDDEN_IDENTITY_KEYS) {
+      expect(source).toMatch(new RegExp(`['"]${key}['"]`));
+    }
   });
 });
