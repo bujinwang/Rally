@@ -41,6 +41,8 @@ interface Session {
   name: string;
   players: Player[];
   ownerDeviceId?: string;
+  /** Server-computed viewer organizer flag (design §4.2). */
+  viewer?: { isOrganizer: boolean; playerId: string | null };
 }
 
 const MatchRecordingScreen: React.FC = () => {
@@ -178,7 +180,9 @@ const MatchRecordingScreen: React.FC = () => {
     return session?.players.filter(p => p.status === 'ACTIVE') || [];
   };
 
-  const isOrganizer = session?.ownerDeviceId === deviceId;
+  // Server-computed organizer flag — replaces the old `ownerDeviceId === deviceId`
+  // comparison so the client no longer reads a leaked device id (design §4.2).
+  const isOrganizer = session?.viewer?.isOrganizer ?? false;
 
   if (loading) {
     return (

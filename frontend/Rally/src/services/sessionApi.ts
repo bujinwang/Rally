@@ -14,6 +14,17 @@ export interface CreateSessionRequest {
   ownerDeviceId?: string; // device that owns/manages the session (organizer identity)
 }
 
+/**
+ * Server-computed viewer identity signals (Story 6.9 Phase 0, design §4.2).
+ * The backend derives these from `resolveIdentity(req)` so the client no longer
+ * has to compare leaked `deviceId` / `ownerDeviceId` values to decide "am I the
+ * organizer / am I this player".
+ */
+export interface SessionViewer {
+  isOrganizer: boolean;
+  playerId: string | null;
+}
+
 export interface SessionData {
   id: string;
   name: string;
@@ -26,6 +37,10 @@ export interface SessionData {
   description?: string;
   ownerName: string;
   ownerDeviceId?: string;
+  /** Boolean "an owner identity is recorded" flag — never the raw owner id. */
+  ownerClaimed?: boolean;
+  /** Viewer-relative organizer/self signals computed by the server. */
+  viewer?: SessionViewer;
   shareCode: string;
   status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
   playerCount?: number;
@@ -40,6 +55,8 @@ export interface SessionPlayer {
   id: string;
   name: string;
   deviceId?: string;
+  /** Server-computed: is this player row the requesting viewer? */
+  isYou?: boolean;
   joinedAt: string;
   status: 'ACTIVE' | 'RESTING' | 'LEFT';
   gamesPlayed: number;

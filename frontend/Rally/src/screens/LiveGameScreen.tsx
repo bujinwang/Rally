@@ -39,6 +39,8 @@ interface Player {
   losses: number;
   skillLevel?: number;
   deviceId?: string;
+  /** Server-computed: is this player row the requesting viewer? (design §4.2) */
+  isYou?: boolean;
   restGamesRemaining?: number;
 }
 
@@ -83,6 +85,8 @@ interface SessionData {
   courts: Court[];
   gameHistory: Game[];
   ownerDeviceId?: string;
+  /** Server-computed viewer organizer flag (design §4.2). */
+  viewer?: { isOrganizer: boolean; playerId: string | null };
 }
 
 type RouteParams = {
@@ -277,7 +281,15 @@ export default function LiveGameScreen() {
   const fetchSessionData = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/mvp-sessions/${route.params.shareCode}`);
+      // Present device identity so the backend can compute the additive
+      // `viewer.isOrganizer` / `players[].isYou` signals (design §4.2). This GET
+      // is a public read (no auth middleware), so the header flips no
+      // authorization decision — it only lets the server describe the caller to
+      // themselves. Without it the viewer signals would be permanently false.
+      const viewerDeviceId = await sessionApi.getDeviceId();
+      const response = await fetch(`${API_BASE_URL}/mvp-sessions/${route.params.shareCode}`, {
+        headers: viewerDeviceId ? { 'x-device-id': viewerDeviceId } : undefined,
+      });
       
       if (!response.ok) {
         throw new Error('Failed to fetch session data');
@@ -297,7 +309,10 @@ export default function LiveGameScreen() {
           gamesPlayed: player.gamesPlayed || 0,
           wins: player.wins || 0,
           losses: player.losses || 0,
-          skillLevel: player.skillLevel || undefined
+          skillLevel: player.skillLevel || undefined,
+          // Carry the server-computed self flag so the UI can identify the
+          // current player without comparing a leaked device id.
+          isYou: Boolean(player.isYou)
         })),
         courts: generateCourtsFromSession(session),
         gameHistory: (session.games || [])
@@ -321,7 +336,9 @@ export default function LiveGameScreen() {
           endTime: game.endTime,
           winnerTeam: game.winnerTeam
         })),
-        ownerDeviceId: session.ownerDeviceId
+        ownerDeviceId: session.ownerDeviceId,
+        // Server-computed viewer organizer flag (replaces the id comparison).
+        viewer: session.viewer
       };
       
       setSessionData(transformedData);
@@ -350,9 +367,9 @@ export default function LiveGameScreen() {
         courtNames: sessionCourtNames
       });
       
-      // Check if current user is the owner
-      const storedDeviceId = await sessionApi.getDeviceId();
-      setIsOwner(session.ownerDeviceId === storedDeviceId);
+      // Owner status is server-computed (`viewer.isOrganizer`) — no longer a
+      // comparison of a leaked `ownerDeviceId` to the local device id.
+      setIsOwner(Boolean(session.viewer?.isOrganizer));
       
     } catch (error) {
       console.error('Fetch session data error:', error);
@@ -2003,7 +2020,7 @@ export default function LiveGameScreen() {
                         styles.restPlayerButton,
                         (isInActiveGame || player.status === 'LEFT') && styles.restPlayerButtonDisabled
                       ]}
-                      onPress={() => showRestOptions(player.id, player.name, player.deviceId === deviceId)}
+                      onPress={() => showRestOptions(player.id, player.name, Boolean(player.isYou))}
                       disabled={isInActiveGame || player.status === 'LEFT'}
                     >
                       <Ionicons 
@@ -2370,7 +2387,7 @@ export default function LiveGameScreen() {
         <Text style={styles.sectionTitle}>Player Status</Text>
         <View style={styles.playersGrid}>
           {sessionData.players.map(player => {
-            const isCurrentPlayer = player.deviceId === deviceId;
+            const isCurrentPlayer = Boolean(player.isYou);
             const isInActiveGame = sessionData.courts.some(court => 
               court.currentGame && (
                 court.currentGame.team1.player1.id === player.id ||

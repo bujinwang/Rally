@@ -121,6 +121,10 @@ interface SessionData {
   status: string;
   ownerName: string;
   ownerDeviceId: string;
+  /** Server-computed "an owner identity is recorded" flag (design §4.2). */
+  ownerClaimed?: boolean;
+  /** Server-computed viewer organizer/self signals (design §4.2). */
+  viewer?: { isOrganizer: boolean; playerId: string | null };
   playerCount: number;
   players: Player[];
   games: Game[];
@@ -155,6 +159,8 @@ function mapCachedSessionToSessionData(cached: MvpSession): SessionData {
     status: cached.status,
     ownerName: cached.ownerName,
     ownerDeviceId: cached.ownerDeviceId ?? '',
+    ownerClaimed: cached.ownerClaimed,
+    viewer: cached.viewer,
     playerCount: cached.playerCount ?? players.length,
     players,
     games: [],
@@ -329,64 +335,38 @@ export default function SessionDetailScreen() {
   };
 
   const claimOwnershipIfNeeded = async (session: SessionData, currentDeviceId: string) => {
-    console.log('🔍 claimOwnershipIfNeeded called with:', {
-      currentDeviceId,
-      ownerName: session.ownerName,
-      ownerDeviceId: session.ownerDeviceId,
-      playersCount: session.players.length
-    });
-    
-    // Debug: Log all players and their deviceIds
-    console.log('🔍 Players data:', session.players.map(p => ({
-      id: p.id,
-      name: p.name,
-      deviceId: p.deviceId,
-      hasDeviceId: !!p.deviceId
-    })));
-    
-    // Check if user is the owner by name but ownerDeviceId is missing
-    // First try to find by deviceId, then fall back to checking if any player deviceIds are missing
-    const userPlayer = session.players.find(p => p.deviceId === currentDeviceId);
-    console.log('🔍 User player found by deviceId:', userPlayer);
-    
-    // If no player found by deviceId AND most players have null deviceIds (legacy sessions), 
-    // we can assume this is a legacy session and try name-based ownership claiming
-    const playersWithoutDeviceId = session.players.filter(p => !p.deviceId);
-    const isLegacySession = playersWithoutDeviceId.length === session.players.length;
-    console.log('🔍 Legacy session check:', { 
-      isLegacySession, 
-      playersWithoutDeviceId: playersWithoutDeviceId.length, 
-      totalPlayers: session.players.length 
-    });
-    
-    // For legacy sessions, we can't match by deviceId, so we allow claiming based on ownerName
-    const canClaimOwnership = userPlayer?.name === session.ownerName || (isLegacySession && !session.ownerDeviceId);
-    console.log('🔍 Can claim ownership:', canClaimOwnership, {
-      userPlayerName: userPlayer?.name,
-      sessionOwnerName: session.ownerName,
-      isLegacySession,
-      ownerDeviceIdMissing: !session.ownerDeviceId
-    });
-    
-    const ownerDeviceIdMissing = !session.ownerDeviceId;
-    console.log('🔍 Owner device ID missing:', ownerDeviceIdMissing);
-    
-    if (canClaimOwnership && ownerDeviceIdMissing) {
-      console.log('🔧 Claiming session ownership for:', session.shareCode);
+    // `ownerClaimed` is the server's boolean "an owner identity is recorded"
+    // flag (design §4.2). If the session is already claimed there is nothing to
+    // do — this replaces the old `!session.ownerDeviceId` probe, which would be
+    // unconditionally true once the raw owner id is no longer sent.
+    if (session.ownerClaimed) {
+      return;
+    }
+
+    // Identify the viewer's own player row via the server-computed
+    // `viewer.playerId` instead of matching a leaked `deviceId`. The former
+    // `isLegacySession` probe ("every player lacks a deviceId") is intentionally
+    // gone: it could not be computed without reading `players[].deviceId`, and
+    // it let *any* viewer claim an unowned session. Claiming now requires an
+    // explicit identity match — the safe subset of the old behaviour.
+    const viewerPlayerId = session.viewer?.playerId ?? null;
+    const userPlayer = viewerPlayerId
+      ? session.players.find((p) => p.id === viewerPlayerId)
+      : undefined;
+
+    // A viewer may reclaim an unclaimed session when their player name matches
+    // the recorded owner name (the creator) — the pre-existing, id-free
+    // recovery path.
+    const canClaimOwnership = userPlayer !== undefined && userPlayer.name === session.ownerName;
+
+    if (canClaimOwnership) {
       try {
         await sessionApi.claimSessionOwnership(session.shareCode);
-        console.log('✅ Successfully claimed session ownership');
-        // Refresh session data to get updated ownerDeviceId
+        // Refresh so the newly recorded owner identity is reflected.
         fetchSessionData(session.shareCode, currentDeviceId);
       } catch (error: any) {
-        console.error('❌ Failed to claim session ownership:', error);
+        console.error('Failed to claim session ownership:', error);
       }
-    } else {
-      console.log('🔍 Not claiming ownership:', {
-        canClaimOwnership,
-        ownerDeviceIdMissing,
-        reason: !canClaimOwnership ? 'Cannot claim ownership' : 'Owner device ID already set'
-      });
     }
   };
 
@@ -407,12 +387,15 @@ export default function SessionDetailScreen() {
         console.log('No cached session available');
       }
 
-      const response = await fetch(`${API_BASE_URL}/mvp-sessions/join/${code}`);
+      // Present device identity so the backend can compute the additive
+      // `viewer.isOrganizer` / `ownerClaimed` signals (design §4.2). This GET is
+      // a public read (no auth middleware on `/join/:shareCode`), so the header
+      // flips no authorization decision — it only lets the server describe the
+      // caller to themselves.
+      const response = await fetch(`${API_BASE_URL}/mvp-sessions/join/${code}`, {
+        headers: deviceId ? { 'x-device-id': deviceId } : undefined,
+      });
       const result = await response.json();
-
-      // Add debug logging to see the raw response
-      console.log('🔍 Raw API response:', JSON.stringify(result, null, 2));
-      console.log('🔍 Session object:', JSON.stringify(result.data?.session, null, 2));
 
       if (result.success) {
         const session = result.data.session;
@@ -436,17 +419,9 @@ export default function SessionDetailScreen() {
         setCourtSettings({
           courtCount: session.courtCount || 1
         });
-        // Check if current device is the owner
-        console.log('🔍 Ownership check:', {
-          currentDeviceId: deviceId,
-          ownerDeviceId: session.ownerDeviceId,
-          isOwner: deviceId && session.ownerDeviceId === deviceId
-        });
-        if (deviceId && session.ownerDeviceId === deviceId) {
-          setIsOwner(true);
-        } else {
-          setIsOwner(false);
-        }
+        // Owner status is server-computed (`viewer.isOrganizer`) — no longer a
+        // comparison of a leaked `ownerDeviceId` to the local device id.
+        setIsOwner(Boolean(session.viewer?.isOrganizer));
       } else {
         Alert.alert(t.common.error, result.error?.message || 'Session not found');
       }

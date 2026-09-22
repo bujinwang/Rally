@@ -6,7 +6,6 @@ export interface SessionUser {
   id: string;
   name: string;
   role: 'ORGANIZER' | 'PLAYER';
-  deviceId?: string;
 }
 
 export interface SessionContextType {
@@ -52,18 +51,17 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Helper to determine current user from session data
-  const determineCurrentUser = (sessionData: MvpSession, deviceId?: string): SessionUser | null => {
-    if (!deviceId) return null;
-
-    const player = sessionData.players.find(p => p.deviceId === deviceId);
+  // Helper to determine the current user from the server-computed signals.
+  // `players[].isYou` is derived server-side from the presented identity, so we
+  // never compare a leaked `deviceId` here (design §4.2).
+  const determineCurrentUser = (sessionData: MvpSession): SessionUser | null => {
+    const player = sessionData.players.find((p) => p.isYou);
     if (!player) return null;
 
     return {
       id: player.id,
       name: player.name,
       role: player.role,
-      deviceId: player.deviceId
     };
   };
 
@@ -90,7 +88,6 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
           id: newSession.players[0].id, // Organizer is always first player
           name: newSession.ownerName,
           role: 'ORGANIZER',
-          deviceId: sessionData.ownerDeviceId
         };
         setCurrentUser(organizerUser);
       } else {
@@ -139,10 +136,9 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
         const sessionData = response.data.session;
         setSession(sessionData);
 
-        // Try to determine current user from stored device ID
-        // In a real app, this would come from secure storage
-        const storedDeviceId = sessionData.players[0]?.deviceId; // Simplified for MVP
-        const user = determineCurrentUser(sessionData, storedDeviceId);
+        // Self-identification comes from the server-computed `players[].isYou`
+        // signal (see `determineCurrentUser`), not a locally-stored device id.
+        const user = determineCurrentUser(sessionData);
         setCurrentUser(user);
       } else {
         setError(response.error?.message || 'Failed to load session');
