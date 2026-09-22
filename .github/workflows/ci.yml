@@ -1,0 +1,160 @@
+name: CI
+
+# Verification-only pipeline (split out of the former combined CI/CD workflow).
+#
+# The full original pipeline — including deploy-staging, deploy-production,
+# mobile-build and the notification job — is preserved verbatim, untracked, at
+# `.workbuddy-ai/ci-full-pipeline.yml.disabled`. Deployment is deliberately NOT
+# wired here: turning it on must be an explicit, reviewed decision, never a side
+# effect of wanting test gating.
+#
+# Fixes applied relative to the archived original:
+#   - Added a PostgreSQL service + DATABASE_URL so the DB-backed suites can
+#     actually connect (the original `backend-test` job had no `services:` block).
+#   - Added an explicit `prisma generate` step: `backend/package.json` has no
+#     `postinstall`, so the generated client would otherwise be missing and both
+#     `npm test` and `npm run build` would fail.
+#   - Removed every deploy / deploy-adjacent job (deploy-staging,
+#     deploy-production, docker-build, e2e-tests, mobile-build, docs-build,
+#     notification).
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  # Backend: install -> generate -> push schema -> typecheck -> test -> build
+  backend-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20]
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: badminton_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/badminton_test?schema=public
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+
+    - name: Install backend dependencies
+      run: cd backend && npm ci
+
+    - name: Generate Prisma client
+      run: cd backend && npx prisma generate
+
+    # The migration history is not replayable from an empty database, so sync a
+    # throwaway CI database from the schema instead of `prisma migrate deploy`.
+    - name: Push schema to CI database
+      run: cd backend && npx prisma db push --skip-generate
+
+    - name: Run backend linting
+      run: cd backend && npm run lint || echo "No lint script"
+
+    - name: Run backend tests
+      run: cd backend && npm test
+
+    - name: Typecheck tests
+      run: cd backend && npm run typecheck:tests
+
+    - name: Build backend
+      run: cd backend && npm run build
+
+    - name: Upload backend build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: backend-build-${{ matrix.node-version }}
+        path: backend/dist/
+        retention-days: 1
+
+  # Frontend: install -> lint -> test -> build
+  frontend-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: frontend/Rally/package-lock.json
+
+    - name: Install frontend dependencies
+      run: cd frontend/Rally && npm ci
+
+    - name: Run frontend linting
+      run: cd frontend/Rally && npm run lint || echo "No lint script"
+
+    - name: Run frontend tests
+      run: cd frontend/Rally && npm test -- --coverage
+
+    - name: Build frontend for web
+      run: cd frontend/Rally && npm run build:web
+
+    - name: Upload frontend build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: frontend-web-build
+        path: frontend/Rally/dist/web/
+        retention-days: 1
+
+  # Security scan — genuine verification, no deployment credentials required.
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-test]
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run npm audit
+      run: |
+        cd backend && npm audit --audit-level high || echo "Backend audit issues found"
+        cd ../frontend/Rally && npm audit --audit-level high || echo "Frontend audit issues found"
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'

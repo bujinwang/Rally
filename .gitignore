@@ -17,7 +17,6 @@ docker/nginx/ssl/*
 docker/backups/*
 
 
-.github/workflows/ci.yml
 frontend/BadmintonGroup/.bundle/config
 frontend/BadmintonGroup/android/build.gradle
 frontend/BadmintonGroup/android/gradle.properties
