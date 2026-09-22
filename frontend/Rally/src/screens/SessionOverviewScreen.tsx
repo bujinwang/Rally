@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ScrollView,
   View,
@@ -61,15 +61,16 @@ const transformMvpSessionToSessionData = (mvpSession: MvpSession): SessionData =
       address: '',
     },
     shareCode: mvpSession.shareCode,
-    organizerId: mvpSession.ownerDeviceId || 'unknown',
     organizerName: mvpSession.ownerName,
     maxPlayers: mvpSession.maxPlayers,
     status: mvpSession.status === 'ACTIVE' ? 'upcoming' : 'completed',
   };
 };
 
-// Helper function to transform MvpPlayer to Player
-const transformMvpPlayerToPlayer = (mvpPlayer: MvpPlayer, ownerDeviceId?: string): Player => {
+// Helper function to transform MvpPlayer to Player. Self-identification comes
+// from the server-computed `isYou` flag; the client no longer compares a leaked
+// `deviceId` to the session's `ownerDeviceId` (design §4.2).
+const transformMvpPlayerToPlayer = (mvpPlayer: MvpPlayer): Player => {
   // Map MVP status to our player status
   let playerStatus: 'active' | 'confirmed' | 'waiting';
   switch (mvpPlayer.status) {
@@ -88,7 +89,7 @@ const transformMvpPlayerToPlayer = (mvpPlayer: MvpPlayer, ownerDeviceId?: string
     name: mvpPlayer.name,
     gamesPlayed: mvpPlayer.gamesPlayed,
     status: playerStatus,
-    isOrganizer: mvpPlayer.deviceId === ownerDeviceId,
+    isYou: mvpPlayer.isYou,
   };
 };
 
@@ -112,10 +113,25 @@ export const SessionOverviewScreen: React.FC<SessionOverviewScreenProps> = () =>
   // network fetch has not (yet) succeeded — drives the "cached" badge.
   const [isFromCache, setIsFromCache] = useState(false);
   const showCachedBadge = useShowCachedBadge(isFromCache);
-  
-  // Current user state (based on device ID)
-  const currentPlayer = players.find(p => p.isOrganizer || (deviceId && p.id.includes(deviceId)));
-  const isOrganizer = session ? deviceId === session.organizerId : false;
+
+  // Server-computed identity signals (design §4.2). `viewerPlayerId` is the
+  // viewer's own player row id (learned from the HTTP `viewer.playerId`), and
+  // `isOrganizer` is the server's verdict — neither is derived by comparing a
+  // leaked `deviceId`/`ownerDeviceId`. A ref mirrors `viewerPlayerId` so the
+  // long-lived socket handler never reads a stale closure value.
+  const [viewerPlayerId, setViewerPlayerId] = useState<string | null>(null);
+  const viewerPlayerIdRef = useRef<string | null>(null);
+  const [isOrganizer, setIsOrganizer] = useState(false);
+
+  const applyViewerPlayerId = useCallback((playerId: string | null) => {
+    viewerPlayerIdRef.current = playerId;
+    setViewerPlayerId(playerId);
+  }, []);
+
+  // Current user (self) is identified by the server-computed player id.
+  const currentPlayer = viewerPlayerId
+    ? players.find(p => p.id === viewerPlayerId)
+    : undefined;
 
   // Load session data and device ID
   useEffect(() => {
@@ -169,13 +185,22 @@ export const SessionOverviewScreen: React.FC<SessionOverviewScreenProps> = () =>
     // Transform and update session data
     const transformedSession = transformMvpSessionToSessionData(data.session);
     const transformedPlayers = data.session.players.map(p => 
-      transformMvpPlayerToPlayer(p, data.session.ownerDeviceId)
+      transformMvpPlayerToPlayer(p)
     );
     
     setSession(transformedSession);
     setPlayers(transformedPlayers);
     // A socket update is authoritative fresh data.
     setIsFromCache(false);
+
+    // A socket payload is a broadcast, so it cannot carry a per-recipient
+    // `isOrganizer` flag. It carries the PUBLIC organizer surrogate
+    // (`organizerPlayerId`); compare it to our own player id (learned at join)
+    // to derive organizer status without any id comparison against a secret.
+    const myPlayerId = viewerPlayerIdRef.current;
+    setIsOrganizer(
+      Boolean(myPlayerId) && myPlayerId === (data.session.organizerPlayerId ?? null)
+    );
     
     // Cache the updated session
     mvpApiService.cacheSession(data.session);
@@ -207,10 +232,16 @@ export const SessionOverviewScreen: React.FC<SessionOverviewScreenProps> = () =>
       if (cachedSession) {
         const transformedSession = transformMvpSessionToSessionData(cachedSession);
         const transformedPlayers = cachedSession.players.map(p => 
-          transformMvpPlayerToPlayer(p, cachedSession.ownerDeviceId)
+          transformMvpPlayerToPlayer(p)
         );
         setSession(transformedSession);
         setPlayers(transformedPlayers);
+        // The cache may carry the viewer signals from the read that populated
+        // it; use them when present.
+        if (cachedSession.viewer) {
+          applyViewerPlayerId(cachedSession.viewer.playerId ?? null);
+          setIsOrganizer(Boolean(cachedSession.viewer.isOrganizer));
+        }
         setIsFromCache(true);
       }
       
@@ -226,13 +257,17 @@ export const SessionOverviewScreen: React.FC<SessionOverviewScreenProps> = () =>
         // Transform and set the data
         const transformedSession = transformMvpSessionToSessionData(mvpSession);
         const transformedPlayers = mvpSession.players.map(p => 
-          transformMvpPlayerToPlayer(p, mvpSession.ownerDeviceId)
+          transformMvpPlayerToPlayer(p)
         );
         
         setSession(transformedSession);
         setPlayers(transformedPlayers);
         // Fresh data arrived — no longer a stale/cached read.
         setIsFromCache(false);
+
+        // Server-computed viewer signals (design §4.2).
+        applyViewerPlayerId(mvpSession.viewer?.playerId ?? null);
+        setIsOrganizer(Boolean(mvpSession.viewer?.isOrganizer));
       } else {
         throw new Error(response.error?.message || 'Failed to load session');
       }

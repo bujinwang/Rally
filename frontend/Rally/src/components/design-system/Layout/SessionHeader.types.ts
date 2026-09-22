@@ -8,7 +8,6 @@ export interface SessionData {
     address?: string;
   };
   shareCode: string;
-  organizerId: string;
   organizerName: string;
   maxPlayers: number;
   status: 'upcoming' | 'active' | 'completed';

@@ -2,6 +2,13 @@
 // Connects to your existing backend MvpSession endpoints
 
 import { ApiService } from './apiService';
+import DeviceService from './deviceService';
+
+/** Server-computed viewer identity signals (Story 6.9 Phase 0, design §4.2). */
+export interface MvpSessionViewer {
+  isOrganizer: boolean;
+  playerId: string | null;
+}
 
 // Types based on your backend API
 export interface MvpSession {
@@ -14,6 +21,12 @@ export interface MvpSession {
   status: 'ACTIVE' | 'CANCELLED' | 'COMPLETED';
   ownerName: string;
   ownerDeviceId?: string;
+  /** Boolean "an owner identity is recorded" flag — never the raw owner id. */
+  ownerClaimed?: boolean;
+  /** Viewer-relative organizer/self signals (HTTP reads). */
+  viewer?: MvpSessionViewer;
+  /** Public surrogate carried on socket broadcasts: the organizer's `player.id`. */
+  organizerPlayerId?: string | null;
   playerCount: number;
   players: MvpPlayer[];
   shareUrl: string;
@@ -34,6 +47,8 @@ export interface MvpPlayer {
   losses: number;
   joinedAt: string;
   deviceId?: string;
+  /** Server-computed: is this player row the requesting viewer? */
+  isYou?: boolean;
 }
 
 export interface CreateSessionRequest {
@@ -80,10 +95,17 @@ class MvpApiService extends ApiService {
   // Get session by share code (public access)
   async getSessionByShareCode(shareCode: string): Promise<ApiResponse<{ session: MvpSession }>> {
     const startTime = Date.now();
-    
+
     try {
+      // Present device identity so the backend can compute the additive
+      // `viewer.isOrganizer` / `players[].isYou` signals (design §4.2). This is
+      // a public read (no auth middleware on `/join/:shareCode`), so the header
+      // flips no authorization decision — it only lets the server describe the
+      // caller to themselves.
+      const deviceId = await DeviceService.getDeviceId().catch(() => '');
       const result = await this.request<{ session: MvpSession }>(`/mvp-sessions/join/${shareCode}`, {
         method: 'GET',
+        headers: { 'x-device-id': deviceId },
       });
       
       // Performance tracking: < 1 second target

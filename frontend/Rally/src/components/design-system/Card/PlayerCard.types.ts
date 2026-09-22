@@ -5,6 +5,8 @@ export interface Player {
   status: 'ACTIVE' | 'RESTING' | 'LEFT' | 'PENDING' | 'confirmed' | 'pending' | 'active' | 'waiting';
   role?: 'ORGANIZER' | 'PLAYER';
   isOrganizer?: boolean;
+  /** Server-computed: is this player row the requesting viewer? (design §4.2) */
+  isYou?: boolean;
   joinedAt?: Date;
   restExpiresAt?: string;
   statusRequestedAt?: string;
