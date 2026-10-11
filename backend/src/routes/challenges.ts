@@ -1,5 +1,6 @@
-import { Router, Request } from 'express';
+import { Router } from 'express';
 import { challengesService } from '../services/challengesService';
+import { resolveIdentity } from '../middleware/permissions';
 import { validate } from '../utils/validation';
 import Joi from 'joi';
 
@@ -24,11 +25,6 @@ const respondToChallengeSchema = Joi.object({
   accept: Joi.boolean().required(),
 });
 
-/** Extract deviceId from request body, query, or X-Device-ID header */
-function getDeviceId(req: Request): string {
-  return req.body.deviceId || req.query.deviceId || req.headers['x-device-id'] as string || '';
-}
-
 /**
  * @route POST /api/challenges
  * @desc Create a new challenge
@@ -37,7 +33,7 @@ function getDeviceId(req: Request): string {
 router.post('/', validate(createChallengeSchema), async (req, res) => {
   try {
     const challengeData = req.body;
-    const challengerId = getDeviceId(req);
+    const challengerId = (await resolveIdentity(req)).deviceId ?? '';
 
     if (!challengerId) {
       return res.status(400).json({ success: false, message: 'Device ID is required' });
@@ -69,7 +65,7 @@ router.post('/', validate(createChallengeSchema), async (req, res) => {
 router.post('/respond', validate(respondToChallengeSchema), async (req, res) => {
   try {
     const { challengeId, accept } = req.body;
-    const userId = getDeviceId(req);
+    const userId = (await resolveIdentity(req)).deviceId ?? '';
 
     if (!userId) {
       return res.status(400).json({ success: false, message: 'Device ID is required' });
@@ -97,7 +93,7 @@ router.post('/respond', validate(respondToChallengeSchema), async (req, res) => 
  */
 router.get('/', async (req, res) => {
   try {
-    const userId = getDeviceId(req);
+    const userId = (await resolveIdentity(req)).deviceId ?? '';
     const type = (req.query.type as 'sent' | 'received' | 'all') || 'all';
 
     if (!userId) {
@@ -119,7 +115,7 @@ router.get('/', async (req, res) => {
  */
 router.get('/active', async (req, res) => {
   try {
-    const userId = getDeviceId(req);
+    const userId = (await resolveIdentity(req)).deviceId ?? '';
 
     if (!userId) {
       return res.status(400).json({ success: false, message: 'Device ID is required' });
@@ -141,7 +137,7 @@ router.get('/active', async (req, res) => {
 router.delete('/:challengeId', async (req, res) => {
   try {
     const { challengeId } = req.params;
-    const userId = getDeviceId(req);
+    const userId = (await resolveIdentity(req)).deviceId ?? '';
 
     if (!userId) {
       return res.status(400).json({ success: false, message: 'Device ID is required' });
@@ -185,7 +181,7 @@ router.post('/:challengeId/complete', async (req, res) => {
  */
 router.get('/stats', async (req, res) => {
   try {
-    const userId = getDeviceId(req);
+    const userId = (await resolveIdentity(req)).deviceId ?? '';
 
     if (!userId) {
       return res.status(400).json({ success: false, message: 'Device ID is required' });
@@ -206,7 +202,7 @@ router.get('/stats', async (req, res) => {
  */
 router.get('/pending/count', async (req, res) => {
   try {
-    const userId = getDeviceId(req);
+    const userId = (await resolveIdentity(req)).deviceId ?? '';
 
     if (!userId) {
       return res.status(400).json({ success: false, message: 'Device ID is required' });

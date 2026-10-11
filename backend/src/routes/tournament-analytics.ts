@@ -70,11 +70,17 @@ router.get(
       const isPublic = tournament.visibility === 'PUBLIC';
 
       if (!isPublic) {
-        const identity = resolveIdentity(req);
+        const identity = await resolveIdentity(req);
+        // `device` = a verified device token; `device-legacy` = a raw
+        // client-asserted id (Phase 1–2 window). Both are the device identity
+        // path, so both must match `organizerDeviceId` — the legacy branch is
+        // deleted in Phase 3, when only `device` remains.
+        const isDeviceIdentity =
+          identity.source === 'device' || identity.source === 'device-legacy';
         const isOrganizer =
           identity.source === 'jwt'
             ? !!tournament.organizerUserId && identity.userId === tournament.organizerUserId
-            : identity.source === 'device'
+            : isDeviceIdentity
               ? !!tournament.organizerDeviceId && identity.deviceId === tournament.organizerDeviceId
               : false;
 
@@ -212,7 +218,7 @@ router.post(
       const { rating, comments } = req.body as { rating: number; comments?: string };
       const tournamentId = id as string;
 
-      const identity = resolveIdentity(req);
+      const identity = await resolveIdentity(req);
       if (identity.source === 'anonymous') {
         return res.status(401).json({
           success: false,

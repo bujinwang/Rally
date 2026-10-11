@@ -148,7 +148,7 @@ router.get('/venues', validate(venueQuerySchema), async (req: Request, res: Resp
 router.post('/nps', optionalAuth, validate(npsSchema), async (req: Request, res: Response) => {
   try {
     const { score, comment } = req.body as { score: number; comment?: string };
-    const identity = resolveIdentity(req);
+    const identity = await resolveIdentity(req);
 
     if (identity.source === 'anonymous') {
       return res.status(401).json({

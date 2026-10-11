@@ -105,6 +105,22 @@ export const env = {
     // Bounded in-memory event ring used for reconnect replay (per room).
     eventBufferSize: parseIntEnv('SOCKET_EVENT_BUFFER_SIZE', 200),
   },
+  // Device token (Option B) — server-issued opaque device credential (design
+  // §1/§2). The raw token is never stored (only its SHA-256 hash) and never
+  // logged. No signing key: the credential is 256 bits of `crypto.randomBytes`
+  // entropy and the database is the only secret.
+  deviceToken: {
+    // Lifetime of a minted device token, in days (design §2.2 — default 180).
+    // A guest active within the window never notices; one dormant beyond it
+    // re-enrols and receives a new `deviceId`.
+    ttlDays: parseIntEnv('DEVICE_TOKEN_TTL_DAYS', 180),
+    // Adoption window (design §5.3). CLOSED by default: `POST /device/enroll`
+    // only accepts `adoptDeviceId` when this is explicitly opened for the
+    // migration window. Adoption preserves the forgeable model temporarily, so
+    // it must be time-boxed, logged, and only opened once the disclosure
+    // surfaces are closed.
+    adoptionOpen: process.env.DEVICE_TOKEN_ADOPTION_OPEN === 'true',
+  },
 };
 
 export default env;
