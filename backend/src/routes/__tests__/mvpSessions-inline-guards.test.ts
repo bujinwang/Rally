@@ -57,6 +57,10 @@ jest.mock('../../middleware/caching', () => {
   return {
     cachingMiddleware: () => passthrough,
     cacheInvalidationMiddleware: () => passthrough,
+    // Imported by `routes/mvpSessions` for the per-caller session GETs; the
+    // mocked `cachingMiddleware` ignores options, so this is only a stub.
+    identityCacheKeyGenerator: () => async () => 'mock-identity-key',
+    callerIdentityDigest: () => 'mock-identity-digest',
   };
 });
 
