@@ -11,9 +11,11 @@
  *
  * Two surfaces, two key sets:
  *   - SESSION snapshot surfaces (HTTP GET /:shareCode, /join/:shareCode + every
- *     socket broadcast) still carry `deviceId`/`ownerDeviceId` for the client
- *     until the client-coupled cutover, so only the ACCOUNT identity is stripped
- *     there (`stripUserIdentity`).
+ *     socket broadcast) now strip the FULL public set (account + device) — Step B
+ *     landed, so `deviceId`/`ownerDeviceId` no longer reach the wire. The session
+ *     wrapper lives in `socket/events/sessionPayload.ts` (`stripSessionIdentity`).
+ *     `stripUserIdentity` (account-only) is retained for any surface that still
+ *     legitimately carries a device id.
  *   - PUBLIC tournament read surfaces must carry NO identity at all, because the
  *     leaked `organizerDeviceId` IS the authorization factor the takeover chain
  *     replays (`stripTournamentIdentity`).

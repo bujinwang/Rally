@@ -314,9 +314,10 @@ router.get('/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.sessio
     }
 
     // Story 6.9 Phase 0 — server-computed organizer signals (design §4.2). The
-    // viewer's status is derived here so the client no longer has to compare
-    // leaked ids. `ownerDeviceId` / `players[].deviceId` stay for now (the
-    // client-coupled removal is a separate step); `userId` is not emitted.
+    // viewer's status is derived here so the client no longer compares leaked
+    // ids. Step B (landed): `ownerDeviceId` / `players[].deviceId` are no longer
+    // emitted — the client reads `viewer` / `players[].isYou` / `ownerClaimed`.
+    // `userId` is not emitted either.
     const identity = resolveIdentity(req);
     const viewerDeviceId = identity.deviceId;
     const viewerUserId = identity.userId;
@@ -347,7 +348,6 @@ router.get('/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.sessio
       description: session.description,
       ownerName: session.ownerName,
       sport: session.sport || 'badminton',
-      ownerDeviceId: session.ownerDeviceId,
       ownerClaimed,
       viewer: {
         isOrganizer: viewerIsOrganizer,
@@ -358,7 +358,6 @@ router.get('/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.sessio
       players: session.players.map(player => ({
         id: player.id,
         name: player.name,
-        deviceId: player.deviceId,
         status: player.status,
         skillLevel: player.skillLevel,
         joinedAt: player.joinedAt,
@@ -725,7 +724,6 @@ router.get('/join/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.s
           status: session.status,
           ownerName: session.ownerName,
       sport: session.sport || 'badminton',
-          ownerDeviceId: session.ownerDeviceId,
           ownerClaimed,
           viewer: {
             isOrganizer: viewerIsOrganizer,
@@ -735,7 +733,6 @@ router.get('/join/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.s
           players: session.players.map(player => ({
             id: player.id,
             name: player.name,
-            deviceId: player.deviceId,
             status: player.status,
         skillLevel: player.skillLevel,
             gamesPlayed: player.gamesPlayed,

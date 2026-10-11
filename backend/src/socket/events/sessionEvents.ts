@@ -13,24 +13,23 @@
 
 import { prisma } from '../../config/database';
 import { emitToRoom, getIoOrNull, sessionRoom } from '../ioRegistry';
-import { socketSessionPayload, stripUserIdentity } from './sessionPayload';
+import { socketSessionPayload, stripSessionIdentity } from './sessionPayload';
 
 export { sessionRoom };
 
 /**
  * Player projection for session broadcasts.
  *
- * Story 6.9 Phase 0 (design §4.2): `userId` was REMOVED here. Account identity
- * was being broadcast to every participant in the session room, and nothing on
- * the client reads `userId` off a session snapshot (only the separate
- * messaging/presence channel does), so dropping it is free — no client change.
- * `deviceId` stays: the client still compares it to derive organizer status
- * (the client-coupled step is deferred; see `sessionPayload.ts`).
+ * Story 6.9 Phase 0 (design §4.2): `userId` was REMOVED first (account identity
+ * broadcast to every participant; nothing on the client read it off a session
+ * snapshot). Step B (landed) removes `deviceId` too: the client now derives
+ * organizer/self status from the server-computed `viewer.isOrganizer` /
+ * `players[].isYou` (HTTP) and the public `organizerPlayerId` (socket), so the
+ * raw device id is no longer needed on the wire.
  */
 const PLAYER_SELECT = {
   id: true,
   name: true,
-  deviceId: true,
   role: true,
   status: true,
   gamesPlayed: true,
@@ -167,8 +166,8 @@ export async function emitPlayerJoined(
 
   emitToRoom(sessionRoom(shareCode), 'session:player-joined', {
     shareCode,
-    // Account identity must not reach the room (design §4.2).
-    player: stripUserIdentity(player),
+    // Identity (account + device) must not reach the room (design §4.2).
+    player: stripSessionIdentity(player),
   });
 }
 
