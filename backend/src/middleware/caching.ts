@@ -9,12 +9,19 @@
  * - `cacheInvalidationMiddleware` bumps the generation counters of the given
  *   domains after a 2xx write — fire-and-forget, so a write never depends on
  *   cache success (AC 8).
+ *
+ * IMPORTANT — per-caller responses. The default key is
+ * `domain+generation+method+path+query`: it embeds NO caller identity, so a
+ * route whose body contains per-caller fields (e.g. the session `viewer` /
+ * `players[].isYou` signals) MUST pass
+ * `keyGenerator: identityCacheKeyGenerator(domain)`. Otherwise the first
+ * caller's identity view is served to every other caller until the TTL expires.
  */
 
 import { Request, Response, NextFunction } from 'express';
 import { cacheService } from '../services/cacheService';
 import * as cacheKeys from '../services/cache/cacheKeys';
-import { CacheOptions } from '../services/cache/types';
+import { CacheOptions, CacheDomain } from '../services/cache/types';
 
 interface CachedResponse {
   body: any;
@@ -39,13 +46,70 @@ function sanitizeHeaders(headers: Record<string, string>): Record<string, string
 /** Build the cache key for a request using the domain generation + hashed query. */
 async function buildCacheKey(req: Request, options: CacheOptions): Promise<string> {
   if (options.keyGenerator) {
-    return options.keyGenerator(req);
+    return await options.keyGenerator(req);
   }
   const domain = options.domain ?? 'http';
   const generation = await cacheService.getGeneration(domain);
   const queryDigest = cacheKeys.digest(cacheKeys.stableStringify(req.query ?? {}));
   const path = `${req.baseUrl || ''}${req.path || ''}`;
   return cacheKeys.httpKey(domain, generation, req.method, path, queryDigest);
+}
+
+/**
+ * Digest of the caller-identity headers, used to make a cached response
+ * caller-specific.
+ *
+ * The identity component is PREFIX-based: the `authorization` header plus every
+ * header whose name starts with `x-device-`. This is deliberate — the
+ * device-identity channel is migrating to a server-issued `x-device-token`
+ * (Phase 1), and a prefix rule keeps the key identity-aware across that change
+ * with no code edit. An enumerated list (`x-device-id` only) would silently stop
+ * varying the key the moment a new `x-device-*` header shipped, and the symptom
+ * ("the organizer occasionally loses their controls") is exactly the class of
+ * failure nobody notices.
+ */
+export function callerIdentityDigest(req: Request): string {
+  const headers = (req.headers ?? {}) as Record<string, unknown>;
+  const parts: string[] = [];
+  const authorization = headers['authorization'];
+  if (typeof authorization === 'string' && authorization.length > 0) {
+    parts.push(`authorization=${authorization}`);
+  }
+  for (const name of Object.keys(headers).sort()) {
+    const lower = name.toLowerCase();
+    if (!lower.startsWith('x-device-')) continue;
+    const value = headers[name];
+    if (typeof value === 'string' && value.length > 0) {
+      parts.push(`${lower}=${value}`);
+    }
+  }
+  return cacheKeys.digest(parts.join('\n'));
+}
+
+/**
+ * Cache-key generator for routes whose response varies PER CALLER (e.g. the
+ * session `viewer` / `players[].isYou` signals). It reproduces the default
+ * `domain+generation+method+path+query` key and appends `callerIdentityDigest`,
+ * so:
+ *   - two callers never share one entry (the wrong-identity-view defect), and
+ *   - domain invalidation still works (the generation is embedded).
+ *
+ * Use via `cachingMiddleware({ domain, ttl, keyGenerator: identityCacheKeyGenerator(domain) })`.
+ */
+export function identityCacheKeyGenerator(domain: CacheDomain): (req: Request) => Promise<string> {
+  return async (req: Request): Promise<string> => {
+    const generation = await cacheService.getGeneration(domain);
+    const queryDigest = cacheKeys.digest(cacheKeys.stableStringify(req.query ?? {}));
+    const path = `${req.baseUrl || ''}${req.path || ''}`;
+    return cacheKeys.httpKey(
+      domain,
+      generation,
+      req.method,
+      path,
+      queryDigest,
+      callerIdentityDigest(req),
+    );
+  };
 }
 
 /**

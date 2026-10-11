@@ -68,17 +68,24 @@ export function domainKey(domain: string, generation: number, part: string): str
 }
 
 /**
- * HTTP middleware key: `<domain>:g<gen>:http:<METHOD>:<path>:<sha1(query)>`.
- * No identity is embedded for public reads (AC 16 / assumption A5).
+ * HTTP middleware key:
+ * `<domain>:g<gen>:http:<METHOD>:<path>:<sha1(query)>[:<identityDigest>]`.
+ *
+ * The identity component is appended ONLY for responses that vary per caller
+ * (e.g. the session `viewer` / `players[].isYou` signals). Public reads omit it
+ * so they keep sharing a single entry (AC 16 / assumption A5). Without it, one
+ * caller's identity view is served to every other caller for the whole TTL.
  */
 export function httpKey(
   domain: string,
   generation: number,
   method: string,
   path: string,
-  queryDigest: string
+  queryDigest: string,
+  identityDigest = ''
 ): string {
-  return `${domain}:g${generation}:http:${method.toUpperCase()}:${path}:${queryDigest}`;
+  const base = `${domain}:g${generation}:http:${method.toUpperCase()}:${path}:${queryDigest}`;
+  return identityDigest ? `${base}:${identityDigest}` : base;
 }
 
 /** Digest for a discovery query (filters + optional rounded user location). */

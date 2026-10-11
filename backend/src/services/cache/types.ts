@@ -47,8 +47,13 @@ export interface CacheOptions {
   ttl?: number;
   /** Cache domain whose generation is embedded in the key (enables invalidation). */
   domain?: CacheDomain;
-  /** Fully custom key generator (overrides the default domain+path+query key). */
-  keyGenerator?: (req: any) => string;
+  /**
+   * Fully custom key generator (overrides the default domain+path+query key).
+   * May be async so a generator can embed the domain generation (needed for
+   * generation-based invalidation). For responses that vary PER CALLER use
+   * `identityCacheKeyGenerator` from `middleware/caching`.
+   */
+  keyGenerator?: (req: any) => string | Promise<string>;
   /** Predicate: return true to bypass the cache for this request. */
   skipCache?: (req: any) => boolean;
   /**

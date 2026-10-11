@@ -11,7 +11,7 @@ import { createRateLimiters } from '../middleware/rateLimit';
 import { notifySessionSubscribers } from '../utils/notificationHelper';
 import { emitPlayerJoined } from '../socket/notificationHandlers';
 import { messagingService } from '../services/messagingService';
-import { cachingMiddleware, cacheInvalidationMiddleware } from '../middleware/caching';
+import { cachingMiddleware, cacheInvalidationMiddleware, identityCacheKeyGenerator } from '../middleware/caching';
 import { TTL } from '../services/cache/cacheKeys';
 // Story 6.5 — optimistic-concurrency guard. Only enforces when the client sends
 // an `X-Entity-Version` header; legacy traffic is byte-for-byte unchanged.
@@ -247,7 +247,10 @@ router.get('/:shareCode/recap', async (req, res) => {
 });
 
 // Get session by share code
-router.get('/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.session }), async (req, res) => {
+// The body carries per-caller `viewer` / `players[].isYou` fields, so the cache
+// key must vary by caller identity — otherwise the first caller's identity view
+// is served to everyone else until the TTL expires.
+router.get('/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.session, keyGenerator: identityCacheKeyGenerator('session') }), async (req, res) => {
   try {
     const { shareCode } = req.params;
 
@@ -318,7 +321,7 @@ router.get('/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.sessio
     // ids. Step B (landed): `ownerDeviceId` / `players[].deviceId` are no longer
     // emitted — the client reads `viewer` / `players[].isYou` / `ownerClaimed`.
     // `userId` is not emitted either.
-    const identity = resolveIdentity(req);
+    const identity = await resolveIdentity(req);
     const viewerDeviceId = identity.deviceId;
     const viewerUserId = identity.userId;
     const viewerIsOrganizer = Boolean(
@@ -635,7 +638,9 @@ router.post('/', createSessionValidation, optionalAuth, cacheInvalidationMiddlew
 });
 
 // Get session by share code (public access)
-router.get('/join/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.session }), async (req, res) => {
+// Per-caller `viewer` / `players[].isYou` fields — vary the cache key by caller
+// identity (see GET /:shareCode).
+router.get('/join/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.session, keyGenerator: identityCacheKeyGenerator('session') }), async (req, res) => {
   try {
     const { shareCode } = req.params;
 
@@ -657,17 +662,6 @@ router.get('/join/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.s
           orderBy: { matchNumber: 'desc' }
         }
       }
-    });
-
-    // Add debugging to see what's actually in the database
-    console.log('🔍 DEBUG: Session data from database:', {
-      shareCode,
-      sessionId: session?.id,
-      ownerName: session?.ownerName,
-      ownerDeviceId: session?.ownerDeviceId,
-      ownerDeviceIdType: typeof session?.ownerDeviceId,
-      ownerDeviceIdIsNull: session?.ownerDeviceId === null,
-      ownerDeviceIdIsUndefined: session?.ownerDeviceId === undefined
     });
 
     if (!session) {
@@ -693,7 +687,7 @@ router.get('/join/:shareCode', cachingMiddleware({ domain: 'session', ttl: TTL.s
     }
 
     // Story 6.9 Phase 0 — server-computed organizer signals (design §4.2).
-    const identity = resolveIdentity(req);
+    const identity = await resolveIdentity(req);
     const viewerDeviceId = identity.deviceId;
     const viewerUserId = identity.userId;
     const viewerIsOrganizer = Boolean(
