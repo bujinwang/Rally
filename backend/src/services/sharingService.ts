@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { encodeCursor, decodeCursor } from '../utils/feedCursor';
 
