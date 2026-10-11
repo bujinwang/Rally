@@ -35,16 +35,14 @@
  *        • both tournament read handlers must route through the sanitizer, and
  *          the sanitizer's key set must cover every forbidden tournament key.
  *
- * STEP B — EXTENDING THE SESSION SURFACES TO `deviceId` / `ownerDeviceId` IS A
- * ONE-LINE CHANGE. Add those keys to `FORBIDDEN_IDENTITY_KEYS` below (and, for
- * the static `PLAYER_SELECT` / route-key scans, to `STATIC_FORBIDDEN_KEYS`). The
- * recursive walkers, the emit-wrap scan and the discovery scan are all driven
- * off those lists, so no other edit is required. `deviceId` / `ownerDeviceId`
- * are deliberately NOT listed for SESSIONS yet: Phase 0 keeps them for the
- * client (the client-coupled removal is a separate, later step — design §4.2).
- * The TOURNAMENT surfaces, by contrast, already forbid them (see
- * `TOURNAMENT_FORBIDDEN_IDENTITY_KEYS`): the takeover chain reads the parent
- * `organizerDeviceId` anonymously, so the device identity must be gone there.
+ * STEP B (LANDED) — the session surfaces now forbid `deviceId` /
+ * `ownerDeviceId` as well: both are listed in `FORBIDDEN_IDENTITY_KEYS` (and
+ * `STATIC_FORBIDDEN_KEYS`) below, so the recursive HTTP/socket walkers, the
+ * `PLAYER_SELECT` scan and the emit-wrap scan all cover them. This was the
+ * one-line extension the guard was built for. The TOURNAMENT surfaces forbid the
+ * same device keys (see `TOURNAMENT_FORBIDDEN_IDENTITY_KEYS`): the takeover chain
+ * reads the parent `organizerDeviceId` anonymously, so the device identity must
+ * be gone there too.
  */
 
 jest.mock('../../../server', () => ({
@@ -168,27 +166,28 @@ import {
 // ---------------------------------------------------------------------------
 
 /**
- * Account-identity keys that must never appear in an outgoing session payload.
- * Extend this list (and `STATIC_FORBIDDEN_KEYS`) with `deviceId` /
- * `ownerDeviceId` when the client-coupled removal lands (Step B).
+ * Identity keys that must never appear in an outgoing session payload: the full
+ * public set (account + device). `deviceId` / `ownerDeviceId` were added in
+ * Step B once the client stopped comparing raw ids (design §4.2).
  */
-const FORBIDDEN_IDENTITY_KEYS = ['userId', 'ownerUserId'] as const;
+const FORBIDDEN_IDENTITY_KEYS = [
+  'userId',
+  'ownerUserId',
+  'deviceId',
+  'ownerDeviceId',
+] as const;
 
 /**
  * Identity keys forbidden on the PUBLIC tournament read surfaces
  * (`GET /tournaments`, `GET /tournaments/:id`).
  *
- * This is a SUPERSET of the session set: the tournament takeover chain reads
- * the parent `organizerDeviceId` (and `players[].deviceId`) anonymously and
- * replays it against `requireTournamentOrganizer`, so the DEVICE identity must
- * be gone here even though the session surfaces still carry it for the client
- * (the client-coupled Step B has not landed yet). Adding a key here is the
- * one-line extension the guard was built for.
+ * A SUPERSET of the session set: the tournament takeover chain reads the parent
+ * `organizerDeviceId` (and `players[].deviceId`) anonymously and replays it
+ * against `requireTournamentOrganizer`. `organizerUserId` / `organizerDeviceId`
+ * are tournament-scoped organizer columns the session surfaces never carry.
  */
 const TOURNAMENT_FORBIDDEN_IDENTITY_KEYS = [
   ...FORBIDDEN_IDENTITY_KEYS,
-  'deviceId',
-  'ownerDeviceId',
   'organizerUserId',
   'organizerDeviceId',
 ] as const;
@@ -200,7 +199,12 @@ const TOURNAMENT_FORBIDDEN_IDENTITY_KEYS = [
  * the static checks can diverge from the runtime ones without touching either
  * walker.)
  */
-const STATIC_FORBIDDEN_KEYS = ['userId', 'ownerUserId'] as const;
+const STATIC_FORBIDDEN_KEYS = [
+  'userId',
+  'ownerUserId',
+  'deviceId',
+  'ownerDeviceId',
+] as const;
 
 const SESSION_SNAPSHOT_EVENT = 'mvp-session-updated';
 
@@ -258,7 +262,7 @@ function expectNoIdentityKeys(
 ): void {
   const leaked = findForbiddenKeys(payload, keys);
   if (leaked.length > 0) {
-    throw new Error(`${label} leaked account identity at: ${leaked.join(', ')}`);
+    throw new Error(`${label} leaked identity at: ${leaked.join(', ')}`);
   }
   expect(leaked).toEqual([]);
 }
@@ -407,7 +411,11 @@ function unwrappedSessionValues(payload: string): string[] {
   let match: RegExpExecArray | null;
   while ((match = re.exec(body)) !== null) {
     const value = match[1];
-    if (value !== 'socketSessionPayload' && value !== 'stripUserIdentity') {
+    if (
+      value !== 'socketSessionPayload' &&
+      value !== 'stripUserIdentity' &&
+      value !== 'stripSessionIdentity'
+    ) {
       unwrapped.push(match[0].trim());
     }
   }
@@ -906,7 +914,7 @@ describe('Static session-surface guard (enumerated from disk)', () => {
     // this pins that the wiring stays in place (a `payload` variable emit cannot
     // be parsed by the object-literal wrap scan above).
     expect(source).toMatch(/socketSessionPayload\(/);
-    expect(source).toMatch(/stripUserIdentity\(/);
+    expect(source).toMatch(/stripSessionIdentity\(/);
   });
 
   it('the session route module names account identity as an object key only in the create/claim write', () => {
