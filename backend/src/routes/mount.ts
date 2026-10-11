@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticateToken, optionalAuth, requiredAuth } from '../middleware/auth';
-import { resolveIdentity } from '../middleware/permissions';
+import { InvalidDeviceTokenError, resolveIdentity } from '../middleware/permissions';
 
 /**
  * Mount wrappers for auth-default inversion (Story 6.9 Phase 2).
@@ -83,11 +83,25 @@ export function requireAuth(router: Router): Router {
 export function optionalIdentity(router: Router): Router {
   const wrapped = Router();
   wrapped.use(optionalAuth);
-  // Ensure resolveIdentity sees the optionalAuth result (req.user if JWT)
-  wrapped.use((req, _res, next) => {
-    const identity = resolveIdentity(req);
-    (req as any).resolvedIdentity = identity;
-    next();
+  // Ensure resolveIdentity sees the optionalAuth result (req.user if JWT) and
+  // the guard's verified device token. `resolveIdentity` is async (the device
+  // token is a DB lookup); a present-but-invalid token is a hard 401 here too.
+  wrapped.use(async (req, res, next) => {
+    try {
+      const identity = await resolveIdentity(req);
+      (req as any).resolvedIdentity = identity;
+      next();
+    } catch (error) {
+      if (error instanceof InvalidDeviceTokenError) {
+        res.status(401).json({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: error.message },
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+      next(error);
+    }
   });
   wrapped.use(router);
   WRAPPER_ROUTERS.add(wrapped);
@@ -151,6 +165,13 @@ export const PUBLIC_ALLOWLIST: ReadonlySet<string> = new Set([
   'GET /api/v1/oauth/:provider/callback',
   // OAuth mobile handshake — pre-auth by definition (see the OAuth bypass P0 fix)
   'POST /api/v1/oauth/:provider/mobile',
+  // Device token (Option B, Phase 1) — enrollment is unauthenticated BY
+  // NECESSITY (a guest has no account), so it is rate-limited and never trusts a
+  // caller-supplied id (a fresh id is server-generated; adoption is gated and
+  // 409s on an active binding). refresh/revoke present the credential itself.
+  'POST /api/v1/device/enroll',
+  'POST /api/v1/device/refresh',
+  'POST /api/v1/device/revoke',
   // Web session (mounted at /join in server.ts:128) — share-code-gated
   'GET /join/:shareCode',
   'GET /join/:shareCode/player-status',

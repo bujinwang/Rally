@@ -48,8 +48,17 @@ import communityRoutes from './community';
 import oauthRoutes from './oauth';
 // Story 6.6 — predictive analytics surface (GET :type, ADMIN train/rollback/models)
 import predictionRoutes from './predictions';
+// Option B (Phase 1) — device-token enrolment/rotation/revocation.
+import deviceRoutes from './device';
+import { deviceTokenGuard } from '../middleware/deviceIdentity';
 
 const router = Router();
+
+// Device-token guard (Option B, Phase 1) — verifies `x-device-token` once per
+// request and attaches the verified deviceId to `req.deviceIdentity`, which
+// `resolveIdentity` consumes. A present-but-invalid token is a hard 401 here,
+// before any route handler (single choke point for the whole /api/v1 tree).
+router.use(deviceTokenGuard);
 
 // Health check
 router.get('/', (req, res) => {
@@ -126,6 +135,8 @@ console.log('  - /community');
 router.use('/community', requireAuth(communityRoutes));
 console.log('  - /oauth');
 router.use('/oauth', publicRouter(oauthRoutes));
+console.log('  - /device');
+router.use('/device', publicRouter(deviceRoutes)); // enrolment is unauthenticated by necessity (rate-limited)
 console.log('  - /predictions');
 router.use('/predictions', publicRouter(predictionRoutes)); // has internal auth on admin routes
 console.log('✅ All routes registered successfully');

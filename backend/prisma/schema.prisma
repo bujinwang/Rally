@@ -760,6 +760,33 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+// Device token — Option B device-token design (§5.4). Mirrors `RefreshToken`:
+// the raw token is NEVER stored, only its SHA-256 hash (`tokenHash`). There is
+// no signing key — the credential is 256 bits of `crypto.randomBytes` entropy
+// and the database is the only secret (§1).
+//
+// `deviceId` is deliberately NOT globally unique: a guest may rotate, and the
+// superseded rows remain (revoked) for audit. Uniqueness of the *active*
+// binding is enforced inside the enrol transaction (§2.1 rule 2), not by a DB
+// constraint. `deviceId` values stored in `mvp_sessions.ownerDeviceId` /
+// `mvp_players.deviceId` are unchanged — the token maps to the SAME id string.
+model DeviceToken {
+  id                String    @id @default(cuid())
+  deviceId          String
+  tokenHash         String    @unique // SHA-256 of the raw token (raw token is never stored)
+  createdAt         DateTime  @default(now())
+  expiresAt         DateTime
+  lastSeenAt        DateTime?
+  revokedAt         DateTime?
+  replacedByTokenId String?
+  createdByIp       String?
+  userAgent         String?
+
+  @@index([deviceId])
+  @@index([expiresAt])
+  @@map("device_tokens")
+}
+
 model UserSettings {
   id        String   @id @default(cuid())
   userId    String   @unique

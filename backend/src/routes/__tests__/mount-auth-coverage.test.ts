@@ -104,6 +104,8 @@ import sharingRoutes from '../sharing';
 import communityRoutes from '../community';
 import oauthRoutes from '../oauth';
 import predictionRoutes from '../predictions';
+// Option B (Phase 1) — device-token enrolment/rotation/revocation.
+import deviceRoutes from '../device';
 import webSessionRoutes from '../webSession';
 import shareCardRoutes from '../shareCard';
 import adminRoutes from '../admin';
@@ -152,6 +154,8 @@ const MOUNT_LABELS: Array<{ router: express.Router; mountPath: string }> = [
   { router: communityRoutes, mountPath: '/api/v1/community' },
   { router: oauthRoutes, mountPath: '/api/v1/oauth' },
   { router: predictionRoutes, mountPath: '/api/v1/predictions' },
+  // Option B (Phase 1) — publicRouter (enrolment is unauthenticated by necessity).
+  { router: deviceRoutes, mountPath: '/api/v1/device' },
   // Direct mounts from server.ts (not under /api/v1)
   { router: webSessionRoutes, mountPath: '/join' },
   { router: shareCardRoutes, mountPath: '' },

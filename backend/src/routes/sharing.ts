@@ -1,15 +1,11 @@
 import { Router, Request } from 'express';
 import { sharingService } from '../services/sharingService';
+import { resolveIdentity } from '../middleware/permissions';
 import { validate } from '../utils/validation';
 import { validateShareOwnership, generatePreviewMiddleware } from '../utils/privacyMiddleware';
 import Joi from 'joi';
 
 const router = Router();
-
-/** Extract deviceId from request body, query, or X-Device-ID header */
-function getDeviceId(req: Request): string {
-  return req.body.deviceId || req.query.deviceId || req.headers['x-device-id'] as string || '';
-}
 
 // Validation schemas
 const shareEntitySchema = Joi.object({
@@ -87,7 +83,7 @@ router.post('/share',
   async (req, res) => {
   try {
     const { type, entityId, platform, message } = req.body;
-    const sharerId = getDeviceId(req) || 'anonymous';
+    const sharerId = (await resolveIdentity(req)).deviceId || 'anonymous';
 
     const result = await sharingService.shareEntity(sharerId, {
       type,
@@ -148,7 +144,7 @@ router.get('/feed', validateFeedQuery(feedQuerySchema), async (req, res) => {
 router.post('/connect', validate(connectSocialSchema), async (req, res) => {
   try {
     const { provider, providerId, providerData } = req.body;
-    const playerId = getDeviceId(req);
+    const playerId = (await resolveIdentity(req)).deviceId ?? '';
 
     if (!playerId) {
       return res.status(400).json({ success: false, message: 'Device ID is required' });
@@ -180,7 +176,7 @@ router.post('/connect', validate(connectSocialSchema), async (req, res) => {
  */
 router.get('/connections', async (req, res) => {
   try {
-    const playerId = getDeviceId(req);
+    const playerId = (await resolveIdentity(req)).deviceId ?? '';
 
     if (!playerId) {
       return res.status(400).json({ success: false, message: 'Device ID is required' });
@@ -207,7 +203,7 @@ router.get('/connections', async (req, res) => {
 router.put('/privacy', validate(updatePrivacySchema), async (req, res) => {
   try {
     const settings = req.body;
-    const playerId = getDeviceId(req);
+    const playerId = (await resolveIdentity(req)).deviceId ?? '';
 
     if (!playerId) {
       return res.status(400).json({ success: false, message: 'Device ID is required' });
@@ -235,7 +231,7 @@ router.put('/privacy', validate(updatePrivacySchema), async (req, res) => {
  */
 router.get('/privacy', async (req, res) => {
   try {
-    const playerId = getDeviceId(req);
+    const playerId = (await resolveIdentity(req)).deviceId ?? '';
 
     if (!playerId) {
       return res.status(400).json({ success: false, message: 'Device ID is required' });
@@ -260,7 +256,7 @@ router.get('/privacy', async (req, res) => {
  */
 router.get('/stats', async (req, res) => {
   try {
-    const playerId = getDeviceId(req);
+    const playerId = (await resolveIdentity(req)).deviceId ?? '';
 
     if (!playerId) {
       return res.status(400).json({ success: false, message: 'Device ID is required' });

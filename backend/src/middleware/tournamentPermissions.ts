@@ -101,7 +101,7 @@ export const requireTournamentOrganizer = (
         return;
       }
 
-      const identity = resolveIdentity(req);
+      const identity = await resolveIdentity(req);
 
       // Fail closed: an anonymous caller has no identity to match against.
       if (identity.source === 'anonymous') {

@@ -90,7 +90,7 @@ router.post(
       // creator can later mutate the tournament. Without this the two columns
       // land `null` and `requireTournamentOrganizer` fails closed for *everyone*
       // (design §1 D6), making every API-created tournament unmanageable.
-      const identity = resolveIdentity(req);
+      const identity = await resolveIdentity(req);
       const tournament = await tournamentService.createTournament({
         ...req.body,
         organizerUserId: identity.userId,

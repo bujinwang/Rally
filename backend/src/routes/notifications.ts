@@ -144,7 +144,7 @@ router.post('/register', optionalAuth, registerTokenValidation, async (req: Requ
     // id via the only sanctioned resolver. Never read `req.user.name` (it does not
     // exist). At least one identity is required — the DB CHECK would otherwise
     // surface as a 500, which is the wrong contract, so reject with 400 here.
-    const identity = resolveIdentity(req);
+    const identity = await resolveIdentity(req);
     if (!identity.userId && !identity.deviceId) {
       return res.status(400).json({
         success: false,
@@ -257,7 +257,7 @@ router.delete('/register/:deviceId', async (req: Request, res: Response) => {
  */
 router.get('/preferences', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const identity = resolveIdentity(req);
+    const identity = await resolveIdentity(req);
     if (!identity.userId && !identity.deviceId) {
       return res.status(400).json({
         success: false,
@@ -308,7 +308,7 @@ router.put('/preferences', optionalAuth, preferencesUpdateValidation, async (req
       });
     }
 
-    const identity = resolveIdentity(req);
+    const identity = await resolveIdentity(req);
     if (!identity.userId && !identity.deviceId) {
       return res.status(400).json({
         success: false,
