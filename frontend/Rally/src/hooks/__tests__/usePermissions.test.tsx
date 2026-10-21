@@ -1,4 +1,3 @@
-// @ts-expect-error - @testing-library/react is not installed in this project
 import { renderHook } from '@testing-library/react';
 import { SessionProvider } from '../../contexts/SessionContext';
 import { usePermissions } from '../usePermissions';

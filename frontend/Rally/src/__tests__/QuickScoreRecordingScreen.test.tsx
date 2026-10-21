@@ -1,5 +1,4 @@
 import React from 'react';
-// @ts-expect-error - @testing-library/react-native is not installed in this project
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import QuickScoreRecordingScreen from '../screens/QuickScoreRecordingScreen';
