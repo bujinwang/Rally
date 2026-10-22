@@ -186,7 +186,9 @@ class MvpApiService extends ApiService {
   async reactivateSession(shareCode: string, ownerDeviceId: string): Promise<ApiResponse<{ session: { id: string; status: string; updatedAt: string } }>> {
     return this.request<{ session: { id: string; status: string; updatedAt: string } }>(`/mvp-sessions/reactivate/${shareCode}`, {
       method: 'PUT',
-      body: JSON.stringify({ ownerDeviceId }),
+      // The route reads no body field; `requireOrganizer` resolves the caller via
+      // `resolveIdentity`, which honours `body.deviceId` on the legacy branch.
+      body: JSON.stringify({ deviceId: ownerDeviceId }),
     }, true);
   }
 
@@ -194,15 +196,26 @@ class MvpApiService extends ApiService {
   async removePlayer(shareCode: string, playerId: string, ownerDeviceId: string): Promise<ApiResponse<void>> {
     return this.request<void>(`/mvp-sessions/${shareCode}/players/${playerId}`, {
       method: 'DELETE',
-      body: JSON.stringify({ ownerDeviceId }),
+      // Identity goes in `deviceId`, not `ownerDeviceId` — see `addPlayer`.
+      body: JSON.stringify({ deviceId: ownerDeviceId }),
     }, true);
   }
 
   // Add player to session (owner only)
-  async addPlayer(shareCode: string, name: string, ownerDeviceId: string): Promise<ApiResponse<{ player: MvpPlayer }>> {
+  /**
+   * Wire contract for `POST /mvp-sessions/:shareCode/add-player`:
+   *   - `playerName` is the validated body field (`addPlayerValidation`). Sending
+   *     `name` fails `.isString()` and returns 400 VALIDATION_ERROR.
+   *   - the caller is resolved by `resolveIdentity` (design §3.1) from the JWT,
+   *     an `x-device-token`, or the legacy `body.deviceId`. `ownerDeviceId` is
+   *     not read by this route at all, so sending it yields no identity and the
+   *     organizer guard rejects the call.
+   * Both were wrong here; the method had no callers, so the bug was latent.
+   */
+  async addPlayer(shareCode: string, playerName: string, ownerDeviceId: string): Promise<ApiResponse<{ player: MvpPlayer }>> {
     return this.request<{ player: MvpPlayer }>(`/mvp-sessions/${shareCode}/add-player`, {
       method: 'POST',
-      body: JSON.stringify({ name, ownerDeviceId }),
+      body: JSON.stringify({ playerName, deviceId: ownerDeviceId }),
     }, true);
   }
 

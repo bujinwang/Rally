@@ -179,3 +179,77 @@ describe('mvpApiService - format for share', () => {
     expect(message).toContain('https://app.com/join/ABC');
   });
 });
+
+// ── mvpApiService wire contracts ────────────────────────────
+//
+// These pin the *request body shape* of organizer-only mutations, because the
+// backend contract is not self-evident from the TS signature:
+//   - `POST /add-player` validates `playerName`; `name` fails `.isString()`
+//     → 400 VALIDATION_ERROR.
+//   - identity comes from `resolveIdentity`, which reads body `deviceId`
+//     (legacy branch), not `ownerDeviceId`.
+// These methods shipped with both fields wrong and nothing called them, so
+// nothing failed. Pinning them means the next caller gets a real error, not a
+// silent 400/403 that looks like a permissions bug.
+
+describe('mvpApiService - organizer mutation wire contracts', () => {
+  type Captured = { path: string; options: any };
+  let captured: Captured | null = null;
+
+  beforeEach(() => {
+    captured = null;
+    jest
+      .spyOn(mvpApiService as any, 'request')
+      .mockImplementation((async (...args: unknown[]) => {
+        captured = { path: args[0] as string, options: args[1] as any };
+        return { success: true, data: {} };
+      }) as any);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const bodyOf = () => JSON.parse(captured!.options.body);
+
+  it('addPlayer sends `playerName`, not `name`', async () => {
+    await mvpApiService.addPlayer('ABC123', 'Charlie', 'dev-1');
+
+    expect(captured!.path).toBe('/mvp-sessions/ABC123/add-player');
+    expect(captured!.options.method).toBe('POST');
+
+    const body = bodyOf();
+    expect(body.playerName).toBe('Charlie');
+    expect(body).not.toHaveProperty('name');
+  });
+
+  it('addPlayer sends identity as `deviceId`, not `ownerDeviceId`', async () => {
+    await mvpApiService.addPlayer('ABC123', 'Charlie', 'dev-1');
+
+    const body = bodyOf();
+    expect(body.deviceId).toBe('dev-1');
+    expect(body).not.toHaveProperty('ownerDeviceId');
+  });
+
+  it('removePlayer sends identity as `deviceId`', async () => {
+    await mvpApiService.removePlayer('ABC123', 'p1', 'dev-1');
+
+    expect(captured!.path).toBe('/mvp-sessions/ABC123/players/p1');
+    expect(captured!.options.method).toBe('DELETE');
+
+    const body = bodyOf();
+    expect(body.deviceId).toBe('dev-1');
+    expect(body).not.toHaveProperty('ownerDeviceId');
+  });
+
+  it('reactivateSession sends identity as `deviceId`', async () => {
+    await mvpApiService.reactivateSession('ABC123', 'dev-1');
+
+    expect(captured!.path).toBe('/mvp-sessions/reactivate/ABC123');
+    expect(captured!.options.method).toBe('PUT');
+
+    const body = bodyOf();
+    expect(body.deviceId).toBe('dev-1');
+    expect(body).not.toHaveProperty('ownerDeviceId');
+  });
+});
