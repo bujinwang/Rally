@@ -1709,8 +1709,37 @@ router.delete('/:shareCode/players/:playerId', optionalAuth, rateLimiters.sensit
 });
 
 // Add player to session (owner only)
-router.post('/:shareCode/add-player', optionalAuth, rateLimiters.api, requireOrganizer('add_players'), cacheInvalidationMiddleware(['session', 'discovery']), async (req, res) => {
+/**
+ * Guards for POST /:shareCode/add-player.
+ *
+ * `playerName` is required and must survive `.trim()`. Without this, a missing
+ * key threw `TypeError: Cannot read properties of undefined (reading
+ * 'toLowerCase')` in the duplicate-name check and surfaced as a 500, while a
+ * whitespace-only name trimmed to `''` and created a corrupt empty-name player.
+ */
+const addPlayerValidation = [
+  body('playerName')
+    .isString().withMessage('Player name is required')
+    .bail()
+    .trim()
+    .isLength({ min: 1, max: 100 }).withMessage('Player name must be between 1 and 100 characters'),
+];
+
+router.post('/:shareCode/add-player', optionalAuth, rateLimiters.api, requireOrganizer('add_players'), addPlayerValidation, cacheInvalidationMiddleware(['session', 'discovery']), async (req: Request, res: Response) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid input data',
+          details: errors.array()
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
     const { shareCode } = req.params;
     const { playerName } = req.body;
 
@@ -1753,8 +1782,14 @@ router.post('/:shareCode/add-player', optionalAuth, rateLimiters.api, requireOrg
       });
     }
 
-    // Check if player name already exists
-    const existingPlayer = session.players.find(p => p.name.toLowerCase() === playerName.toLowerCase());
+    // Check if player name already exists. `playerName` is validated above; the
+    // `typeof` guard is defence-in-depth so one malformed legacy row (e.g. the
+    // empty-name rows the old validation gap could create) can never turn this
+    // into a 500 for every subsequent add.
+    const normalizedName = playerName.trim().toLowerCase();
+    const existingPlayer = session.players.find(
+      p => typeof p.name === 'string' && p.name.toLowerCase() === normalizedName
+    );
     if (existingPlayer) {
       return res.status(409).json({
         success: false,

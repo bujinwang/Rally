@@ -505,6 +505,62 @@ describe('Site 5 :1756 — POST /:shareCode/add-player', () => {
       .send({ playerName: `Guest ${runId}`, deviceId: ownerDev });
     expect(res.status).toBe(201);
   });
+
+  // Regression: a missing `playerName` used to reach
+  // `playerName.toLowerCase()` in the duplicate-name check and surface as an
+  // unhandled TypeError -> 500. It must be a 400.
+  it('returns 400 (not 500) when playerName is missing', async () => {
+    const seed = await seedSession('S5-missing');
+    const res = await request(app)
+      .post(`/api/sessions/${seed.shareCode}/add-player`)
+      .send({ name: `WrongKey ${runId}`, deviceId: ownerDev });
+
+    expect(res.status).toBe(400);
+    expect(res.body?.error?.code).toBe('VALIDATION_ERROR');
+    // Nothing must be created by the rejected request.
+    expect(
+      await prisma.mvpPlayer.findFirst({
+        where: { sessionId: seed.sessionId, name: { contains: 'WrongKey' } },
+      })
+    ).toBeNull();
+  });
+
+  // NB: the body must still carry the organizer identity, otherwise
+  // `requireOrganizer` rejects with 403 before validation is reachable.
+  it('returns 400 when the body has no playerName field at all', async () => {
+    const seed = await seedSession('S5-empty');
+    const res = await request(app)
+      .post(`/api/sessions/${seed.shareCode}/add-player`)
+      .send({ deviceId: ownerDev });
+    expect(res.status).toBe(400);
+    expect(res.body?.error?.code).toBe('VALIDATION_ERROR');
+  });
+
+  // Regression: `"   "` used to pass through and be stored as `name: ""`,
+  // creating a corrupt player row with no usable name.
+  it('returns 400 for a whitespace-only playerName and stores nothing', async () => {
+    const seed = await seedSession('S5-blank');
+    const before = await snapshot(seed);
+
+    const res = await request(app)
+      .post(`/api/sessions/${seed.shareCode}/add-player`)
+      .send({ playerName: '   ', deviceId: ownerDev });
+
+    expect(res.status).toBe(400);
+    expect(res.body?.error?.code).toBe('VALIDATION_ERROR');
+    expect(await prisma.mvpPlayer.count({ where: { sessionId: seed.sessionId, name: '' } })).toBe(0);
+    expect(await snapshot(seed)).toEqual(before);
+  });
+
+  it('trims surrounding whitespace on a valid name', async () => {
+    const seed = await seedSession('S5-trim');
+    const res = await request(app)
+      .post(`/api/sessions/${seed.shareCode}/add-player`)
+      .send({ playerName: `  Trimmed ${runId}  `, deviceId: ownerDev });
+
+    expect(res.status).toBe(201);
+    expect(res.body?.data?.player?.name).toBe(`Trimmed ${runId}`);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
