@@ -1,0 +1,34 @@
+# Docker build context for the backend image.
+#
+# The Dockerfile does `COPY . .`, so without this file the build context includes
+# `.env` (real secrets) and `dev.log`. Neither belongs in an image layer.
+
+# Secrets — the container is configured by environment at run time, never by a
+# baked-in file. `.env.example` is excluded too; the build does not need it.
+.env
+.env.*
+*.pem
+*.key
+
+# Logs and local artifacts
+*.log
+logs/
+coverage/
+.nyc_output/
+
+# Dependencies are installed in-image by `npm ci`
+node_modules/
+
+# Build output is produced in-image by `npm run build`
+dist/
+
+# VCS / editor / OS noise
+.git
+.gitignore
+.vscode
+.idea
+.DS_Store
+
+# Test caches
+.cache/
+*.tsbuildinfo

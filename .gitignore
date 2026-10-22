@@ -270,3 +270,12 @@ backend/coverage/
 
 # Prisma schema backups (stale, do not commit)
 backend/prisma/schema.prisma.bak
+
+# Secrets — never commit. `.env.example` is the template; copy it to `.env`.
+# (backend/.env was accidentally tracked from 1dbd1dd; untracked in 1812a57+.)
+.env
+.env.*
+!.env.example
+
+# Logs — dev.log was tracked and grew on every run
+*.log
