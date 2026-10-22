@@ -23,10 +23,13 @@ const router = Router();
 const isTest = process.env.NODE_ENV === 'test';
 const rateLimiters = createRateLimiters(
   isTest
-    ? { authMax: Number(process.env.DEVICE_ENROLL_RATE_LIMIT_MAX_TEST ?? 10000) }
+    ? { enrollMax: Number(process.env.DEVICE_ENROLL_RATE_LIMIT_MAX_TEST ?? 10000) }
     : undefined
 );
-const enrollLimiter = rateLimiters.auth;
+// Enrollment mints credentials, so it uses the `enroll` bucket — which charges
+// successful requests too. Reusing `auth` (skipSuccessfulRequests) would have
+// made minting unbounded.
+const enrollLimiter = rateLimiters.enroll;
 const mutationLimiter = rateLimiters.sensitive;
 
 /** Read the presented raw device token (header first, then body fallback). */

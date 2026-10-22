@@ -11,7 +11,7 @@ import {
   validate,
 } from '../utils/validation';
 import { requiredAuth, AuthRequest } from '../middleware/auth';
-import { createRateLimiters } from '../middleware/rateLimit';
+import { createRateLimiters, resolveCeilingOverride } from '../middleware/rateLimit';
 import { deviceClaimService } from '../services/deviceClaimService';
 
 const router = Router();
@@ -19,17 +19,28 @@ const router = Router();
 // Rate limiting stays ACTIVE under test so AC 7/11 are actually exercised, but
 // with a high ceiling so unrelated suites sharing the in-memory counter cannot
 // trip it. The dedicated rate-limit test tunes the ceiling down via the
-// test-only env vars to force a 429. Production values (5 / 10) are unchanged.
+// test-only env vars to force a 429.
+//
+// Production defaults: auth=5 FAILED attempts / 15 min, refresh=60 / 15 min,
+// sensitive=10 / min. Successful requests are not charged (see rateLimit.ts),
+// so ordinary sign-ins and automatic token refreshes cannot lock a user out.
+//
+// Local dev may raise the ceilings via env (see .env AUTH_RATE_LIMIT_MAX);
+// `resolveCeilingOverride` ignores those values when NODE_ENV=production.
 const isTest = process.env.NODE_ENV === 'test';
-const rateLimiters = createRateLimiters(
-  isTest
-    ? {
-        authMax: Number(process.env.AUTH_RATE_LIMIT_MAX_TEST ?? 10000),
-        sensitiveMax: Number(process.env.SENSITIVE_RATE_LIMIT_MAX_TEST ?? 10000),
-      }
-    : undefined
-);
+const rateLimiters = createRateLimiters({
+  authMax: isTest
+    ? Number(process.env.AUTH_RATE_LIMIT_MAX_TEST ?? 10000)
+    : resolveCeilingOverride('AUTH_RATE_LIMIT_MAX'),
+  sensitiveMax: isTest
+    ? Number(process.env.SENSITIVE_RATE_LIMIT_MAX_TEST ?? 10000)
+    : resolveCeilingOverride('SENSITIVE_RATE_LIMIT_MAX'),
+  refreshMax: isTest
+    ? Number(process.env.REFRESH_RATE_LIMIT_MAX_TEST ?? 10000)
+    : resolveCeilingOverride('REFRESH_RATE_LIMIT_MAX'),
+});
 const authLimiter = rateLimiters.auth;
+const refreshLimiter = rateLimiters.refresh;
 const sensitiveLimiter = rateLimiters.sensitive;
 
 // Register new user
@@ -199,7 +210,7 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
 
 // Refresh access token (rotation + reuse-detection handled atomically by
 // refreshTokenService.rotate)
-router.post('/refresh', authLimiter, validate(refreshTokenSchema), async (req, res) => {
+router.post('/refresh', refreshLimiter, validate(refreshTokenSchema), async (req, res) => {
   try {
     const { refreshToken } = req.body;
 

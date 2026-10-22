@@ -84,4 +84,105 @@ describe('auth rate limiting (P1)', () => {
     const res = await request(prodApp).get('/x').set('x-forwarded-for', '203.0.113.89');
     expect(res.headers['x-ratelimit-limit']).toBe('10');
   });
+
+  // Regression: a successful login used to consume the brute-force budget, so
+  // five ordinary sign-ins inside 15 minutes locked the user out with a 429.
+  it('does not charge successful requests against the auth budget', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { rateLimit } = require('../../middleware/rateLimit');
+    const okApp = express();
+    okApp.use(
+      rateLimit({
+        windowMs: 60_000,
+        maxRequests: 2,
+        skipSuccessfulRequests: true,
+        keyGenerator: () => 'test:success-skip',
+      })
+    );
+    okApp.post('/ok', (_req: express.Request, res: express.Response) => res.json({ ok: true }));
+
+    for (let i = 0; i < 6; i++) {
+      const res = await request(okApp).post('/ok').send({});
+      expect(res.status).toBe(200);
+      // Let the post-response decrement land before the next attempt.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  });
+
+  // Brute-force protection must survive the change: failures still count.
+  it('still counts failed requests towards the auth budget', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { rateLimit } = require('../../middleware/rateLimit');
+    const failApp = express();
+    failApp.use(
+      rateLimit({
+        windowMs: 60_000,
+        maxRequests: 2,
+        skipSuccessfulRequests: true,
+        keyGenerator: () => 'test:failure-counts',
+      })
+    );
+    failApp.post('/fail', (_req: express.Request, res: express.Response) =>
+      res.status(401).json({ ok: false })
+    );
+
+    const statuses: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      const res = await request(failApp).post('/fail').send({});
+      statuses.push(res.status);
+    }
+
+    expect(statuses).toEqual([401, 401, 429]);
+  });
+
+  // Regression: /auth/refresh shared the strict auth bucket, so the client's
+  // automatic refresh-on-401 could exhaust the login budget on its own.
+  it('gives /auth/refresh its own, more generous bucket', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { createRateLimiters } = require('../../middleware/rateLimit');
+    const refreshApp = express();
+    refreshApp.use(createRateLimiters().refresh);
+    refreshApp.post('/x', (_req: express.Request, res: express.Response) => res.json({ ok: true }));
+
+    const res = await request(refreshApp).post('/x').set('x-forwarded-for', '203.0.113.99');
+    expect(res.headers['x-ratelimit-limit']).toBe('60');
+  });
+
+  // `backend/.env` is tracked in git, so a dev-only ceiling must never be able
+  // to weaken the limiter in production.
+  describe('ceiling overrides are ignored in production', () => {
+    const KEY = 'AUTH_RATE_LIMIT_MAX';
+    let previous: string | undefined;
+
+    beforeEach(() => {
+      previous = process.env[KEY];
+      process.env[KEY] = '50';
+    });
+
+    afterEach(() => {
+      if (previous === undefined) delete process.env[KEY];
+      else process.env[KEY] = previous;
+    });
+
+    it('ignores the env value when NODE_ENV=production', () => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { resolveCeilingOverride } = require('../../middleware/rateLimit');
+      expect(resolveCeilingOverride(KEY, 'production')).toBeUndefined();
+    });
+
+    it('honours the env value outside production', () => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { resolveCeilingOverride } = require('../../middleware/rateLimit');
+      expect(resolveCeilingOverride(KEY, 'development')).toBe(50);
+    });
+
+    it('ignores malformed values', () => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { resolveCeilingOverride } = require('../../middleware/rateLimit');
+      process.env[KEY] = 'not-a-number';
+      expect(resolveCeilingOverride(KEY, 'development')).toBeUndefined();
+      process.env[KEY] = '0';
+      expect(resolveCeilingOverride(KEY, 'development')).toBeUndefined();
+    });
+  });
 });

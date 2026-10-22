@@ -120,36 +120,44 @@ export const rateLimit = (options: RateLimitOptions) => {
         resetTime: currentResetTime
       };
 
-      // Override response methods to potentially skip rate limiting for certain responses
+      // Honour skipSuccessfulRequests / skipFailedRequests.
+      //
+      // The counter is incremented BEFORE the handler runs (that is what makes
+      // the limiter resistant to concurrent bursts), so the outcome is only
+      // known once the response is done. Instead of guessing from overridden
+      // res.json/res.send (which used to be a no-op), decrement the counter on
+      // `finish` when the outcome is meant to be free.
       if (skipSuccessfulRequests || skipFailedRequests) {
-        const originalJson = res.json;
-        const originalStatus = res.status;
-        const originalSend = res.send;
+        res.on('finish', () => {
+          const succeeded = res.statusCode >= 200 && res.statusCode < 300;
+          const shouldSkip =
+            (skipSuccessfulRequests && succeeded) ||
+            (skipFailedRequests && !succeeded);
 
-        let responseStatusCode = 200;
+          if (!shouldSkip) return;
 
-        res.status = function(code: number) {
-          responseStatusCode = code;
-          return originalStatus.call(this, code);
-        };
+          void (async () => {
+            try {
+              const stored = await cacheService.get<RateLimitEntry>(rateLimitKey);
+              if (!stored) return;
 
-        res.json = function(data: any) {
-          // Skip rate limiting for successful requests if configured
-          if (skipSuccessfulRequests && responseStatusCode >= 200 && responseStatusCode < 300) {
-            // Don't increment counter for successful requests
-            return originalJson.call(this, data);
-          }
-          return originalJson.call(this, data);
-        };
+              const remainingTtlSec = Math.ceil((stored.resetTime - Date.now()) / 1000);
+              if (remainingTtlSec <= 0) return;
 
-        res.send = function(data: any) {
-          // Skip rate limiting for failed requests if configured
-          if (skipFailedRequests && responseStatusCode >= 400) {
-            // Don't increment counter for failed requests
-            return originalSend.call(this, data);
-          }
-          return originalSend.call(this, data);
-        };
+              await cacheService.set(
+                rateLimitKey,
+                {
+                  count: Math.max(0, stored.count - 1),
+                  resetTime: stored.resetTime
+                },
+                remainingTtlSec
+              );
+            } catch (error) {
+              // A missed decrement only makes the limiter slightly stricter.
+              console.error('Rate limiting decrement error:', error);
+            }
+          })();
+        });
       }
 
       next();
@@ -161,43 +169,99 @@ export const rateLimit = (options: RateLimitOptions) => {
   };
 };
 
+// Extract the client IP, honouring proxy headers.
+function extractClientIp(req: AuthRequest): string {
+  return (
+    req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() ||
+    req.headers['x-real-ip']?.toString() ||
+    req.connection.remoteAddress ||
+    req.socket.remoteAddress ||
+    req.ip ||
+    'unknown'
+  );
+}
+
+/**
+ * Resolve an optional rate-limit ceiling from an env var.
+ *
+ * Production deliberately ignores these overrides: `backend/.env` is tracked in
+ * git, so a value left there for local convenience (e.g. a raised auth ceiling)
+ * must never be able to weaken a limiter in production. To make production
+ * tunable later, drop the NODE_ENV check.
+ *
+ * @param name    env var holding the ceiling
+ * @param nodeEnv environment to evaluate against (injectable for tests)
+ */
+export const resolveCeilingOverride = (
+  name: string,
+  nodeEnv: string | undefined = process.env.NODE_ENV
+): number | undefined => {
+  if (nodeEnv === 'production') return undefined;
+
+  const raw = process.env[name];
+  if (!raw) return undefined;
+
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+};
+
 // Default key generator
 function generateDefaultKey(req: AuthRequest): string {
-  const { ip, user } = req;
+  const { user } = req;
 
   // Use user ID if authenticated, otherwise use IP
   if (user?.id) {
     return `user:${user.id}`;
   }
 
-  // Get client IP (handle proxy headers)
-  const clientIP = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() ||
-                   req.headers['x-real-ip']?.toString() ||
-                   req.connection.remoteAddress ||
-                   req.socket.remoteAddress ||
-                   ip ||
-                   'unknown';
-
-  return `ip:${clientIP}`;
+  return `ip:${extractClientIp(req)}`;
 }
 
 // Create rate limiters for different use cases
-export const createRateLimiters = (overrides?: { authMax?: number; sensitiveMax?: number }) => {
+export const createRateLimiters = (overrides?: {
+  authMax?: number;
+  sensitiveMax?: number;
+  refreshMax?: number;
+  enrollMax?: number;
+}) => {
   return {
-    // Strict rate limiting for authentication endpoints
+    // Strict rate limiting for authentication endpoints.
+    // Counts FAILED attempts only: a successful login proves the caller owns
+    // the credentials, so charging it against the brute-force budget locked
+    // real users out after 5 sign-ins within 15 minutes.
     auth: rateLimit({
       windowMs: 15 * 60 * 1000, // 15 minutes
-      maxRequests: overrides?.authMax ?? 5, // 5 attempts per 15 minutes
+      maxRequests: overrides?.authMax ?? 5, // 5 failed attempts per 15 minutes
+      skipSuccessfulRequests: true,
       message: 'Too many authentication attempts, please try again later.',
-      keyGenerator: (req) => {
-        const clientIP = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() ||
-                        req.headers['x-real-ip']?.toString() ||
-                        req.connection.remoteAddress ||
-                        req.socket.remoteAddress ||
-                        req.ip ||
-                        'unknown';
-        return `auth:${clientIP}`;
-      }
+      keyGenerator: (req) => `auth:${extractClientIp(req)}`
+    }),
+
+    // Token refresh gets its own bucket. The client refreshes automatically on
+    // every 401, so sharing the strict `auth` bucket meant ordinary browsing
+    // could exhaust the login budget and produce spurious 429s.
+    refresh: rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      maxRequests: overrides?.refreshMax ?? 60,
+      skipSuccessfulRequests: true,
+      message: 'Too many token refresh attempts, please try again later.',
+      keyGenerator: (req) => `auth-refresh:${extractClientIp(req)}`
+    }),
+
+    // Device enrollment — a CREDENTIAL-MINTING endpoint, so it deliberately does
+    // NOT set `skipSuccessfulRequests`. Every success mints a new deviceId plus a
+    // token; skipping successes would make enrollment an unbounded id-minting
+    // oracle. It cannot reuse `auth` for that reason.
+    //
+    // The ceiling is per IP and has to tolerate shared venue WiFi: a badminton
+    // club where twenty guests join at once all arrive from one address, so a
+    // brute-force-sized budget (5) would lock out a legitimate session. 60 per
+    // 15 minutes bounds minting while allowing a full session's guests.
+    enroll: rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      maxRequests: overrides?.enrollMax ?? 60,
+      message: 'Too many device enrollments, please try again later.',
+      keyGenerator: (req) => `device-enroll:${extractClientIp(req)}`
     }),
 
     // Moderate rate limiting for API endpoints
