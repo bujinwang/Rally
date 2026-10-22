@@ -1,7 +1,29 @@
 import { Router, Request, Response } from 'express';
-import { OAuthService } from '../services/oauthService';
+import {
+  OAuthService,
+  OAuthNotConfiguredError,
+  isProviderConfigured,
+} from '../services/oauthService';
 
 const router = Router();
+
+/**
+ * GET /api/v1/oauth/providers
+ * Which social providers this server can actually complete a flow for.
+ *
+ * The client uses this to avoid rendering a sign-in button that can only fail.
+ * Deliberately reports booleans only — never the client id.
+ */
+router.get('/providers', (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    data: {
+      google: { configured: isProviderConfigured('google') },
+      wechat: { configured: isProviderConfigured('wechat') },
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
 
 /**
  * GET /api/v1/oauth/:provider/url
@@ -27,6 +49,21 @@ router.get('/:provider/url', (req: Request, res: Response) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    // An unconfigured provider is a server setup problem, not a client error.
+    // Answer with something the user can act on instead of letting them land on
+    // the provider's "Access blocked: Missing required parameter: client_id".
+    if (error instanceof OAuthNotConfiguredError) {
+      const label = error.provider === 'google' ? 'Google' : 'WeChat';
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'OAUTH_NOT_CONFIGURED',
+          message: `${label} sign-in is not set up on this server yet. Please use email and password instead.`,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     console.error('OAuth URL error:', error);
     res.status(500).json({
       success: false,

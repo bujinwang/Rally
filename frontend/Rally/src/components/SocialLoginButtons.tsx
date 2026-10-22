@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -18,6 +18,14 @@ interface SocialLoginButtonsProps {
   style?: any;
   size?: 'small' | 'medium' | 'large';
   showLabels?: boolean;
+  /**
+   * Label for the "or continue with" divider above the buttons.
+   *
+   * The divider is rendered here rather than by the parent so that it vanishes
+   * together with the buttons when no provider is configured — otherwise the
+   * screen shows a divider that leads to nothing.
+   */
+  dividerText?: string;
 }
 
 export default function SocialLoginButtons({
@@ -26,6 +34,7 @@ export default function SocialLoginButtons({
   style,
   size = 'medium',
   showLabels = true,
+  dividerText,
 }: SocialLoginButtonsProps) {
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
 
@@ -47,6 +56,36 @@ export default function SocialLoginButtons({
       borderColor: '#07C160',
     },
   ];
+
+  // Only offer providers this server can actually complete a flow for. A button
+  // that always fails is worse than no button: it sends the user to the
+  // provider's error page and makes the whole app look broken.
+  const [configuredProviders, setConfiguredProviders] = useState<Record<string, boolean> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_BASE_URL}/oauth/providers`)
+      .then((response) => response.json())
+      .then((body) => {
+        if (cancelled || !body?.success) return;
+        setConfiguredProviders({
+          google: Boolean(body.data?.google?.configured),
+          wechat: Boolean(body.data?.wechat?.configured),
+        });
+      })
+      .catch(() => {
+        // Best-effort discovery: on failure show everything and let the
+        // per-provider 503 message explain what is missing.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const visibleProviders =
+    configuredProviders === null
+      ? providers
+      : providers.filter((provider) => configuredProviders[provider.id] !== false);
 
   /**
    * Start the OAuth flow for a provider
@@ -185,9 +224,21 @@ export default function SocialLoginButtons({
     }
   };
 
+  if (visibleProviders.length === 0) {
+    return null;
+  }
+
   return (
-    <View style={[styles.container, style]}>
-      {providers.map((provider) => (
+    <View style={style}>
+      {dividerText ? (
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>{dividerText}</Text>
+          <View style={styles.dividerLine} />
+        </View>
+      ) : null}
+      <View style={styles.container}>
+      {visibleProviders.map((provider) => (
         <TouchableOpacity
           key={provider.id}
           onPress={() => handleSocialLogin(provider.id)}
@@ -232,6 +283,7 @@ export default function SocialLoginButtons({
           )}
         </TouchableOpacity>
       ))}
+      </View>
     </View>
   );
 }
@@ -242,6 +294,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     alignItems: 'center',
     paddingVertical: 10,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 15,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e0e0e0',
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    fontSize: 13,
+    color: '#999',
   },
   button: {
     flexDirection: 'row',

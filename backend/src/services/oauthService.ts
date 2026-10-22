@@ -38,12 +38,48 @@ const getWeChatConfig = (): OAuthProviderConfig => ({
   userInfoUrl: 'https://api.weixin.qq.com/sns/userinfo',
 });
 
+/**
+ * Thrown when a provider is requested but its credentials are not configured.
+ *
+ * Without this guard the flow happily builds an authorization URL with an empty
+ * `client_id` and redirects the user to the provider, which answers with a bare
+ * "Access blocked: Missing required parameter: client_id" page. That is a dead
+ * end: it looks like an app bug, and it tells the user nothing they can act on.
+ */
+export class OAuthNotConfiguredError extends Error {
+  readonly provider: 'google' | 'wechat';
+
+  constructor(provider: 'google' | 'wechat') {
+    super(`${provider} sign-in is not configured on this server`);
+    this.name = 'OAuthNotConfiguredError';
+    this.provider = provider;
+  }
+}
+
+/**
+ * Whether a provider has the credentials required to start AND complete a flow.
+ *
+ * Both are required: `clientId` for the authorize redirect, `clientSecret` for
+ * the code-for-token exchange. Checking only the id would move the failure to
+ * the callback, after the user has already left the app.
+ */
+export function isProviderConfigured(provider: 'google' | 'wechat'): boolean {
+  const config = provider === 'google' ? getGoogleConfig() : getWeChatConfig();
+  return Boolean(config.clientId && config.clientSecret);
+}
+
 export class OAuthService {
   /**
    * Generate the OAuth authorization URL for a provider
    */
   static getAuthorizationUrl(provider: 'google' | 'wechat', state?: string): string {
     const config = provider === 'google' ? getGoogleConfig() : getWeChatConfig();
+
+    // Fail here rather than sending the user to the provider with an empty
+    // client_id — see OAuthNotConfiguredError.
+    if (!isProviderConfigured(provider)) {
+      throw new OAuthNotConfiguredError(provider);
+    }
 
     if (provider === 'google') {
       const params = new URLSearchParams({

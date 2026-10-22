@@ -101,15 +101,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             </Text>
           </TouchableOpacity>
 
-          {/* Social login divider */}
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>{t.auth.orContinue}</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* Google / WeChat OAuth buttons */}
+          {/* Google / WeChat OAuth buttons — the "or continue with" divider is
+              rendered by the component itself, so it disappears together with
+              the buttons when no provider is configured. */}
           <SocialLoginButtons
+            dividerText={t.auth.orContinue}
             onLoginSuccess={(data) => {
               dispatch(socialLogin({
                 user: data.user,

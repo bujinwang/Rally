@@ -113,15 +113,11 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
             </Text>
           </TouchableOpacity>
 
-          {/* Social login divider */}
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>{t.auth.orSignUp}</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* Google / WeChat OAuth buttons */}
+          {/* Google / WeChat OAuth buttons — the "or sign up with" divider is
+              rendered by the component itself, so it disappears together with
+              the buttons when no provider is configured. */}
           <SocialLoginButtons
+            dividerText={t.auth.orSignUp}
             onLoginSuccess={(data) => {
               dispatch(socialLogin({
                 user: data.user,
