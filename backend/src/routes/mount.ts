@@ -163,6 +163,10 @@ export const PUBLIC_ALLOWLIST: ReadonlySet<string> = new Set([
   // OAuth routes (pre-auth login, wrapped with publicRouter)
   'GET /api/v1/oauth/:provider/url',
   'GET /api/v1/oauth/:provider/callback',
+  // Provider capability probe — pre-auth by definition: the sign-in screen has to
+  // know whether to render the button before anyone is authenticated. Returns
+  // booleans only, never the client id.
+  'GET /api/v1/oauth/providers',
   // OAuth mobile handshake — pre-auth by definition (see the OAuth bypass P0 fix)
   'POST /api/v1/oauth/:provider/mobile',
   // Device token (Option B, Phase 1) — enrollment is unauthenticated BY
