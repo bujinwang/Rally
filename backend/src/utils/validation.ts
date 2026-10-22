@@ -47,7 +47,11 @@ export const updateSessionSchema = Joi.object({
 });
 
 export const validatePairingRequest = Joi.object({
-  algorithm: Joi.string().valid('fair', 'random', 'skill_based').default('fair')
+  // Must stay in sync with `PairingService.generatePairings` and the
+  // `AlgorithmType` union in the frontend's pairingApi.ts.
+  algorithm: Joi.string()
+    .valid('fair', 'random', 'skill_balanced', 'partnership_rotation')
+    .default('fair')
 });
 
 export const validateManualPairing = Joi.object({

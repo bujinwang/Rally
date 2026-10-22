@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config/api';
+import { authFetch } from './authFetch';
 
 export interface Pairing {
   id: string;
@@ -63,9 +63,12 @@ export interface PairingExplanation {
 }
 
 class PairingApiService {
+  /**
+   * Only content headers live here. The `Authorization: Bearer <token>` header
+   * is attached by `authFetch`, which also refreshes an expired access token
+   * once and retries. Do not hand-roll token reads in this service.
+   */
   private getAuthHeaders(): HeadersInit {
-    // Get auth token from storage or context
-    // For now, return empty headers (will be handled by backend auth)
     return {
       'Content-Type': 'application/json',
     };
@@ -76,7 +79,7 @@ class PairingApiService {
    */
   async generatePairings(sessionId: string, algorithm: 'fair' | 'random' | 'skill_balanced' | 'partnership_rotation' = 'fair'): Promise<PairingResult> {
     try {
-      const response = await fetch(`${API_BASE_URL}/pairings/sessions/${sessionId}/pairings`, {
+      const response = await authFetch(`/pairings/sessions/${sessionId}/pairings`, {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({ algorithm }),
@@ -100,7 +103,7 @@ class PairingApiService {
    */
   async getPairings(sessionId: string): Promise<PairingResult> {
     try {
-      const response = await fetch(`${API_BASE_URL}/pairings/sessions/${sessionId}/pairings`, {
+      const response = await authFetch(`/pairings/sessions/${sessionId}/pairings`, {
         method: 'GET',
         headers: this.getAuthHeaders(),
       });
@@ -123,7 +126,7 @@ class PairingApiService {
    */
   async adjustPairing(sessionId: string, pairingId: string, adjustment: ManualPairingAdjustment): Promise<Pairing> {
     try {
-      const response = await fetch(`${API_BASE_URL}/pairings/sessions/${sessionId}/pairings/${pairingId}`, {
+      const response = await authFetch(`/pairings/sessions/${sessionId}/pairings/${pairingId}`, {
         method: 'PUT',
         headers: this.getAuthHeaders(),
         body: JSON.stringify(adjustment),
@@ -147,7 +150,7 @@ class PairingApiService {
    */
   async clearPairings(sessionId: string): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE_URL}/pairings/sessions/${sessionId}/pairings`, {
+      const response = await authFetch(`/pairings/sessions/${sessionId}/pairings`, {
         method: 'DELETE',
         headers: this.getAuthHeaders(),
       });
@@ -175,7 +178,7 @@ class PairingApiService {
     } = {}
   ): Promise<AIPairingResult> {
     try {
-      const response = await fetch(`${API_BASE_URL}/pairings/suggest`, {
+      const response = await authFetch(`/pairings/suggest`, {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
@@ -203,7 +206,7 @@ class PairingApiService {
    */
   async getPairingExplanation(suggestionId: string): Promise<PairingExplanation> {
     try {
-      const response = await fetch(`${API_BASE_URL}/pairings/explain/${suggestionId}`, {
+      const response = await authFetch(`/pairings/explain/${suggestionId}`, {
         method: 'GET',
         headers: this.getAuthHeaders(),
       });
@@ -226,7 +229,7 @@ class PairingApiService {
    */
   async submitPairingFeedback(feedback: PairingFeedback): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE_URL}/pairings/feedback`, {
+      const response = await authFetch(`/pairings/feedback`, {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify(feedback),
@@ -247,7 +250,7 @@ class PairingApiService {
    */
   async updatePlayerSkillLevels(sessionId: string): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE_URL}/pairings/update-skills/${sessionId}`, {
+      const response = await authFetch(`/pairings/update-skills/${sessionId}`, {
         method: 'POST',
         headers: this.getAuthHeaders(),
       });

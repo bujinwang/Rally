@@ -1,5 +1,5 @@
 import { Router, Request } from 'express';
-import { authenticateToken, requireRole } from '../middleware/auth';
+import { authenticateToken } from '../middleware/auth';
 import { PairingService } from '../services/pairingService';
 import { AIPairingService } from '../services/aiPairingService';
 import { validatePairingRequest, validate } from '../utils/validation';
@@ -22,19 +22,24 @@ const router = Router();
 router.use(authenticateToken);
 
 // Generate new pairings for a session
-router.post('/sessions/:sessionId/pairings', requireRole(['OWNER', 'ORGANIZER']), validate(validatePairingRequest), async (req: AuthRequest, res) => {
+router.post('/sessions/:sessionId/pairings', validate(validatePairingRequest), async (req: AuthRequest, res) => {
   try {
     const { sessionId } = req.params;
     const { algorithm = 'fair' } = req.body;
     const userId = req.user?.id;
 
     // Verify user has access to this session
-    const session = await prisma.session.findUnique({
+    // NB: pairings are keyed to `MvpSession` (what the app actually creates and
+    // what `PairingService` reads via `prisma.mvpPlayer`). The legacy `Session`
+    // /`SessionPlayer` models are empty and must not be used here — doing so
+    // made every lookup 404.
+    const session = await prisma.mvpSession.findUnique({
       where: { id: sessionId },
-      include: {
-        owner: true,
-        sessionPlayers: {
-          where: { userId }
+      select: {
+        ownerUserId: true,
+        players: {
+          where: { userId },
+          select: { role: true }
         }
       }
     });
@@ -50,15 +55,17 @@ router.post('/sessions/:sessionId/pairings', requireRole(['OWNER', 'ORGANIZER'])
       });
     }
 
-    const isOwner = session.ownerId === userId;
-    const isPlayer = session.sessionPlayers.length > 0;
+    // Only the session organizer (or the session owner) may modify pairings.
+    const isOwner = session.ownerUserId === userId;
+    const myPlayer = session.players[0];
+    const isOrganizer = myPlayer?.role === 'ORGANIZER';
 
-    if (!isOwner && !isPlayer) {
+    if (!isOwner && !isOrganizer) {
       return res.status(403).json({
         success: false,
         error: {
           code: 'FORBIDDEN',
-          message: 'Access denied to this session'
+          message: 'Only the session organizer can modify pairings'
         },
         timestamp: new Date().toISOString()
       });
@@ -137,12 +144,17 @@ router.get('/sessions/:sessionId/pairings', async (req: AuthRequest, res) => {
     const userId = req.user?.id;
 
     // Verify user has access to this session
-    const session = await prisma.session.findUnique({
+    // NB: pairings are keyed to `MvpSession` (what the app actually creates and
+    // what `PairingService` reads via `prisma.mvpPlayer`). The legacy `Session`
+    // /`SessionPlayer` models are empty and must not be used here — doing so
+    // made every lookup 404.
+    const session = await prisma.mvpSession.findUnique({
       where: { id: sessionId },
-      include: {
-        owner: true,
-        sessionPlayers: {
-          where: { userId }
+      select: {
+        ownerUserId: true,
+        players: {
+          where: { userId },
+          select: { role: true }
         }
       }
     });
@@ -158,8 +170,8 @@ router.get('/sessions/:sessionId/pairings', async (req: AuthRequest, res) => {
       });
     }
 
-    const isOwner = session.ownerId === userId;
-    const isPlayer = session.sessionPlayers.length > 0;
+    const isOwner = session.ownerUserId === userId;
+    const isPlayer = session.players.length > 0;
 
     if (!isOwner && !isPlayer) {
       return res.status(403).json({
@@ -206,19 +218,24 @@ router.get('/sessions/:sessionId/pairings', async (req: AuthRequest, res) => {
 });
 
 // Manually adjust a pairing
-router.put('/sessions/:sessionId/pairings/:pairingId', requireRole(['OWNER', 'ORGANIZER']), async (req: AuthRequest, res) => {
+router.put('/sessions/:sessionId/pairings/:pairingId', async (req: AuthRequest, res) => {
   try {
     const { sessionId, pairingId } = req.params;
     const { players } = req.body;
     const userId = req.user?.id;
 
     // Verify user has access to this session
-    const session = await prisma.session.findUnique({
+    // NB: pairings are keyed to `MvpSession` (what the app actually creates and
+    // what `PairingService` reads via `prisma.mvpPlayer`). The legacy `Session`
+    // /`SessionPlayer` models are empty and must not be used here — doing so
+    // made every lookup 404.
+    const session = await prisma.mvpSession.findUnique({
       where: { id: sessionId },
-      include: {
-        owner: true,
-        sessionPlayers: {
-          where: { userId }
+      select: {
+        ownerUserId: true,
+        players: {
+          where: { userId },
+          select: { role: true }
         }
       }
     });
@@ -234,15 +251,17 @@ router.put('/sessions/:sessionId/pairings/:pairingId', requireRole(['OWNER', 'OR
       });
     }
 
-    const isOwner = session.ownerId === userId;
-    const isPlayer = session.sessionPlayers.length > 0;
+    // Only the session organizer (or the session owner) may modify pairings.
+    const isOwner = session.ownerUserId === userId;
+    const myPlayer = session.players[0];
+    const isOrganizer = myPlayer?.role === 'ORGANIZER';
 
-    if (!isOwner && !isPlayer) {
+    if (!isOwner && !isOrganizer) {
       return res.status(403).json({
         success: false,
         error: {
           code: 'FORBIDDEN',
-          message: 'Access denied to this session'
+          message: 'Only the session organizer can modify pairings'
         },
         timestamp: new Date().toISOString()
       });
@@ -311,18 +330,23 @@ router.put('/sessions/:sessionId/pairings/:pairingId', requireRole(['OWNER', 'OR
 });
 
 // Clear all pairings for a session
-router.delete('/sessions/:sessionId/pairings', requireRole(['OWNER', 'ORGANIZER']), async (req: AuthRequest, res) => {
+router.delete('/sessions/:sessionId/pairings', async (req: AuthRequest, res) => {
   try {
     const { sessionId } = req.params;
     const userId = req.user?.id;
 
     // Verify user has access to this session
-    const session = await prisma.session.findUnique({
+    // NB: pairings are keyed to `MvpSession` (what the app actually creates and
+    // what `PairingService` reads via `prisma.mvpPlayer`). The legacy `Session`
+    // /`SessionPlayer` models are empty and must not be used here — doing so
+    // made every lookup 404.
+    const session = await prisma.mvpSession.findUnique({
       where: { id: sessionId },
-      include: {
-        owner: true,
-        sessionPlayers: {
-          where: { userId }
+      select: {
+        ownerUserId: true,
+        players: {
+          where: { userId },
+          select: { role: true }
         }
       }
     });
@@ -338,15 +362,17 @@ router.delete('/sessions/:sessionId/pairings', requireRole(['OWNER', 'ORGANIZER'
       });
     }
 
-    const isOwner = session.ownerId === userId;
-    const isPlayer = session.sessionPlayers.length > 0;
+    // Only the session organizer (or the session owner) may modify pairings.
+    const isOwner = session.ownerUserId === userId;
+    const myPlayer = session.players[0];
+    const isOrganizer = myPlayer?.role === 'ORGANIZER';
 
-    if (!isOwner && !isPlayer) {
+    if (!isOwner && !isOrganizer) {
       return res.status(403).json({
         success: false,
         error: {
           code: 'FORBIDDEN',
-          message: 'Access denied to this session'
+          message: 'Only the session organizer can modify pairings'
         },
         timestamp: new Date().toISOString()
       });
@@ -382,7 +408,7 @@ router.delete('/sessions/:sessionId/pairings', requireRole(['OWNER', 'ORGANIZER'
 });
 
 // AI Pairing Suggestions
-router.post('/suggest', requireRole(['OWNER', 'ORGANIZER']), async (req: AuthRequest, res) => {
+router.post('/suggest', async (req: AuthRequest, res) => {
   try {
     const { sessionId, playerIds, options = {} } = req.body;
     const userId = req.user?.id;
@@ -399,12 +425,17 @@ router.post('/suggest', requireRole(['OWNER', 'ORGANIZER']), async (req: AuthReq
     }
 
     // Verify user has access to this session
-    const session = await prisma.session.findUnique({
+    // NB: pairings are keyed to `MvpSession` (what the app actually creates and
+    // what `PairingService` reads via `prisma.mvpPlayer`). The legacy `Session`
+    // /`SessionPlayer` models are empty and must not be used here — doing so
+    // made every lookup 404.
+    const session = await prisma.mvpSession.findUnique({
       where: { id: sessionId },
-      include: {
-        owner: true,
-        sessionPlayers: {
-          where: { userId }
+      select: {
+        ownerUserId: true,
+        players: {
+          where: { userId },
+          select: { role: true }
         }
       }
     });
@@ -420,15 +451,17 @@ router.post('/suggest', requireRole(['OWNER', 'ORGANIZER']), async (req: AuthReq
       });
     }
 
-    const isOwner = session.ownerId === userId;
-    const isPlayer = session.sessionPlayers.length > 0;
+    // Only the session organizer (or the session owner) may modify pairings.
+    const isOwner = session.ownerUserId === userId;
+    const myPlayer = session.players[0];
+    const isOrganizer = myPlayer?.role === 'ORGANIZER';
 
-    if (!isOwner && !isPlayer) {
+    if (!isOwner && !isOrganizer) {
       return res.status(403).json({
         success: false,
         error: {
           code: 'FORBIDDEN',
-          message: 'Access denied to this session'
+          message: 'Only the session organizer can modify pairings'
         },
         timestamp: new Date().toISOString()
       });
@@ -540,12 +573,17 @@ router.post('/feedback', async (req: AuthRequest, res) => {
     }
 
     // Verify user has access to this session
-    const session = await prisma.session.findUnique({
+    // NB: pairings are keyed to `MvpSession` (what the app actually creates and
+    // what `PairingService` reads via `prisma.mvpPlayer`). The legacy `Session`
+    // /`SessionPlayer` models are empty and must not be used here — doing so
+    // made every lookup 404.
+    const session = await prisma.mvpSession.findUnique({
       where: { id: sessionId },
-      include: {
-        owner: true,
-        sessionPlayers: {
-          where: { userId }
+      select: {
+        ownerUserId: true,
+        players: {
+          where: { userId },
+          select: { role: true }
         }
       }
     });
@@ -561,8 +599,8 @@ router.post('/feedback', async (req: AuthRequest, res) => {
       });
     }
 
-    const isOwner = session.ownerId === userId;
-    const isPlayer = session.sessionPlayers.length > 0;
+    const isOwner = session.ownerUserId === userId;
+    const isPlayer = session.players.length > 0;
 
     if (!isOwner && !isPlayer) {
       return res.status(403).json({
@@ -597,18 +635,23 @@ router.post('/feedback', async (req: AuthRequest, res) => {
 });
 
 // Update player skill levels based on recent performance
-router.post('/update-skills/:sessionId', requireRole(['OWNER', 'ORGANIZER']), async (req: AuthRequest, res) => {
+router.post('/update-skills/:sessionId', async (req: AuthRequest, res) => {
   try {
     const { sessionId } = req.params;
     const userId = req.user?.id;
 
     // Verify user has access to this session
-    const session = await prisma.session.findUnique({
+    // NB: pairings are keyed to `MvpSession` (what the app actually creates and
+    // what `PairingService` reads via `prisma.mvpPlayer`). The legacy `Session`
+    // /`SessionPlayer` models are empty and must not be used here — doing so
+    // made every lookup 404.
+    const session = await prisma.mvpSession.findUnique({
       where: { id: sessionId },
-      include: {
-        owner: true,
-        sessionPlayers: {
-          where: { userId }
+      select: {
+        ownerUserId: true,
+        players: {
+          where: { userId },
+          select: { role: true }
         }
       }
     });
@@ -624,15 +667,17 @@ router.post('/update-skills/:sessionId', requireRole(['OWNER', 'ORGANIZER']), as
       });
     }
 
-    const isOwner = session.ownerId === userId;
-    const isPlayer = session.sessionPlayers.length > 0;
+    // Only the session organizer (or the session owner) may modify pairings.
+    const isOwner = session.ownerUserId === userId;
+    const myPlayer = session.players[0];
+    const isOrganizer = myPlayer?.role === 'ORGANIZER';
 
-    if (!isOwner && !isPlayer) {
+    if (!isOwner && !isOrganizer) {
       return res.status(403).json({
         success: false,
         error: {
           code: 'FORBIDDEN',
-          message: 'Access denied to this session'
+          message: 'Only the session organizer can modify pairings'
         },
         timestamp: new Date().toISOString()
       });

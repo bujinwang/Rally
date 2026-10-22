@@ -43,16 +43,34 @@ const makeApp = () => {
   return app;
 };
 
-// Helper: mock session lookup with owner access
+// Helpers: mock the MvpSession lookup. Pairings are keyed to `MvpSession`
+// (the model the app creates and PairingService reads), NOT the legacy
+// `Session` table, which is empty in every environment.
 function mockSessionOwned(sessionId = 's1') {
-  (prisma.session.findUnique as jest.Mock).mockResolvedValue({
-    id: sessionId, ownerId: 'u1', owner: { id: 'u1' },
-    sessionPlayers: [{ userId: 'u1' }],
+  (prisma.mvpSession.findUnique as jest.Mock).mockResolvedValue({
+    ownerUserId: 'u1',
+    players: [{ role: 'ORGANIZER' }],
+  });
+}
+
+/** Session the caller belongs to, but only as a plain PLAYER. */
+function mockSessionAsPlainPlayer(sessionId = 's1') {
+  (prisma.mvpSession.findUnique as jest.Mock).mockResolvedValue({
+    ownerUserId: 'someone-else',
+    players: [{ role: 'PLAYER' }],
+  });
+}
+
+/** Session the caller is not part of at all. */
+function mockSessionAsOutsider(sessionId = 's1') {
+  (prisma.mvpSession.findUnique as jest.Mock).mockResolvedValue({
+    ownerUserId: 'someone-else',
+    players: [],
   });
 }
 
 function mockSessionNotFound() {
-  (prisma.session.findUnique as jest.Mock).mockResolvedValue(null);
+  (prisma.mvpSession.findUnique as jest.Mock).mockResolvedValue(null);
 }
 
 describe('Pairings Routes', () => {
@@ -76,6 +94,23 @@ describe('Pairings Routes', () => {
       mockSessionNotFound();
       await request(makeApp()).post('/pairings/sessions/bad/pairings').send({}).expect(404);
     });
+
+    it('returns 403 for a plain PLAYER (organizer-only mutation)', async () => {
+      mockSessionAsPlainPlayer();
+      const res = await request(makeApp())
+        .post('/pairings/sessions/s1/pairings')
+        .send({ algorithm: 'fair' })
+        .expect(403);
+      expect(res.body.error.message).toMatch(/organizer/i);
+    });
+
+    it('returns 403 for a non-participant', async () => {
+      mockSessionAsOutsider();
+      await request(makeApp())
+        .post('/pairings/sessions/s1/pairings')
+        .send({ algorithm: 'fair' })
+        .expect(403);
+    });
   });
 
   describe('GET /sessions/:sessionId/pairings', () => {
@@ -90,10 +125,17 @@ describe('Pairings Routes', () => {
     });
 
     it('returns 403 for non-participant', async () => {
-      (prisma.session.findUnique as jest.Mock).mockResolvedValue({
-        id: 's1', ownerId: 'other', sessionPlayers: [],
-      });
+      mockSessionAsOutsider();
       await request(makeApp()).get('/pairings/sessions/s1/pairings').expect(403);
+    });
+
+    it('allows a plain PLAYER to read pairings', async () => {
+      mockSessionAsPlainPlayer();
+      (prisma.mvpSessionConfiguration.findUnique as jest.Mock).mockResolvedValue({
+        customRules: { pairings: { pairings: [{ id: 'p1' }], fairnessScore: 90 } },
+      });
+
+      await request(makeApp()).get('/pairings/sessions/s1/pairings').expect(200);
     });
   });
 
@@ -124,6 +166,11 @@ describe('Pairings Routes', () => {
 
       const res = await request(makeApp()).delete('/pairings/sessions/s1/pairings').expect(200);
       expect(res.body.success).toBe(true);
+    });
+
+    it('returns 403 for a plain PLAYER', async () => {
+      mockSessionAsPlainPlayer();
+      await request(makeApp()).delete('/pairings/sessions/s1/pairings').expect(403);
     });
   });
 
