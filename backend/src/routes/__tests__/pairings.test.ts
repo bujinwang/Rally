@@ -137,6 +137,32 @@ describe('Pairings Routes', () => {
 
       await request(makeApp()).get('/pairings/sessions/s1/pairings').expect(200);
     });
+
+    // Regression: the read path used to auto-generate when nothing was stored,
+    // so a session with <4 active players (i.e. every new session) returned a
+    // 500 on GET. A read must return the empty state instead.
+    it('returns an empty result (200, not 500) when no pairings exist yet', async () => {
+      mockSessionOwned();
+      (prisma.mvpSessionConfiguration.findUnique as jest.Mock).mockResolvedValue(null);
+
+      const res = await request(makeApp())
+        .get('/pairings/sessions/s1/pairings')
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.pairings).toEqual([]);
+      expect(res.body.data.fairnessScore).toBe(0);
+    });
+
+    it('does not attempt to generate pairings on a read', async () => {
+      const { PairingService } = require('../../services/pairingService');
+      mockSessionOwned();
+      (prisma.mvpSessionConfiguration.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await request(makeApp()).get('/pairings/sessions/s1/pairings').expect(200);
+
+      expect(PairingService.generatePairings).not.toHaveBeenCalled();
+    });
   });
 
   describe('PUT /sessions/:sessionId/pairings/:pairingId', () => {

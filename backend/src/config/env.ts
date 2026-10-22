@@ -15,8 +15,30 @@ const isTest = NODE_ENV === 'test';
 const MIN_SECRET_LENGTH = 32;
 
 /**
+ * Values that must never be accepted as a production secret, even when they
+ * happen to be long enough to clear `MIN_SECRET_LENGTH`.
+ *
+ * Length alone is a weak test: the placeholder that shipped in `backend/.env`
+ * (`your-…`, 34 chars) is long enough to pass and has been publicly committed.
+ * Any secret that ever appeared in the repo is burned — it must be replaced,
+ * not merely lengthened.
+ */
+const KNOWN_PLACEHOLDER_PATTERNS = [
+  /^your[-_]/i, // `your-super-secret-…` from .env.example
+  /^change[-_ ]?me/i,
+  /^replace[-_ ]?me/i,
+  /secret.*(change|example|placeholder)/i,
+  /^(secret|password|test|dev|example)[-_]?/i,
+];
+
+function isKnownPlaceholder(value: string): boolean {
+  return KNOWN_PLACEHOLDER_PATTERNS.some((re) => re.test(value));
+}
+
+/**
  * Resolve a required secret.
- * - Present: returned as-is (must be >= 32 chars in production).
+ * - Present: returned as-is (must be >= 32 chars and not a known placeholder in
+ *   production).
  * - Missing in production: throws so the process fails fast at startup.
  * - Missing in dev/test: returns a per-process random secret and logs a loud
  *   warning. Tokens issued with it do not survive a restart; developers who
@@ -26,10 +48,19 @@ function resolveSecret(name: string, purpose: string): string {
   const value = process.env[name];
 
   if (value && value.length > 0) {
-    if (isProduction && value.length < MIN_SECRET_LENGTH) {
-      throw new Error(
-        `[env] ${name} must be at least ${MIN_SECRET_LENGTH} characters in production (got ${value.length}).`
-      );
+    if (isProduction) {
+      if (value.length < MIN_SECRET_LENGTH) {
+        throw new Error(
+          `[env] ${name} must be at least ${MIN_SECRET_LENGTH} characters in production (got ${value.length}). ` +
+            `Generate one with: openssl rand -hex 32`
+        );
+      }
+      if (isKnownPlaceholder(value)) {
+        throw new Error(
+          `[env] ${name} looks like a placeholder/example value and must not be used in production. ` +
+            `Generate a real secret with: openssl rand -hex 32`
+        );
+      }
     }
     return value;
   }

@@ -184,20 +184,19 @@ router.get('/sessions/:sessionId/pairings', async (req: AuthRequest, res) => {
       });
     }
 
-    // Retrieve stored pairings, fall back to generating fresh if none exist
+    // Retrieve stored pairings.
+    //
+    // This is a READ. It must not 500 just because the session has too few
+    // players to pair yet — every session starts out that way, and the client
+    // treats an empty result as "no pairings yet, that's ok". Generation is a
+    // POST action; here we return an empty result rather than attempting one.
     const config = await prisma.mvpSessionConfiguration.findUnique({ where: { sessionId } });
     const stored = config?.customRules as any;
-    let pairingResult = stored?.pairings;
-
-    if (!pairingResult) {
-      pairingResult = await PairingService.generatePairings(sessionId, 'fair');
-      // Persist the fallback result
-      await prisma.mvpSessionConfiguration.upsert({
-        where: { sessionId },
-        create: { sessionId, customRules: { pairings: pairingResult, generatedAt: new Date().toISOString() } as any },
-        update: { customRules: { pairings: pairingResult, generatedAt: new Date().toISOString() } as any },
-      });
-    }
+    const pairingResult = stored?.pairings ?? {
+      pairings: [],
+      fairnessScore: 0,
+      generatedAt: null,
+    };
 
     res.json({
       success: true,
