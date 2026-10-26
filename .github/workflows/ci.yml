@@ -91,7 +91,7 @@ jobs:
       run: cd backend && npm run build
 
     - name: Upload backend build artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: backend-build-${{ matrix.node-version }}
         path: backend/dist/
@@ -125,7 +125,7 @@ jobs:
       run: cd frontend/Rally && npm run build:web
 
     - name: Upload frontend build artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: frontend-web-build
         path: frontend/Rally/dist/web/
