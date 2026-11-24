@@ -640,7 +640,7 @@ export class OfflineQueue {
     const toRemove = keys.filter((key) => !keep.has(key));
     if (toRemove.length > 0) {
       try {
-        await AsyncStorage.multiRemove(toRemove);
+        await Promise.all(toRemove.map((key) => AsyncStorage.removeItem(key)));
       } catch {
         /* ignore */
       }
@@ -1276,7 +1276,7 @@ export class OfflineQueue {
           key.startsWith(PER_OP_QUARANTINE_PREFIX) ||
           key.startsWith(ARCHIVE_PREFIX),
       );
-      if (owned.length > 0) await AsyncStorage.multiRemove(owned);
+      if (owned.length > 0) await Promise.all(owned.map((key) => AsyncStorage.removeItem(key)));
     } catch {
       /* ignore */
     }

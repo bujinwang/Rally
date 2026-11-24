@@ -26,7 +26,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 }) => {
   const [text, setText] = useState('');
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   /**
    * Handle text changes with typing indicator debounce

@@ -14,7 +14,7 @@
 
 // AsyncStorage — official in-package mock (backed by an in-memory store).
 jest.mock('@react-native-async-storage/async-storage', () =>
-  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+  require('@react-native-async-storage/async-storage/jest'),
 );
 
 // NetInfo — official in-package mock.

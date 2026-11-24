@@ -241,7 +241,7 @@ export default function AddFriendScreen() {
       {/* Content */}
       <FlatList
         data={[]}
-        renderItem={null}
+        renderItem={() => null}
         ListHeaderComponent={
           <>
             {renderSearchSection()}

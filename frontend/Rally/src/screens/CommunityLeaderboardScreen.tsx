@@ -172,7 +172,7 @@ export default function CommunityLeaderboardScreen() {
             <View style={styles.footer}>
               <ActivityIndicator size="small" color="#007AFF" />
             </View>
-          ) : null
+          ) : undefined
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
