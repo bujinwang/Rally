@@ -34,6 +34,12 @@ const initialState: AuthState = {
 };
 
 // Async thunks
+// A 200 with a missing/!partial payload used to be treated as a successful
+// login (isAuthenticated flipped true with `tokens: null`), which left the UI
+// looking signed-in but every authenticated call failing. Fail loudly instead.
+const hasSessionTokens = (payload: any): boolean =>
+  Boolean(payload?.tokens?.accessToken ?? payload?.data?.tokens?.accessToken);
+
 export const loginUser = createAsyncThunk(
   'auth/login',
    async (credentials: { email: string; password: string; deviceId?: string }, { rejectWithValue }) => {
@@ -42,6 +48,10 @@ export const loginUser = createAsyncThunk(
 
       if (!response.success) {
         return rejectWithValue(response.error?.message || 'Login failed');
+      }
+
+      if (!hasSessionTokens(response.data)) {
+        return rejectWithValue('Login failed: the server did not return a session token');
       }
 
       return response.data;
@@ -53,12 +63,16 @@ export const loginUser = createAsyncThunk(
 
 export const registerUser = createAsyncThunk(
   'auth/register',
-   async (userData: { name: string; email: string; password: string; phone?: string }, { rejectWithValue }) => {
+  async (userData: { name: string; email: string; password: string; phone?: string }, { rejectWithValue }) => {
     try {
       const response = await apiService.register(userData);
 
       if (!response.success) {
         return rejectWithValue(response.error?.message || 'Registration failed');
+      }
+
+      if (!hasSessionTokens(response.data)) {
+        return rejectWithValue('Registration failed: the server did not return a session token');
       }
 
       return response.data;

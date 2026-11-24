@@ -152,6 +152,14 @@ class SocketService {
       return;
     }
 
+    // Screens call connect() from `useFocusEffect`, so navigating back and
+    // forth used to stack a second manager (and its polling timers) on top of
+    // a still-connecting one. Reuse the in-flight socket instead.
+    if (this.socket) {
+      console.log('🔌 Socket already initialising — reusing existing connection');
+      return;
+    }
+
     console.log('🔌 Connecting to Socket.IO server...');
 
     const serverUrl = API_BASE_URL.replace('/api/v1', ''); // Remove API path for socket connection
@@ -214,11 +222,30 @@ class SocketService {
       console.warn('⚠️ Socket connection error (will retry):', error.message);
       this.reconnectAttempts++;
 
+      // A rejected handshake token will never become valid by retrying, so
+      // stop the reconnect loop, drop the dead manager, and let the next
+      // connect() build a fresh socket with a freshly-read token. Without the
+      // teardown the `this.socket` reuse guard above would strand the client
+      // on a permanently-failed socket.
+      const isAuthError = /authentication error|invalid or expired token/i.test(error.message || '');
+      if (isAuthError) {
+        console.error('🔒 Socket handshake rejected — auth token is stale');
+        this.socket?.disconnect();
+        this.socket = null;
+        this.reconnectAttempts = 0;
+        this.startPollingFallback();
+        this.emitToListeners('error', error);
+        return;
+      }
+
       // Don't spam the listeners with every connection error
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
         console.error('💥 Max socket reconnection attempts reached');
         // Graceful degradation: fall back to polling instead of going dark
         // (Story 6.4, AC 16).
+        this.socket?.disconnect();
+        this.socket = null;
+        this.reconnectAttempts = 0;
         this.startPollingFallback();
         this.emitToListeners('error', error);
       }
