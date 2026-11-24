@@ -40,10 +40,17 @@ function verifyToken(token: string): { id: string; email: string | null; role: s
       clockTolerance: 10,
     }) as any;
 
-    if (!payload.id) return null;
+    // `JWTUtils.generateTokens` signs the access token as `{ userId, email,
+    // role }`, so `userId` is the claim every real token carries. Reading only
+    // `id` here rejected EVERY authenticated socket while letting the unit
+    // tests pass (they signed `{ id }`), which is exactly the mismatch that
+    // produced "invalid or expired token" on a perfectly fresh login.
+    // `id` is still accepted so tokens minted by older builds keep working.
+    const id = payload.userId ?? payload.id;
+    if (!id) return null;
 
     return {
-      id: payload.id,
+      id,
       email: payload.email ?? null,
       role: payload.role ?? 'USER',
     };

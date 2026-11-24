@@ -7,6 +7,7 @@
 import jwt from 'jsonwebtoken';
 import { socketAuthMiddleware, AuthenticatedSocket } from '../auth';
 import { env } from '../../config/env';
+import { JWTUtils } from '../../utils/jwt';
 
 /** Minimal fake socket capturing joins + data. */
 function makeSocket(auth: Record<string, unknown> = {}) {
@@ -43,7 +44,9 @@ function signToken(payload: Record<string, unknown>, opts: jwt.SignOptions = {})
 
 describe('socketAuthMiddleware (Story 6.4, AC 2)', () => {
   it('accepts a valid access token and attaches the verified identity', async () => {
-    const token = signToken({ id: 'user-123', email: 'a@b.com', role: 'USER' });
+    // `JWTUtils.generateTokens` signs `{ userId, email, role }` — this is the
+    // real shape of every access token the app issues.
+    const token = signToken({ userId: 'user-123', email: 'a@b.com', role: 'USER' });
     const socket = makeSocket({ token: `Bearer ${token}` });
 
     const err = await run(socket);
@@ -53,8 +56,30 @@ describe('socketAuthMiddleware (Story 6.4, AC 2)', () => {
     expect(socket.data.user).toEqual({ id: 'user-123', email: 'a@b.com', role: 'USER' });
   });
 
+  it('accepts a genuine JWTUtils-generated access token', async () => {
+    // Regression guard: the handshake used to read only `id`, so a real token
+    // (which carries `userId`) was rejected as "invalid or expired".
+    const { accessToken } = JWTUtils.generateTokens({
+      userId: 'user-real',
+      email: 'real@example.com',
+      role: 'USER',
+    });
+    const socket = makeSocket({ token: `Bearer ${accessToken}` });
+
+    expect(await run(socket)).toBeNull();
+    expect(socket.data.user?.id).toBe('user-real');
+  });
+
+  it('still accepts a legacy token that carries only `id`', async () => {
+    const token = signToken({ id: 'user-legacy', role: 'USER' });
+    const socket = makeSocket({ token: `Bearer ${token}` });
+
+    expect(await run(socket)).toBeNull();
+    expect(socket.data.user?.id).toBe('user-legacy');
+  });
+
   it('accepts a raw token without the Bearer prefix', async () => {
-    const token = signToken({ id: 'user-456', role: 'USER' });
+    const token = signToken({ userId: 'user-456', role: 'USER' });
     const socket = makeSocket({ token });
 
     expect(await run(socket)).toBeNull();
@@ -100,7 +125,6 @@ describe('socketAuthMiddleware (Story 6.4, AC 2)', () => {
 
     expect(await run(socket)).toBeInstanceOf(Error);
   });
-
   it('accepts a guest connection with no token (AC 2 — guests supported)', async () => {
     const socket = makeSocket({ deviceId: 'device-abc' });
 

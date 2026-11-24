@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { messagingApi, MessageThread } from '../services/messagingApi';
+import { messagingApi, MessagingApiError, MessageThread } from '../services/messagingApi';
 import { ConversationCard } from '../components/ConversationCard';
 import { useTranslation } from '../i18n/LanguageContext';
 
@@ -24,34 +24,48 @@ export default function ConversationListScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // Set when the session is genuinely dead (401 after the refresh attempt).
+  const [needsSignIn, setNeedsSignIn] = useState(false);
+  // Guards the alert so a repeated failure on every screen focus doesn't stack
+  // up modals. A ref, not `threads`, because `threads` would be captured stale.
+  const hasAlertedRef = useRef(false);
 
-  // Load threads on mount and when screen is focused
-  useFocusEffect(
-    useCallback(() => {
-      loadThreads();
-    }, [])
-  );
-
-  // Filter threads when search query changes
-  useEffect(() => {
-    filterThreads();
-  }, [searchQuery, threads]);
-
-  const loadThreads = async () => {
+  const loadThreads = useCallback(async () => {
     try {
       const data = await messagingApi.getUserThreads();
       setThreads(data);
+      setNeedsSignIn(false);
+      hasAlertedRef.current = false;
     } catch (error: any) {
       console.error('Error loading threads:', error);
-      // Only show alert on initial load failure
-      if (threads.length === 0) {
+
+      // `messagingApi` goes through `authFetch`, which already refreshed and
+      // retried once — a 401 here means the stored session is unusable.
+      if (error instanceof MessagingApiError && error.status === 401) {
+        setNeedsSignIn(true);
+      }
+
+      if (!hasAlertedRef.current) {
+        hasAlertedRef.current = true;
         Alert.alert(t.common.error, 'Failed to load conversations');
       }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [t]);
+
+  // Load threads on mount and when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      loadThreads();
+    }, [loadThreads])
+  );
+
+  // Filter threads when search query changes
+  useEffect(() => {
+    filterThreads();
+  }, [searchQuery, threads]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -134,20 +148,40 @@ export default function ConversationListScreen() {
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="chatbubbles-outline" size={64} color="#ccc" />
+      <Ionicons
+        name={needsSignIn ? 'lock-closed-outline' : 'chatbubbles-outline'}
+        size={64}
+        color="#ccc"
+      />
       <Text style={styles.emptyTitle}>
-        {searchQuery ? t.common.noResults : t.messages.noMessages}
+        {needsSignIn
+          ? 'Sign in to see your conversations'
+          : searchQuery
+          ? t.common.noResults
+          : t.messages.noMessages}
       </Text>
       <Text style={styles.emptySubtext}>
-        {searchQuery
+        {needsSignIn
+          ? 'Your session has expired. Sign in again to load your messages.'
+          : searchQuery
           ? 'Try a different search term'
           : 'Start a conversation with your badminton friends!'}
       </Text>
-      {!searchQuery && (
-        <TouchableOpacity style={styles.newChatButton} onPress={navigateToNewChat}>
-          <Ionicons name="create-outline" size={18} color="#fff" />
-          <Text style={styles.newChatButtonText}>{t.messages.newMessage}</Text>
+      {needsSignIn ? (
+        <TouchableOpacity
+          style={styles.newChatButton}
+          onPress={() => navigation.navigate('Login')}
+        >
+          <Ionicons name="log-in-outline" size={18} color="#fff" />
+          <Text style={styles.newChatButtonText}>{t.auth.login}</Text>
         </TouchableOpacity>
+      ) : (
+        !searchQuery && (
+          <TouchableOpacity style={styles.newChatButton} onPress={navigateToNewChat}>
+            <Ionicons name="create-outline" size={18} color="#fff" />
+            <Text style={styles.newChatButtonText}>{t.messages.newMessage}</Text>
+          </TouchableOpacity>
+        )
       )}
     </View>
   );

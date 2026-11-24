@@ -25,36 +25,56 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
-  const dispatch = useDispatch();
+  const [localError, setLocalError] = useState<string | null>(null);
+  // Untyped dispatch: the thunks are consumed with `.unwrap()` so the result
+  // type can be read without threading `AppDispatch` through every screen.
+  const dispatch = useDispatch<any>();
   const { isLoading, error } = useSelector((state: any) => state.auth);
+
+  // Same as LoginScreen: `Login`/`Register` are pushed on top of `Main`, so we
+  // have to pop ourselves once the account is created and the tokens are set.
+  const finishAuth = () => {
+    if (navigation.canGoBack?.()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate('Main');
+    }
+  };
 
   const handleRegister = async () => {
     if (!name || !email || !password) {
-      Alert.alert(t.common.error, 'Please fill in all required fields');
+      setLocalError('Please fill in all required fields');
       return;
     }
 
+    setLocalError(null);
+    dispatch(clearError());
+
     try {
-      await dispatch(registerUser({
+      const result: any = await dispatch(registerUser({
         name: name.trim(),
         email: email.trim(),
         password,
         phone: phone.trim() || undefined,
-      }) as any);
+      })).unwrap();
 
-      console.log('Registration attempt completed');
-    } catch (error) {
-      console.error('Registration error:', error);
+      console.log('Registration succeeded', result?.user?.email ?? '');
+      finishAuth();
+    } catch (err: any) {
+      // The slice already holds the message; the inline block below renders it.
+      console.error('Registration failed:', err);
     }
   };
 
-  // Show error alert when error state changes
+  // `Alert.alert` is a no-op on react-native-web, so failures were invisible in
+  // the browser. Keep the native dialog and render the message inline as well.
   React.useEffect(() => {
-    if (error) {
+    if (error && Platform.OS !== 'web') {
       Alert.alert(t.common.error, error);
-      dispatch(clearError());
     }
-  }, [error, dispatch]);
+  }, [error, t.common.error]);
+
+  const visibleError = localError || error;
 
   return (
     <KeyboardAvoidingView
@@ -103,6 +123,10 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
             keyboardType="phone-pad"
           />
 
+          {visibleError ? (
+            <Text style={styles.errorText}>{visibleError}</Text>
+          ) : null}
+
           <TouchableOpacity
             style={[styles.button, isLoading && styles.buttonDisabled]}
             onPress={handleRegister}
@@ -123,6 +147,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                 user: data.user,
                 tokens: data.tokens,
               }));
+              finishAuth();
             }}
             onLoginError={(error) => {
               console.error('Social login error:', error);
@@ -179,6 +204,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     fontSize: 16,
     backgroundColor: '#f9f9f9',
+  },
+  errorText: {
+    color: '#D93025',
+    fontSize: 14,
+    marginBottom: 12,
+    textAlign: 'center',
   },
   button: {
     backgroundColor: '#007AFF',

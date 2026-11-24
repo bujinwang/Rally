@@ -24,37 +24,60 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const dispatch = useDispatch();
+  const [localError, setLocalError] = useState<string | null>(null);
+  // Untyped dispatch: the thunks are consumed with `.unwrap()` so the result
+  // type can be read without threading `AppDispatch` through every screen.
+  const dispatch = useDispatch<any>();
   const { isLoading, error } = useSelector((state: any) => state.auth);
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert(t.common.error, 'Please fill in all fields');
-      return;
-    }
-
-    try {
-      const deviceId = await DeviceService.getDeviceId();
-      await dispatch(loginUser({
-        email: email.trim(),
-        password,
-        deviceId,
-      }) as any);
-
-      // Navigation will be handled by the auth state change
-      console.log('Login attempt completed');
-    } catch (error) {
-      console.error('Login error:', error);
+  // There is no auth gate in this app: `Main` is always mounted and `Login` is
+  // pushed on top of it (see AppNavigator). So nothing pops this screen unless
+  // we do it ourselves after a successful sign-in.
+  const finishAuth = () => {
+    if (navigation.canGoBack?.()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate('Main');
     }
   };
 
-  // Show error alert when error state changes
-  React.useEffect(() => {
-    if (error) {
-      Alert.alert('Login Failed', error);
-      dispatch(clearError());
+  const handleLogin = async () => {
+    if (!email || !password) {
+      setLocalError('Please fill in all fields');
+      return;
     }
-  }, [error, dispatch]);
+
+    setLocalError(null);
+    dispatch(clearError());
+
+    try {
+      const deviceId = await DeviceService.getDeviceId();
+      // `unwrap()` rethrows a rejected thunk, so we only fall through to the
+      // navigation on a genuinely fulfilled login.
+      const result: any = await dispatch(loginUser({
+        email: email.trim(),
+        password,
+        deviceId,
+      })).unwrap();
+
+      console.log('Login succeeded', result?.user?.email ?? '');
+      finishAuth();
+    } catch (err: any) {
+      // The slice already holds the message; the inline block below renders it.
+      console.error('Login failed:', err);
+    }
+  };
+
+  // `Alert.alert` is a no-op on react-native-web, which made every failure look
+  // like a silent no-op in the browser. Keep the native dialog, but rely on the
+  // inline error text below for web.
+  React.useEffect(() => {
+    if (error && Platform.OS !== 'web') {
+      Alert.alert('Login Failed', error);
+    }
+  }, [error]);
+
+  const visibleError = localError || error;
 
   return (
     <KeyboardAvoidingView
@@ -91,6 +114,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             autoCapitalize="none"
           />
 
+          {visibleError ? (
+            <Text style={styles.errorText}>{visibleError}</Text>
+          ) : null}
+
           <TouchableOpacity
             style={[styles.button, isLoading && styles.buttonDisabled]}
             onPress={handleLogin}
@@ -111,6 +138,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 user: data.user,
                 tokens: data.tokens,
               }));
+              finishAuth();
             }}
             onLoginError={(error) => {
               console.error('Social login error:', error);
@@ -166,6 +194,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     fontSize: 16,
     backgroundColor: '#f9f9f9',
+  },
+  errorText: {
+    color: '#D93025',
+    fontSize: 14,
+    marginBottom: 12,
+    textAlign: 'center',
   },
   button: {
     backgroundColor: '#007AFF',
