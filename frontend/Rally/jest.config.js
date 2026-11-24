@@ -1,6 +1,11 @@
 module.exports = {
-  preset: 'react-native',
+  preset: '@react-native/jest-preset',
   setupFiles: ['<rootDir>/jest.setup.js'],
+  // Expo 58 ships ESM-only modules (expo/virtual/env.js, expo-constants, ...).
+  // Jest must transform them instead of require()-ing them as CommonJS.
+  transformIgnorePatterns: [
+    '/node_modules/(?!(react-native.*|@react-native.*|expo.*|@expo.*|@react-navigation.*|@testing-library.*|immer)/)',
+  ],
   // `/node_modules/` is jest's default — kept here because specifying this
   // option replaces the default rather than appending to it.
   //

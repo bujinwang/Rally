@@ -274,7 +274,7 @@ export function useNotificationManager({
   const handleAppStateChange = (nextAppState: AppStateStatus) => {
     console.log('App state changed:', appState.current, '→', nextAppState);
     
-    if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+    if (appState.current?.match(/inactive|background/) && nextAppState === 'active') {
       // App came to foreground
       console.log('📱 App came to foreground');
       

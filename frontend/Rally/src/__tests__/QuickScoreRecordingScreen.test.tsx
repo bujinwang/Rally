@@ -33,13 +33,13 @@ jest.mock('react-native/Libraries/Alert/Alert', () => ({
   alert: jest.fn(),
 }));
 
-describe('QuickScoreRecordingScreen', () => {
+describe('QuickScoreRecordingScreen', async () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('renders correctly with player information', () => {
-    const { getByText } = render(<QuickScoreRecordingScreen />);
+  it('renders correctly with player information', async () => {
+    const { getByText } = await render(<QuickScoreRecordingScreen />);
 
     expect(getByText('Quick Score')).toBeTruthy();
     expect(getByText('Player 1-123 vs Player 2-123')).toBeTruthy();
@@ -47,8 +47,8 @@ describe('QuickScoreRecordingScreen', () => {
     expect(getByText('Score type?')).toBeTruthy();
   });
 
-  it('allows selecting a winner', () => {
-    const { getByText } = render(<QuickScoreRecordingScreen />);
+  it('allows selecting a winner', async () => {
+    const { getByText } = await render(<QuickScoreRecordingScreen />);
 
     const player1Button = getByText('Player 1-123');
     fireEvent.press(player1Button);
@@ -57,8 +57,8 @@ describe('QuickScoreRecordingScreen', () => {
     expect(player1Button).toBeTruthy();
   });
 
-  it('allows selecting score type', () => {
-    const { getByText } = render(<QuickScoreRecordingScreen />);
+  it('allows selecting score type', async () => {
+    const { getByText } = await render(<QuickScoreRecordingScreen />);
 
     const scoreButton = getByText('2-0');
     fireEvent.press(scoreButton);
@@ -66,8 +66,8 @@ describe('QuickScoreRecordingScreen', () => {
     expect(scoreButton).toBeTruthy();
   });
 
-  it('shows validation error when trying to record without selections', () => {
-    const { getByText } = render(<QuickScoreRecordingScreen />);
+  it('shows validation error when trying to record without selections', async () => {
+    const { getByText } = await render(<QuickScoreRecordingScreen />);
 
     const recordButton = getByText('Record Match');
     fireEvent.press(recordButton);
@@ -90,7 +90,7 @@ describe('QuickScoreRecordingScreen', () => {
       }
     });
 
-    const { getByText } = render(<QuickScoreRecordingScreen />);
+    const { getByText } = await render(<QuickScoreRecordingScreen />);
 
     // Select winner
     const player1Button = getByText('Player 1-123');
@@ -136,7 +136,7 @@ describe('QuickScoreRecordingScreen', () => {
       }
     });
 
-    const { getByText } = render(<QuickScoreRecordingScreen />);
+    const { getByText } = await render(<QuickScoreRecordingScreen />);
 
     // Select winner and score type
     fireEvent.press(getByText('Player 2-123'));
@@ -160,7 +160,7 @@ describe('QuickScoreRecordingScreen', () => {
       new Error('Network error')
     );
 
-    const { getByText } = render(<QuickScoreRecordingScreen />);
+    const { getByText } = await render(<QuickScoreRecordingScreen />);
 
     // Select winner and score type
     fireEvent.press(getByText('Player 1-123'));
@@ -177,8 +177,8 @@ describe('QuickScoreRecordingScreen', () => {
     });
   });
 
-  it('navigates back when back button is pressed', () => {
-    const { getByTestId } = render(<QuickScoreRecordingScreen />);
+  it('navigates back when back button is pressed', async () => {
+    const { getByTestId } = await render(<QuickScoreRecordingScreen />);
 
     // Note: In a real implementation, you'd add testID to the back button
     // For now, we'll assume the back button functionality works as expected
@@ -198,7 +198,7 @@ describe('QuickScoreRecordingScreen', () => {
       }), 100))
     );
 
-    const { getByText } = render(<QuickScoreRecordingScreen />);
+    const { getByText } = await render(<QuickScoreRecordingScreen />);
 
     // Select winner and score type
     fireEvent.press(getByText('Player 1-123'));
@@ -236,7 +236,7 @@ describe('QuickScoreRecordingScreen', () => {
       }
     });
 
-    const { getByText } = render(<QuickScoreRecordingScreen />);
+    const { getByText } = await render(<QuickScoreRecordingScreen />);
 
     // Complete a match recording
     fireEvent.press(getByText('Player 1-123'));

@@ -256,7 +256,7 @@ export default function ChatScreen() {
             <View style={styles.loadingMore}>
               <ActivityIndicator size="small" color="#007AFF" />
             </View>
-          ) : null
+          ) : undefined
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>

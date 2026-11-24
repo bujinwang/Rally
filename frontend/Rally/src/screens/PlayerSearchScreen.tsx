@@ -215,7 +215,7 @@ export default function PlayerSearchScreen() {
                 <ActivityIndicator size="small" color="#007AFF" />
                 <Text style={styles.searchingText}>Searching...</Text>
               </View>
-            ) : null
+            ) : undefined
           }
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled"

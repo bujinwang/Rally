@@ -290,7 +290,7 @@ export class StorageService {
     try {
       const keys = await AsyncStorage.getAllKeys();
       const appKeys = keys.filter(key => key.startsWith('offline_') || key === this.KEYS.DEVICE_ID || key === this.KEYS.CACHED_SESSIONS);
-      await AsyncStorage.multiRemove(appKeys);
+      await Promise.all(appKeys.map((key) => AsyncStorage.removeItem(key)));
     } catch (error) {
       console.error('Error clearing all data:', error);
       throw error;
