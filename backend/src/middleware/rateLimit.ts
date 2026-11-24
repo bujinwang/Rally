@@ -205,6 +205,35 @@ export const resolveCeilingOverride = (
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 };
 
+/**
+ * Resolve a limiter ceiling that is generous on a developer's machine and
+ * pinned everywhere else.
+ *
+ * Three environments, three behaviours:
+ *   - `production` → `productionValue`, always. Any env var is ignored, so a
+ *     convenience value left in the git-tracked `.env` can never weaken a
+ *     deployed instance.
+ *   - `test`       → `productionValue`. The suites assert the real ceilings
+ *     (see `authRateLimit.test.ts`); a relaxed limiter under Jest would hide
+ *     exactly the 429 regressions those tests exist to catch.
+ *   - anything else (local `development`) → env override if present, else
+ *     `devDefault`. A manual test pass issues far more than 100 requests from
+ *     one localhost IP, and hitting 429s there looks like a bug in the app.
+ *
+ * @param name            env var holding the dev ceiling
+ * @param productionValue the ceiling used in production and under test
+ * @param devDefault      ceiling used locally when the env var is unset
+ */
+export const resolveCeiling = (
+  name: string,
+  productionValue: number,
+  devDefault: number = productionValue,
+  nodeEnv: string | undefined = process.env.NODE_ENV
+): number => {
+  if (nodeEnv === 'production' || nodeEnv === 'test') return productionValue;
+  return resolveCeilingOverride(name, nodeEnv) ?? devDefault;
+};
+
 // Default key generator
 function generateDefaultKey(req: AuthRequest): string {
   const { user } = req;
@@ -231,7 +260,9 @@ export const createRateLimiters = (overrides?: {
     // real users out after 5 sign-ins within 15 minutes.
     auth: rateLimit({
       windowMs: 15 * 60 * 1000, // 15 minutes
-      maxRequests: overrides?.authMax ?? 5, // 5 failed attempts per 15 minutes
+      maxRequests:
+        overrides?.authMax ??
+        resolveCeiling('AUTH_RATE_LIMIT_MAX', 5, 10000),
       skipSuccessfulRequests: true,
       message: 'Too many authentication attempts, please try again later.',
       keyGenerator: (req) => `auth:${extractClientIp(req)}`
@@ -242,7 +273,9 @@ export const createRateLimiters = (overrides?: {
     // could exhaust the login budget and produce spurious 429s.
     refresh: rateLimit({
       windowMs: 15 * 60 * 1000, // 15 minutes
-      maxRequests: overrides?.refreshMax ?? 60,
+      maxRequests:
+        overrides?.refreshMax ??
+        resolveCeiling('REFRESH_RATE_LIMIT_MAX', 60, 10000),
       skipSuccessfulRequests: true,
       message: 'Too many token refresh attempts, please try again later.',
       keyGenerator: (req) => `auth-refresh:${extractClientIp(req)}`
@@ -259,29 +292,36 @@ export const createRateLimiters = (overrides?: {
     // 15 minutes bounds minting while allowing a full session's guests.
     enroll: rateLimit({
       windowMs: 15 * 60 * 1000, // 15 minutes
-      maxRequests: overrides?.enrollMax ?? 60,
+      maxRequests:
+        overrides?.enrollMax ??
+        resolveCeiling('ENROLL_RATE_LIMIT_MAX', 60, 10000),
       message: 'Too many device enrollments, please try again later.',
       keyGenerator: (req) => `device-enroll:${extractClientIp(req)}`
     }),
 
-    // Moderate rate limiting for API endpoints
+    // Moderate rate limiting for API endpoints.
+    // Production: 100 / 15 min. Development: effectively unlimited, because a
+    // test pass issues far more than 100 calls from one localhost IP and the
+    // limiter is no longer the thing under test.
     api: rateLimit({
       windowMs: 15 * 60 * 1000, // 15 minutes
-      maxRequests: 100, // 100 requests per 15 minutes
+      maxRequests: resolveCeiling('API_RATE_LIMIT_MAX', 100, 100000),
       message: 'API rate limit exceeded, please try again later.'
     }),
 
     // Lenient rate limiting for public endpoints
     public: rateLimit({
       windowMs: 60 * 1000, // 1 minute
-      maxRequests: 60, // 60 requests per minute
+      maxRequests: resolveCeiling('PUBLIC_RATE_LIMIT_MAX', 60, 100000),
       message: 'Too many requests, please try again later.'
     }),
 
     // Strict rate limiting for sensitive operations
     sensitive: rateLimit({
       windowMs: 60 * 1000, // 1 minute
-      maxRequests: overrides?.sensitiveMax ?? 10, // 10 requests per minute
+      maxRequests:
+        overrides?.sensitiveMax ??
+        resolveCeiling('SENSITIVE_RATE_LIMIT_MAX', 10, 10000),
       message: 'Too many sensitive operations, please try again later.'
     }),
 

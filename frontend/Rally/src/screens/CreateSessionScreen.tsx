@@ -14,8 +14,8 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimeField from '../components/DateTimeField';
 import { useTranslation } from '../i18n/LanguageContext';
 import sessionApi, { CreateSessionRequest } from '../services/sessionApi';
 import { API_BASE_URL } from '../config/api';
@@ -97,7 +97,6 @@ export default function CreateSessionScreen() {
     });
     setShowTemplateModal(false);
   };
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   
   // Default to 2 hours from now
@@ -235,13 +234,6 @@ export default function CreateSessionScreen() {
     }
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      handleInputChange('scheduledAt', selectedDate);
-    }
-  };
-
   const handleShareModalClose = () => {
     setShowShareModal(false);
     // Navigate to session detail screen
@@ -331,23 +323,13 @@ export default function CreateSessionScreen() {
           />
 
           <Text style={styles.label}>{t.session.dateTime} *</Text>
-          <TouchableOpacity 
-            style={styles.dateInput} 
-            onPress={() => setShowDatePicker(true)}
-          >
-            <Text style={styles.dateText}>{formatDateTime(formData.scheduledAt)}</Text>
-            <Ionicons name="calendar" size={20} color="#007AFF" />
-          </TouchableOpacity>
-
-          {showDatePicker && (
-            <DateTimePicker
-              value={formData.scheduledAt}
-              mode="datetime"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={handleDateChange}
-              minimumDate={new Date()}
-            />
-          )}
+          <DateTimeField
+            value={formData.scheduledAt}
+            onChange={(date) => handleInputChange('scheduledAt', date)}
+            mode="datetime"
+            minimumDate={new Date()}
+            testID="session-datetime-field"
+          />
 
           <Text style={styles.label}>{t.session.location} *</Text>
           <TextInput
@@ -598,21 +580,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 16,
     backgroundColor: '#fff',
-  },
-  dateInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    backgroundColor: '#fff',
-  },
-  dateText: {
-    fontSize: 16,
-    color: '#333',
   },
   row: {
     flexDirection: 'row',

@@ -87,9 +87,18 @@ app.use(correlationIdMiddleware);
 app.use(morgan('combined'));
 
 // Rate limiting
+// Production ceiling stays 100 / 15 min. Local development gets a much higher
+// default so a test pass (hundreds of requests from one localhost IP) does not
+// hit 429s. `NODE_ENV=production` pins the limit regardless of env vars, so a
+// raised local ceiling can never weaken a deployed instance.
+const isProd = process.env.NODE_ENV === 'production';
+const limiterWindowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000');
+const limiterMax = parseInt(
+  process.env.RATE_LIMIT_MAX_REQUESTS || (isProd ? '100' : '1000000')
+);
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'), // Limit each IP to 100 requests per windowMs
+  windowMs: limiterWindowMs,
+  max: limiterMax,
   message: 'Too many requests from this IP, please try again later.',
   // The in-memory counter is shared by every suite in a Jest worker, which
   // makes unrelated suites interfere. Bypass under test only; production
