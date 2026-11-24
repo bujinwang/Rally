@@ -12,7 +12,7 @@ import {
   Switch,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimeField from '../components/DateTimeField';
 import { useSession } from '../contexts/SessionContext';
 import matchSchedulingApiService from '../services/matchSchedulingApi';
 import { CreateScheduledMatchData, SchedulingConflict } from '../types/matchScheduling';
@@ -44,8 +44,6 @@ const CreateMatchScreen = () => {
   });
 
   const [availablePlayers, setAvailablePlayers] = useState<Player[]>([]);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date());
   const [isLoading, setIsLoading] = useState(false);
   const [conflicts, setConflicts] = useState<SchedulingConflict[]>([]);
   const [isCheckingConflicts, setIsCheckingConflicts] = useState(false);
@@ -69,15 +67,11 @@ const CreateMatchScreen = () => {
     }
   };
 
-  const handleDateChange = (event: any, date?: Date) => {
-    setShowDatePicker(false);
-    if (date) {
-      setSelectedDate(date);
-      const isoString = date.toISOString();
-      setFormData(prev => ({ ...prev, scheduledAt: isoString }));
-      // Auto-check conflicts when date changes
-      checkConflicts({ ...formData, scheduledAt: isoString });
-    }
+  const handleDateChange = (date: Date) => {
+    const isoString = date.toISOString();
+    setFormData(prev => ({ ...prev, scheduledAt: isoString }));
+    // Auto-check conflicts when date changes
+    checkConflicts({ ...formData, scheduledAt: isoString });
   };
 
   const checkConflicts = async (data: CreateScheduledMatchData) => {
@@ -255,27 +249,14 @@ const CreateMatchScreen = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Date & Time</Text>
 
-          <TouchableOpacity
-            style={styles.dateButton}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <Text style={styles.dateButtonText}>
-              {formData.scheduledAt
-                ? new Date(formData.scheduledAt).toLocaleString()
-                : 'Select Date & Time'
-              }
-            </Text>
-          </TouchableOpacity>
-
-          {showDatePicker && (
-            <DateTimePicker
-              value={selectedDate}
-              mode="datetime"
-              display="default"
-              onChange={handleDateChange}
-              minimumDate={new Date()}
-            />
-          )}
+          <DateTimeField
+            value={formData.scheduledAt ? new Date(formData.scheduledAt) : undefined}
+            onChange={handleDateChange}
+            mode="datetime"
+            minimumDate={new Date()}
+            placeholder="Select Date & Time"
+            testID="match-datetime-field"
+          />
 
           <TextInput
             style={styles.input}
@@ -485,17 +466,6 @@ const styles = StyleSheet.create({
   textArea: {
     height: 80,
     textAlignVertical: 'top',
-  },
-  dateButton: {
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    alignItems: 'center',
-  },
-  dateButtonText: {
-    fontSize: 16,
-    color: '#333',
   },
   matchTypeContainer: {
     flexDirection: 'row',

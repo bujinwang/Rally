@@ -12,7 +12,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimeField from '../components/DateTimeField';
 import tournamentApi, { TournamentCreationData } from '../services/tournamentApi';
 
 type TournamentsStackParamList = {
@@ -58,9 +58,6 @@ const TournamentCreateScreen: React.FC = () => {
     ageRestriction: undefined,
   });
 
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  const [showDeadlinePicker, setShowDeadlinePicker] = useState(false);
   const [creating, setCreating] = useState(false);
 
   const updateFormData = (field: keyof TournamentCreationData, value: any) => {
@@ -152,14 +149,6 @@ const TournamentCreateScreen: React.FC = () => {
     }
   };
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', {
       hour: 'numeric',
@@ -225,39 +214,22 @@ const TournamentCreateScreen: React.FC = () => {
     </View>
   );
 
-  const renderDatePicker = (
-    label: string,
-    field: keyof TournamentCreationData,
-    showPicker: boolean,
-    setShowPicker: (show: boolean) => void
-  ) => (
-    <View style={styles.inputGroup}>
-      <Text style={[styles.label, { color: '#333' }]}>{label}</Text>
-      <TouchableOpacity
-        style={[styles.dateButton, { backgroundColor: '#f8f9fa' }]}
-        onPress={() => setShowPicker(true)}
-      >
-        <Text style={[styles.dateButtonText, { color: '#333' }]}>
-          {formData[field] ? formatDate(formData[field] as Date) : 'Select Date'}
-        </Text>
-        <Ionicons name="calendar-outline" size={20} color="#666" />
-      </TouchableOpacity>
-
-      {showPicker && (
-        <DateTimePicker
-          value={formData[field] as Date || new Date()}
+  const renderDatePicker = (label: string, field: keyof TournamentCreationData) => {
+    const currentValue = formData[field] as Date | undefined;
+    return (
+      <View style={styles.inputGroup}>
+        <Text style={[styles.label, { color: '#333' }]}>{label}</Text>
+        <DateTimeField
+          value={currentValue instanceof Date ? currentValue : new Date()}
+          onChange={(selectedDate) => updateFormData(field, selectedDate)}
           mode="date"
-          display="default"
-          onChange={(event, selectedDate) => {
-            setShowPicker(false);
-            if (selectedDate) {
-              updateFormData(field, selectedDate);
-            }
-          }}
+          placeholder="Select Date"
+          testID={`tournament-${String(field)}-field`}
+          style={{ marginBottom: 0 }}
         />
-      )}
-    </View>
-  );
+      </View>
+    );
+  };
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: '#f8f9fa' }]}>
@@ -319,9 +291,9 @@ const TournamentCreateScreen: React.FC = () => {
           Dates & Scheduling
         </Text>
 
-        {renderDatePicker('Start Date', 'startDate', showStartDatePicker, setShowStartDatePicker)}
-        {renderDatePicker('End Date (Optional)', 'endDate', showEndDatePicker, setShowEndDatePicker)}
-        {renderDatePicker('Registration Deadline', 'registrationDeadline', showDeadlinePicker, setShowDeadlinePicker)}
+        {renderDatePicker('Start Date', 'startDate')}
+        {renderDatePicker('End Date (Optional)', 'endDate')}
+        {renderDatePicker('Registration Deadline', 'registrationDeadline')}
       </View>
 
       {/* Venue */}
@@ -467,19 +439,6 @@ const styles = StyleSheet.create({
   pickerOptionText: {
     fontSize: 14,
     fontWeight: '500',
-  },
-  dateButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  dateButtonText: {
-    fontSize: 16,
   },
   createSection: {
     padding: 20,
